@@ -83,8 +83,10 @@ select.pick option{background:var(--win-lo); color:var(--text); text-shadow:none
 @keyframes blink{50%{opacity:.25}}
 .mi.lock{color:#56608f;text-decoration:line-through}
 .mi .v{color:var(--pick)}
+.more{font-size:20px;line-height:1;height:22px;padding:2px 0 0 30px;color:var(--pick);letter-spacing:.15em;text-shadow:inherit;cursor:pointer;user-select:none}
+.more.off{visibility:hidden;cursor:default}
 .txt{font-size:26px;line-height:1.15;color:var(--text);margin:6px 0 10px;max-height:min(52vh,430px);overflow-y:auto;padding-right:8px;scrollbar-width:thin}
-#cust{padding:4px 0 10px 4px}#cust .lbl{font-size:24px}
+#cust{padding:4px 8px 10px 4px;max-height:min(44vh,400px);overflow-y:auto;scrollbar-width:thin}#cust .lbl{font-size:24px}
 #cust .sw{width:26px;height:26px}
 #astr{width:100%;accent-color:var(--pick);margin:0 0 4px}
 .sws{flex-wrap:wrap}
@@ -215,7 +217,7 @@ const camera=new THREE.PerspectiveCamera(38,1,0.05,200);
 
 /* ---------- shared PS1 uniforms ---------- */
 const U={
-  uRes:{value:new THREE.Vector2(320,240)}, uSnap:{value:1}, uAffine:{value:1}, uDither:{value:1},
+  uRes:{value:new THREE.Vector2(320,240)}, uSnap:{value:1}, uAffine:{value:1}, uDither:{value:1}, uLevels:{value:31},
   uSunDir:{value:new THREE.Vector3(0.5,0.8,0.6).normalize()}, uFillDir:{value:new THREE.Vector3(-0.7,0.2,-0.5).normalize()},
   uAmb:{value:0.5}, uSun:{value:0.5}, uFill:{value:0.2},
   uFogNear:{value:5}, uFogFar:{value:20}, uFogColor:{value:new THREE.Color(SKY)}
@@ -240,7 +242,7 @@ void main(){
   vSpec=pow(max(dot(rf,normalize(mat3(viewMatrix)*uSunDir)),0.0),8.0);
 }`;
 const FS=`
-uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform vec3 uFogColor; uniform float uShine;
+uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform float uShine;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying float vEnv; varying float vSpec;
 float b2(vec2 p){ p=mod(p,2.0); if(p.x<1.0) return p.y<1.0?0.0:3.0; return p.y<1.0?2.0:1.0; }
 void main(){
@@ -258,7 +260,7 @@ void main(){
   if(uDither>0.5){
     vec2 p=floor(gl_FragCoord.xy);
     float b=(4.0*b2(p)+b2(floor(p*0.5)))/16.0-0.47;
-    c=floor(clamp(c+b/31.0,0.0,1.0)*31.0+0.5)/31.0;
+    c=floor(clamp(c+b/uLevels,0.0,1.0)*uLevels+0.5)/uLevels;
   }
   gl_FragColor=vec4(c,1.0);
 }`;
@@ -1020,10 +1022,18 @@ canvas.addEventListener('pointermove',e=>{
 ['pointerup','pointercancel'].forEach(t=>canvas.addEventListener(t,e=>{ptrs.delete(e.pointerId);pinch=0;}));
 canvas.addEventListener('wheel',e=>{e.preventDefault(); zoom=Math.max(0.5,Math.min(2.2,zoom*Math.exp(e.deltaY*0.001)));},{passive:false});
 
+/* ---------- pixel filter (Options > PIXELS and COLORS; both only show in the PS1 look) ----------
+   PIXELS: how many pixels tall the picture is rendered (it is then scaled up with hard edges): 240 is the normal PS1 look, lower is chunkier.
+   COLORS: how many shades per color channel the dithering rounds to: 31 = 15-bit (the PS1), 15 = 12-bit, 7 = 9-bit, 3 = 6-bit. */
+const PIX_STEPS=[['NORMAL',240],['CHUNKY',180],['HEAVY',120],['CRUSHED',80]];
+const COL_STEPS=[['15-BIT',31],['12-BIT',15],['9-BIT',7],['6-BIT',3]];
+let pixIdx=0, colIdx=0;
+function cyclePixels(){ if(!ps1) toggleLook(); pixIdx=(pixIdx+1)%PIX_STEPS.length; resize(); }
+function cycleColors(){ if(!ps1) toggleLook(); colIdx=(colIdx+1)%COL_STEPS.length; U.uLevels.value=COL_STEPS[colIdx][1]; }
 /* ---------- sizing ---------- */
 function resize(){
   const W=innerWidth,Hh=innerHeight,asp=W/Hh; let w,h;
-  if(ps1){ const s=240; if(asp>=1){h=s;w=Math.round(s*asp);} else {w=s;h=Math.round(s/asp);} }
+  if(ps1){ const s=PIX_STEPS[pixIdx][1]; if(asp>=1){h=s;w=Math.round(s*asp);} else {w=s;h=Math.round(s/asp);} }
   else { const r=Math.min(devicePixelRatio||1,2); w=Math.round(W*r); h=Math.round(Hh*r); }
   renderer.setSize(w,h,false); U.uRes.value.set(w,h);
   camera.aspect=asp; if(exploring) camera.setViewOffset(W,Hh,0,0,W,Hh); else if(asp>=0.9) camera.setViewOffset(W,Hh,-W*0.2,0,W,Hh); else camera.setViewOffset(W,Hh,0,Hh*0.17,W,Hh); camera.updateProjectionMatrix();
@@ -1731,6 +1741,8 @@ function initMainMenu(){
     anims:{name:'ANIMATIONS (TEMP)',get items(){ return names.map(n=>({t:n.toUpperCase(),v:()=>(current&&current.getClip().name===n)?'PLAYING':'',run:()=>play(n)})).concat([BACK]); }},
     options:{name:'OPTIONS',items:[
       {t:'LOOK',v:()=>ps1?'PS1':'MODERN',run:toggleLook},
+      {t:'PIXELS',v:()=>PIX_STEPS[pixIdx][0],run:cyclePixels},
+      {t:'COLORS',v:()=>COL_STEPS[colIdx][0],run:cycleColors},
       {t:'WORLD',v:()=>forest?'FOREST':'CLASSIC',run:()=>setWorld(!forest)},
       {t:'MUSIC',v:()=>musicOn?'ON':'OFF',run:()=>{ toggleMusic(); setTimeout(render,0); }},
       {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},
@@ -1740,28 +1752,40 @@ function initMainMenu(){
     /* Attribution: This work is based on "Low Poly Campfire" (https://sketchfab.com/3d-models/low-poly-campfire-695c62069ac44614acbfc6effcf7499d) by MrE_Sauce (https://sketchfab.com/MrE_Sauce) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Glint and falling-leaf sprites by Kaessis. */
     credits:{name:'CREDITS',text:['KNIGHT MODEL AND ART','BUILT BY YOU, BLOCKBENCH','AND A LOT OF PATIENCE','','ADVENTURER BASE MESH','FROM A FREE LOW-POLY PACK','','LOW POLY CAMPFIRE','BY MRE_SAUCE (SKETCHFAB)','LICENSED CC BY 4.0','','GLINT AND FALLING LEAF','SPRITES BY KAESSIS','','DARIEN GAP','BY LT','','LIVIN LOOSE','BY GEORGE CLANTON','','HIT GRUNTS','HARRY MASON','FROM SILENT HILL (KONAMI)','','SWORD SOUNDS','FROM CASTLEVANIA (KONAMI)','','WALKING SOUND','FROM DIGIMON WORLD (BANDAI)'],items:[BACK]}
   };
-  let cur='main', idx=0, btns=[];
+  let cur='main', idx=0, top=0, btns=[];
+  /* long lists scroll: only a window of rows is shown, with a "N MORE" marker above / below (click it, use the mouse wheel, or just keep pressing up / down) */
+  const MENU_MAX=8, uiEl=document.getElementById('ui');
+  function visRows(){ const small=innerWidth<=640, rowH=small?38:Math.min(52,Math.max(46,innerWidth*0.042*1.08+6)); return Math.max(4,Math.min(MENU_MAX,Math.floor((innerHeight-(small?300:330))/rowH))); }
+  function moreRow(dir,count,vis){ const d=document.createElement('div'); d.className='more'+(count>0?'':' off'); d.textContent=(dir<0?'\u25B2 ':'\u25BC ')+count+' MORE'; if(count>0) d.onclick=()=>scrollBy(dir*(vis-1)); return d; }
+  function scrollBy(n){
+    const items=SCREENS[cur].items, vis=visRows(); if(items.length<=vis) return;
+    top=Math.max(0,Math.min(top+n,items.length-vis)); if(idx<top) idx=top; else if(idx>=top+vis) idx=top+vis-1; render();
+  }
   function render(){
     const sc=SCREENS[cur]; scr.textContent=sc.name; root.innerHTML=''; btns=[];
     if(sc.text){ const d=document.createElement('div'); d.className='txt'; d.innerHTML=sc.text.map(l=>l||'&nbsp;').join('<br>'); root.appendChild(d); }
     cust.hidden=!sc.panel;
-    sc.items.forEach((it,i)=>{
-      const b=document.createElement('button'); b.className='mi'+(it.lock?' lock':'')+(i===idx?' on':'');
+    const items=sc.items, vis=visRows(), scrolls=items.length>vis;
+    if(scrolls){ if(idx<top) top=idx; if(idx>=top+vis) top=idx-vis+1; top=Math.max(0,Math.min(top,items.length-vis)); root.appendChild(moreRow(-1,top,vis)); } else top=0;
+    items.forEach((it,i)=>{
+      if(scrolls&&(i<top||i>=top+vis)) return;
+      const b=document.createElement('button'); b.className='mi'+(it.lock?' lock':'')+(i===idx?' on':''); b._i=i;
       b.innerHTML='<span>'+it.t+'</span>'+(it.v?'<span class="v">'+it.v()+'</span>':it.lock?'<span class="v">LOCKED</span>':'');
       b.onmouseenter=()=>{ if(idx!==i){ idx=i; mark(); blip(520,0.05); } };
       b.onclick=()=>{ idx=i; mark(); act(); };
       root.appendChild(b); btns.push(b);
     });
+    if(scrolls) root.appendChild(moreRow(1,items.length-top-vis,vis));
   }
-  function mark(){ btns.forEach((b,i)=>b.classList.toggle('on',i===idx)); }
-  function go(n){ cur=n; idx=0; render(); }
+  function mark(){ btns.forEach(b=>b.classList.toggle('on',b._i===idx)); }
+  function go(n){ cur=n; idx=0; top=0; render(); }
   function act(){
     const it=SCREENS[cur].items[idx];
     if(it.lock){ blip(140,0.14); toast('LOCKED'); return; }
     blip(880,0.09);
     if(it.go) go(it.go); else if(it.run){ it.run(); render(); }
   }
-  function move(d){ const n=SCREENS[cur].items.length; idx=(idx+d+n)%n; mark(); blip(520,0.05); }
+  function move(d){ const n=SCREENS[cur].items.length; idx=(idx+d+n)%n; blip(520,0.05); if(idx<top||idx>=top+visRows()) render(); else mark(); }
   addEventListener('keydown',e=>{
     if(e.target.tagName==='SELECT'||e.target.tagName==='INPUT') return;
     if(exploring) return;
@@ -1771,6 +1795,8 @@ function initMainMenu(){
     else if(k==='Escape'||k==='Backspace'){ if(cur!=='main'){ blip(300,0.08); go('main'); } }
     else if((k==='ArrowLeft'||k==='ArrowRight')&&SCREENS[cur].items[idx].run) act();
   });
+  uiEl.addEventListener('wheel',e=>{ if(exploring||SCREENS[cur].items.length<=visRows()) return; e.preventDefault(); blip(520,0.03); scrollBy(e.deltaY>0?1:-1); },{passive:false});
+  addEventListener('resize',()=>{ if(!exploring) render(); });
   render();
 }
 })();
