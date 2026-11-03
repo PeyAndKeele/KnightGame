@@ -2640,18 +2640,21 @@ function loadSfxSet(id){
 function playSfxSet(id,i,gain,rate,delay){
   try{
     if(!sfx) return;
-    const s=SFX_SETS[id]; if(!s||!s.bufs){ loadSfxSet(id); return; }
+    const s=SFX_SETS[id]; if(!s||!s.bufs){ const l=loadSfxSet(id), t0=performance.now(); if(l) l.then(()=>{ if(performance.now()-t0<1500&&SFX_SETS[id]&&SFX_SETS[id].bufs) playSfxSet(id,i,gain,rate,delay); }); return; }   // not decoded yet: play it the moment it is (if that is soon enough to still make sense)
     sfx.resume();
     const src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=cz(s.bufs[i]); src.playbackRate.value=rate||1; g.gain.value=gain;
     src.connect(g); g.connect(sfx.destination); src.start(sfx.currentTime+(delay||0));
   }catch(_){}
 }
+/* Voice 2 (the female lines) was recorded much hotter than voice 1. Each gain below is set so that a voice 2 line comes out at the same average (RMS) level as its voice 1 counterpart,
+   measured on the files as they play: grunt -3.2 dB, death grunt -2.4 dB, flaunt -4.2 dB, sword shout -4.9 dB, block shout -7.3 dB (each relative to the old 0.9 / 1.0 / 0.85 / 0.9). Raise one to make it louder. */
+const V2_GRUNT_GAIN=0.63, V2_DIE_GAIN=0.68, V2_FLAUNT_GAIN=0.62, V2_SWORD_GAIN=0.485, V2_BLOCK_GAIN=0.39;
 const SWORD_GAIN=0.75, SWORD_ONSET=[0.34,0,0], SWORD_CHOP_T=0.36;   // SWORD_ONSET: where the whoosh starts inside each file; SWORD_CHOP_T: clip time of the chop in the Swing animation
 const KNIFE_GAIN=0.8, KNIFE_PEAK=0.045;   // knife-sfx-data: FUEL_VAB_00000 knife swing, layered on every swing (sword and axe); KNIFE_PEAK = where its loudest hit sits inside the file
 const V2_SWORD_ONSET=[0.013,0.015,0.013];
 function playSword(ts){
   const i=Math.floor(Math.random()*3);
-  if(voice==='voice2') playSfxSet('v2-sword-sfx-data',i,0.85,1,Math.max(0,SWORD_CHOP_T/(ts||1)-V2_SWORD_ONSET[i]));
+  if(voice==='voice2') playSfxSet('v2-sword-sfx-data',i,V2_SWORD_GAIN,1,Math.max(0,SWORD_CHOP_T/(ts||1)-V2_SWORD_ONSET[i]));
   else playSfxSet('sword-sfx-data',i,SWORD_GAIN,1,Math.max(0,SWORD_CHOP_T/(ts||1)-SWORD_ONSET[i]));
   playSfxSet('knife-sfx-data',0,KNIFE_GAIN,1,Math.max(0,SWORD_CHOP_T/(ts||1)-KNIFE_PEAK));
 }
@@ -2667,7 +2670,7 @@ function footstepStep(){   // call once per frame, after the mixer has moved: pl
 }
 /* flaunt-sfx-data: SD_SWORD_00002 / 00004 (Castlevania). One of them, at random, plays over the flaunt song when Flaunt starts, a bit louder than the music. */
 const FLAUNT_SFX_GAIN=1.0;
-function playFlauntSfx(){ playSfxSet(voice==='voice2'?'v2-flaunt-sfx-data':'flaunt-sfx-data',Math.floor(Math.random()*2),FLAUNT_SFX_GAIN); }
+function playFlauntSfx(){ playSfxSet(voice==='voice2'?'v2-flaunt-sfx-data':'flaunt-sfx-data',Math.floor(Math.random()*2),FLAUNT_SFX_GAIN*(voice==='voice2'?V2_FLAUNT_GAIN:1)); }
 const ANIM_SFX={
   Flaunt:()=>playFlauntSfx(),
   AxeFlaunt:()=>playFlauntSfx(),
@@ -2682,11 +2685,11 @@ const DEATH_GRUNT=2;   // which of the three grunts Death uses (the longest one)
 function playGrunt(i){
   try{
     if(voice==='voice2'){
-      if(i===DEATH_GRUNT) playSfxSet('v2-die-data',0,0.9,1,0);
-      else playSfxSet('v2-grunt-data',Math.floor(Math.random()*4),0.9,1,0);
+      if(i===DEATH_GRUNT) playSfxSet('v2-die-data',0,V2_DIE_GAIN,1,0);
+      else playSfxSet('v2-grunt-data',Math.floor(Math.random()*4),V2_GRUNT_GAIN,1,0);
       return;
     }
-    if(!gruntBufs||!sfx){ loadGrunts(); return; }
+    if(!gruntBufs||!sfx){ const l=loadGrunts(), t0=performance.now(); if(l) l.then(()=>{ if(gruntBufs&&performance.now()-t0<1500) playGrunt(i); }); return; }
     sfx.resume();
     const src=sfx.createBufferSource(), g=sfx.createGain();
     src.buffer=cz(gruntBufs[(i>=0&&i<gruntBufs.length)?i:Math.floor(Math.random()*gruntBufs.length)]); g.gain.value=0.9;
@@ -2718,7 +2721,7 @@ function playBlockSfx(){
       if(!s2||!s2.bufs){ const l2=loadSfxSet('v2-block-sfx-data'); if(l2) l2.then(()=>{ if(SFX_SETS['v2-block-sfx-data']&&SFX_SETS['v2-block-sfx-data'].bufs) playBlockSfx(); }); return; }
       sfx.resume();
       const src0=sfx.createBufferSource(), g0=sfx.createGain(); src0.buffer=cz(blockBufs[0]); g0.gain.value=BLOCK_GAIN[0]; src0.connect(g0); g0.connect(sfx.destination); src0.start(sfx.currentTime);
-      const src1=sfx.createBufferSource(), g1=sfx.createGain(); src1.buffer=cz(s2.bufs[0]); g1.gain.value=0.9; src1.connect(g1); g1.connect(sfx.destination); src1.start(sfx.currentTime+Math.max(0,blockBufs[0].duration-V2_BLOCK_BURST+0.02));
+      const src1=sfx.createBufferSource(), g1=sfx.createGain(); src1.buffer=cz(s2.bufs[0]); g1.gain.value=V2_BLOCK_GAIN; src1.connect(g1); g1.connect(sfx.destination); src1.start(sfx.currentTime+Math.max(0,blockBufs[0].duration-V2_BLOCK_BURST+0.02));
       return;
     }
     sfx.resume();
@@ -2727,6 +2730,7 @@ function playBlockSfx(){
 }
 function blip(f,len){
   try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data');
+    ['v2-sword-sfx-data','v2-block-sfx-data','v2-grunt-data','v2-die-data','v2-flaunt-sfx-data','slime-atk-sfx-data','slime-hit-sfx-data','slime-die-sfx-data','slime-win-sfx-data'].forEach(loadSfxSet);   // voice 2 and the slimes too, so their very first play is not lost
     const o=sfx.createOscillator(), g=sfx.createGain(); o.type='square'; o.frequency.value=f; g.gain.value=0.045;
     o.connect(g); g.connect(sfx.destination); const t=sfx.currentTime; g.gain.setValueAtTime(0.045,t); g.gain.exponentialRampToValueAtTime(0.001,t+len); o.start(t); o.stop(t+len+0.02);
   }catch(_){}
