@@ -612,6 +612,60 @@ function setNight(on){
   if(nightGroup) nightGroup.visible=on;
   if(skyGroup) skyGroup.visible=!forest&&!on;
 }
+/* ---------- the start screen's sky marks: where the moon and the comet go ----------
+   SKY_REF is the window size the marks were drawn on (a screenshot of the start screen), SKY_MOON_PX the middle of the red circle (the moon), COMET.from / COMET.to the two ends of the white
+   arrow (the comet's path). startSkyRay turns a pixel of that screenshot into a ray through the start camera (the camera's own numbers, plus the picture being shifted right
+   for the menu), and skyHit finds where the ray meets a sphere around the sky's centre. */
+const SKY_REF={w:1536,h:749}, SKY_MOON_PX=[1377,186];
+function startSkyRay(px,py){
+  const H=playerH, T=new THREE.Vector3(homeTarget.x,homeTarget.y+H*START_TARGET_Y,homeTarget.z);
+  const fit=H/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov/2)))*1.5, d=fit*START_CAM_ZOOM, cp=Math.cos(START_CAM_PITCH);
+  const C=new THREE.Vector3(T.x+d*Math.sin(START_CAM_YAW)*cp, T.y+d*Math.sin(START_CAM_PITCH), T.z+d*Math.cos(START_CAM_YAW)*cp);
+  const f=T.clone().sub(C).normalize(), right=new THREE.Vector3().crossVectors(f,new THREE.Vector3(0,1,0)).normalize(), up=new THREE.Vector3().crossVectors(right,f);
+  const tv=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)), asp=SKY_REF.w/SKY_REF.h;
+  const nx=((px-0.2*SKY_REF.w)/SKY_REF.w)*2-1, ny=1-2*py/SKY_REF.h;      // the start picture sits 0.2 of the width to the right of centre (see applyView)
+  return {C:C, dir:f.add(right.multiplyScalar(nx*tv*asp)).add(up.multiplyScalar(ny*tv)).normalize()};
+}
+function skyHit(o,dir,r){   // o = ray origin relative to the sky's centre; the point where it leaves a sphere of radius r around that centre
+  const b=dir.dot(o), c=o.lengthSq()-r*r, s=-b+Math.sqrt(Math.max(0,b*b-c));
+  return o.clone().add(dir.clone().multiplyScalar(s));
+}
+/* ---------- the comet ----------
+   It crosses the sky along the white arrow (from -> to, pixels of the SKY_REF window), then is gone. It comes at random: `perMinute` is the average, the gap between two comets is
+   anywhere from half to one and a half times 60/perMinute seconds (so 4 a minute means one every 7.5 - 22.5 s, 15 s on average), and the first one turns up after 4 - 10 s.
+   new_comet.gif is a comet whose tail burns away frame by frame while its head stays put, so the flight (which fades smoothly in at the start and out at the end, COMET.fadeIn / fadeOut) plays frame 1 (full tail) for `hold` seconds and then runs the other
+   frames at the gif's own 170 ms, arriving at the end of the arrow just as only the head is left, which then disappears. The sprite turns to follow the path on screen, so the tail
+   always trails behind it, whichever way you are looking. It only exists while the night sky does. */
+const COMET={perMinute:4,from:[770,47],to:[468,182],hold:0.78,frameMs:170,frames:7,sizeDeg:6.5,fadeIn:0.45,fadeOut:0.55,head:[3.5,28.5],headDeg:-136.5,png:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOAAAAAgCAYAAAALxXRVAAAB1klEQVR42u2ZsUoDQRRF3wRBTBob/8P9CK0tBJEtFCEIdn6JnSBpbJY0Ftb6EfE/bGwSsXEtZMO6TIKIeXfYOecHzmb33bkzEzMAAAAAAACADTF5ea15CwCED4DwAUDPw0f4gfARPgDCB0D4CB/A5gY/9/ARfiB8hA9yDJ9yAAkfED6aF+DXhP8cuvH+XlANvbe7+wwqP2TeeotZJWmftl/5DpR+MzO1HwQNmFLzqdpH3Xw0bz8Y/OXDl/WTNHxKfwqt0/hV4aN1BQ0Y22bm1nw077ef1nVuwOajq5qnOe/l3Lzt8ybNlxHdyxbvCxe1vz38yr9ZlP6Utt19Yyv15kvNr9huqvyx5geHM2Dsw1fh0C0Aq/ze4cvZ326dYVHKznyLWVUr/e4NGFvxvMMX83sN39IvHP7FrKpNHL6ULl76fPETCN/6s0Zu/u4zKNpH7ZcE8OTsot4dfZqZ2c34wD18q/xew4c/Lf+wKINn87X9d7f3bqEfmJkdHZ/+WHWvJ8+ulx7r/B6k6vcavph/WJRB6Vf+/sur89o1gA1v84F065OS33MAV/m9t0Ntv4Ic/ctLmI/5u22PdpYP4T18qfm9wZ+nP8Rq+PFh6r764sefsx8ABHwB0QhLivJbZsEAAAAASUVORK5CYII='};   // head = the head's pixel in each 32x32 frame; headDeg = the way the head travels inside the gif (y up)
+let comet=null, cometAge=-1, cometWait=4+Math.random()*6, cometA=null, cometB=null, cometO=null, cometR=0;
+const _cp1=new THREE.Vector3(), _cp2=new THREE.Vector3(), _cd=new THREE.Vector3();
+function cometAt(t,out){ _cd.copy(cometA).lerp(cometB,t).normalize(); return out.copy(skyHit(cometO,_cd,cometR)); }   // straight on the start screen: the ray is blended between the two ends
+function initComet(H,groundY,grp,R){
+  const A=startSkyRay(COMET.from[0],COMET.from[1]), B=startSkyRay(COMET.to[0],COMET.to[1]);
+  cometR=R*0.88; cometA=A.dir.clone(); cometB=B.dir.clone(); cometO=A.C.clone().sub(new THREE.Vector3(homeTarget.x,groundY,homeTarget.z));
+  loadImg(COMET.png).then(img=>{
+    const t=new THREE.Texture(img); t.magFilter=t.minFilter=THREE.NearestFilter; t.generateMipmaps=false; t.repeat.set(1/COMET.frames,1); t.needsUpdate=true;
+    const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,alphaTest:0.05,opacity:0,depthWrite:false,fog:false}));
+    const size=2*cometR*Math.tan(THREE.MathUtils.degToRad(COMET.sizeDeg/2));
+    sp.scale.set(size,size,1); sp.center.set(COMET.head[0]/32,1-COMET.head[1]/32);   // placed and turned about the comet's head, not the middle of the picture
+    sp.visible=false; sp.renderOrder=4; sp.frustumCulled=false; grp.add(sp); comet=sp;
+  }).catch(e=>console.error('comet failed',e));
+}
+function updateComet(dt){
+  if(!comet) return;
+  if(cometAge<0){ cometWait-=dt; if(cometWait>0) return; cometAge=0; comet.visible=true; }
+  cometAge+=dt;
+  const age=ps1?Math.floor(cometAge*15)/15:cometAge, total=COMET.hold+(COMET.frames-1)*COMET.frameMs/1000;   // steps at 15 fps in the PS1 look, like the rest
+  if(age>=total){ comet.visible=false; cometAge=-1; const mean=60/COMET.perMinute; cometWait=mean*(0.5+Math.random()); return; }
+  const t=age/total, fr=age<COMET.hold?0:Math.min(COMET.frames-1,1+Math.floor((age-COMET.hold)/(COMET.frameMs/1000)));
+  cometAt(t,comet.position);
+  comet.material.map.offset.x=fr/COMET.frames;
+  const fi=Math.min(1,cometAge/COMET.fadeIn), fo=Math.min(1,Math.max(0,(total-cometAge)/COMET.fadeOut));   // the fade runs on real time (not the 15 fps steps) so it is smooth: in over `fadeIn` seconds, out over the last `fadeOut`
+  comet.material.opacity=fi*fi*(3-2*fi)*fo*fo*(3-2*fo);
+  // turn it to follow its path as seen from the camera right now
+  cometAt(Math.min(1,t+0.03),_cp2); _cp1.copy(comet.position).add(nightGroup.position).project(camera); _cp2.add(nightGroup.position).project(camera);
+  comet.material.rotation=Math.atan2(_cp2.y-_cp1.y,(_cp2.x-_cp1.x)*camera.aspect)-THREE.MathUtils.degToRad(COMET.headDeg);
+}
 function initNight(H,groundY){
   const grp=new THREE.Group(), R=Math.min(H*50,150); let sd=909; const rnd=()=>{ sd=(sd+0x6D2B79F5)|0; let t=Math.imul(sd^(sd>>>15),1|sd); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; };   // fixed seed: the same sky every time
   const pos=new Float32Array(NIGHT_STARS*3), col=new Float32Array(NIGHT_STARS*3);
@@ -622,13 +676,15 @@ function initNight(H,groundY){
   }
   const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.BufferAttribute(pos,3)); sg.setAttribute('color',new THREE.BufferAttribute(col,3));
   nightStars=new THREE.Points(sg,new THREE.PointsMaterial({size:1.7,sizeAttenuation:false,vertexColors:true,fog:false,depthWrite:false})); nightStars.frustumCulled=false; grp.add(nightStars);
-  /* the moon: low over the trees, a little to the right of where the menu camera looks, with a soft halo */
-  const vx=-Math.sin(yaw), vz=-Math.cos(yaw), a=0.2, el=0.42, rx=-vz, rz=vx;   // the camera's looking direction on the floor, and its right-hand side
-  const dx=vx*Math.cos(a)+rx*Math.sin(a), dz=vz*Math.cos(a)+rz*Math.sin(a), MR=R*0.9;
-  const moon=new THREE.Group(); moon.position.set(dx*Math.cos(el)*MR,Math.sin(el)*MR,dz*Math.cos(el)*MR);
+  /* the moon: up in the sky exactly where the red circle was drawn on the start screen (SKY_MOON_PX, in pixels of a SKY_REF-sized window), with a soft halo.
+     The spot is found by sending a ray through that pixel of the start camera and putting the moon where the ray meets the sky dome, so it sits in the same place relative to
+     him on any screen size that has the same shape; on a very different shape it shifts, like anything that really is in the sky. */
+  const MR=R*0.9, moonRay=startSkyRay(SKY_MOON_PX[0],SKY_MOON_PX[1]), G=new THREE.Vector3(homeTarget.x,groundY,homeTarget.z);
+  const moon=new THREE.Group(); moon.position.copy(skyHit(moonRay.C.clone().sub(G),moonRay.dir,MR));
   const halo=new THREE.Mesh(new THREE.CircleGeometry(H*5.5,20),new THREE.MeshBasicMaterial({color:0x7f93d9,transparent:true,opacity:0.16,depthWrite:false,fog:false}));
   const disc=new THREE.Mesh(new THREE.CircleGeometry(H*3.2,18),new THREE.MeshBasicMaterial({color:0xe6ecff,fog:false}));
   halo.position.z=-0.05; moon.add(halo); moon.add(disc); moon.frustumCulled=false; grp.add(moon); nightMoon=moon;
+  initComet(H,groundY,grp,R);
   grp.visible=night; scene.add(grp); nightGroup=grp;
 }
 function updateNight(dt){
@@ -636,6 +692,7 @@ function updateNight(dt){
   nightGroup.position.set(target.x,groundYNight,target.z);      // rides along with the camera, so the sky never gets closer
   nightStars.rotation.y+=dt*0.006;                                // the stars turn very slowly
   nightMoon.lookAt(camera.position);
+  updateComet(dt);
 }
 let groundYNight=0;
 
