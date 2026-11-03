@@ -2851,7 +2851,7 @@ function initMainMenu(){
   const BACK={t:'BACK',go:'main'};
   const SCREENS={
     start:{name:'PRESS START',items:[{t:'START',run:startGame}]},
-    main:{name:'MAIN MENU',items:[{t:'WALK AROUND',run:startExplore},{t:'MAP',run:openMap},{t:'CUSTOMIZE',go:'custom'},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'},{t:'START SCREEN',run:toStartScreen}]},
+    main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'CUSTOMIZE',go:'custom'},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'},{t:'START SCREEN',run:toStartScreen}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
     anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':'SWORD',run:toggleStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
