@@ -19,6 +19,7 @@ html{height:100%; scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0; height:100%; background:var(--sky); overflow:hidden; font-family:"VT323","Courier New",monospace; color:var(--text)}
 canvas{position:fixed; inset:0; width:100%; height:100%; image-rendering:pixelated; image-rendering:crisp-edges; touch-action:none; cursor:grab; display:block}
 canvas:active{cursor:grabbing}
+body.startscr canvas,body.startscr canvas:active{cursor:default}   /* the start screen's camera is fixed */
 .win{
   position:fixed; left:calc(16px + env(safe-area-inset-left,0px)); top:calc(16px + env(safe-area-inset-top,0px));
   width:200px; padding:12px 14px 10px;
@@ -439,11 +440,11 @@ function toggleShine(){
 
 /* ---------- state ---------- */
 let exploring=false, ps1=true, spin=false, paused=false, mixer=null, actions={}, names=[], menuNames=[], current=null;
-let mapMode=false, mapS=0, mapDir=0, mapViewK=1;   // the map (see MAP below): mapS 0 = menu camera ... 3 = the map, mapDir +1 opening / -1 closing / 0 resting, mapViewK 1 = picture shifted right for the menu ... 0 = centered
+let mapMode=false, startScr=false, mapS=0, mapDir=0, mapViewK=1;   // the map (see MAP below): mapS 0 = menu camera ... 3 = the map, mapDir +1 opening / -1 closing / 0 resting, mapViewK 1 = picture shifted right for the menu ... 0 = centered
 let yaw=Math.PI+0.65, pitch=0.1, zoom=0.82, baseDist=5, target=new THREE.Vector3();
 /* seated pose: Pose2 shows the rock and now and then plays the Pose2_randomevent look-around */
 const SEAT_CLIP='Pose2', EVT_CLIP='Pose2_randomevent';
-/* the start screen: he sits hunched on the same rock in Pose3 (the rig's own clip, embedded as pose3-data), at night; START turns the lights on and goes to the main menu with Pose2 */
+/* the start screen: he sits hunched in Pose3 (the rig's own clip, embedded as pose3-data) under a fixed camera; START goes to the main menu with Pose2. It is night throughout unless OPTIONS > TIME says otherwise */
 const START_CLIP='Pose3';
 /* The animation menus list ONE entry each for Idle, Swing and Flaunt. When the Axe is the weapon in his hand, that entry plays the axe's own clip
    (AxeIdle / AxeSwing / AxeFlaunt) instead, so those three never get entries of their own. */
@@ -534,7 +535,8 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   mixer.addEventListener('loop',e=>{ if(evtDue&&e.action===current&&e.action.getClip().name===SEAT_CLIP) evtGo=true; });
   mixer.addEventListener('loop',e=>{ const n=e.action.getClip().name; if(e.action===current&&ANIM_SFX_LOOPS[n]) ANIM_SFX[n](); });
   buildMenu(); play(names.indexOf(START_CLIP)>=0?START_CLIP:(names.indexOf(SEAT_CLIP)>=0?SEAT_CLIP:names[0])); initMainMenu();
-  if(actions[START_CLIP]) setNight(true);
+  setNight(true);   // night is the default look
+  if(actions[START_CLIP]){ startCam(); if(rockMesh) rockMesh.visible=false; }   // the start screen's low camera; he sits in Pose3 without the rock
 },function(e){console.error(e);const el=document.getElementById('err');el.textContent='Could not load the model: '+String((e&&e.message)||e).slice(0,160);el.style.display='block';});
 
 /* ---------- plume color ---------- */
@@ -590,11 +592,14 @@ function setWorld(f){
   setSwitch('world',f,f?'Forest':'Classic');
 }
 document.getElementById('world').onclick=()=>setWorld(!forest);
-/* ---------- night (the start screen): a dark blue sky and fog, every surface dimmed and tinted, stars and a moon ----------
-   NIGHT_TINT is what every surface is multiplied by, NIGHT_FOG the fog near / far in knight-heights (closer than by day, so the dark closes in). */
+/* ---------- night: a dark blue sky and fog, every surface dimmed and tinted, stars and a moon ----------
+   It is on all the time; OPTIONS > TIME switches it to day. NIGHT_TINT is what every surface is multiplied by, NIGHT_FOG the fog near / far in knight-heights (closer than by day,
+   so the dark closes in). setNight only changes the look - where the camera sits is startCam() (the start screen) and menuCam() (the main menu). */
 const SKY_NIGHT=0x0a0f2a, NIGHT_TINT=[0.45,0.52,0.82], NIGHT_FOG=[1.9,4.2], NIGHT_STARS=240;
 const START_CAM_YAW=Math.PI+0.55, START_CAM_PITCH=-0.52, START_CAM_ZOOM=0.28, START_TARGET_Y=0.38;
 let nightGroup=null, nightStars=null, nightMoon=null, nightFogDay=null;
+function startCam(){ yaw=START_CAM_YAW; pitch=START_CAM_PITCH; zoom=START_CAM_ZOOM; target.set(homeTarget.x, homeTarget.y+playerH*START_TARGET_Y, homeTarget.z); }   // low and close, looking up at him
+function menuCam(){ yaw=Math.PI+0.65; pitch=0.1; zoom=0.82; target.copy(homeTarget); }                                                                              // the usual menu view
 function setNight(on){
   night=on; const sky=night?SKY_NIGHT:(forest?SKY_FOREST:SKY_CLASSIC);
   renderer.setClearColor(sky); U.uFogColor.value.setHex(sky);
@@ -603,13 +608,7 @@ function setNight(on){
   if(on){
     if(!nightFogDay) nightFogDay=[U.uFogNear.value,U.uFogFar.value];
     U.uFogNear.value=playerH*NIGHT_FOG[0]; U.uFogFar.value=playerH*NIGHT_FOG[1];
-    yaw=START_CAM_YAW; pitch=START_CAM_PITCH; zoom=START_CAM_ZOOM;
-    target.set(homeTarget.x, homeTarget.y+playerH*START_TARGET_Y, homeTarget.z);
-    if(rockMesh) rockMesh.visible=false;
-  } else {
-    if(nightFogDay){ U.uFogNear.value=nightFogDay[0]; U.uFogFar.value=nightFogDay[1]; nightFogDay=null; }
-    yaw=Math.PI+0.65; pitch=0.1; zoom=0.82; target.copy(homeTarget);
-  }
+  } else if(nightFogDay){ U.uFogNear.value=nightFogDay[0]; U.uFogFar.value=nightFogDay[1]; nightFogDay=null; }
   if(nightGroup) nightGroup.visible=on;
   if(skyGroup) skyGroup.visible=!forest&&!on;
 }
@@ -1605,13 +1604,13 @@ addEventListener('contextmenu',e=>e.preventDefault());   // right-drag orbits th
 const ptrs=new Map(); let pinch=0;
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,[e.clientX,e.clientY]); pinch=0;});
 canvas.addEventListener('pointermove',e=>{
-  const p=ptrs.get(e.pointerId); if(!p||mapMode) return;
+  const p=ptrs.get(e.pointerId); if(!p||mapMode||startScr) return;
   if(ptrs.size===1){ yaw-=(e.clientX-p[0])*0.01; pitch=Math.max(-0.35,Math.min(1.2,pitch+(e.clientY-p[1])*0.008)); }
   ptrs.set(e.pointerId,[e.clientX,e.clientY]);
   if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a[0]-b[0],a[1]-b[1]); if(pinch) zoom=Math.max(0.5,Math.min(2.2,zoom*pinch/d)); pinch=d; }
 });
 ['pointerup','pointercancel'].forEach(t=>canvas.addEventListener(t,e=>{ptrs.delete(e.pointerId);pinch=0;}));
-canvas.addEventListener('wheel',e=>{e.preventDefault(); if(mapMode) return; zoom=Math.max(0.5,Math.min(2.2,zoom*Math.exp(e.deltaY*0.001)));},{passive:false});
+canvas.addEventListener('wheel',e=>{e.preventDefault(); if(mapMode||startScr) return; zoom=Math.max(0.5,Math.min(2.2,zoom*Math.exp(e.deltaY*0.001)));},{passive:false});
 
 /* ---------- pixel filter (Options > PIXELS and COLORS; both only show in the PS1 look) ----------
    PIXELS: how many pixels tall the picture is rendered (it is then scaled up with hard edges): 240 is the normal PS1 look, lower is chunkier.
@@ -2526,7 +2525,7 @@ const STEP=1/15; let acc=0, last=performance.now();
 function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min((now-last)/1000,0.1); last=now;
-  if(spin&&!paused&&!mapMode) yaw+=dt*0.6;
+  if(spin&&!paused&&!mapMode&&!startScr) yaw+=dt*0.6;
   if(exploring&&!paused&&playerRig){ if(dungeon) dungeonStep(dt); else exploreStep(dt); }
   if(!paused&&!evtPlaying&&current&&current.getClip().name===SEAT_CLIP&&actions[EVT_CLIP]){ evtClock+=dt; if(evtClock>=evtNext) evtDue=true; }
   if(mixer&&!paused){
@@ -2804,6 +2803,7 @@ function initMainMenu(){
       {t:'PIXELS',v:()=>PIX_STEPS[pixIdx][0],run:cyclePixels},
       {t:'COLORS',v:()=>COL_STEPS[colIdx][0],run:cycleColors},
       {t:'WORLD',v:()=>forest?'FOREST':'CLASSIC',run:()=>setWorld(!forest)},
+      {t:'TIME',v:()=>night?'NIGHT':'DAY',run:()=>setNight(!night)},
       {t:'MUSIC',v:()=>musicOn?'ON':'OFF',run:()=>{ toggleMusic(); setTimeout(render,0); }},
       {t:'BITCRUSH',v:()=>crushOn?'ON':'OFF',run:toggleCrush},
       {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},
@@ -2813,16 +2813,16 @@ function initMainMenu(){
     /* Attribution: This work is based on "Low Poly Campfire" (https://sketchfab.com/3d-models/low-poly-campfire-695c62069ac44614acbfc6effcf7499d) by MrE_Sauce (https://sketchfab.com/MrE_Sauce) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Glint and falling-leaf sprites by Kaessis. */
     credits:{name:'CREDITS',text:['KNIGHT MODEL AND ART','BUILT BY YOU, BLOCKBENCH','AND A LOT OF PATIENCE','','ADVENTURER BASE MESH','FROM A FREE LOW-POLY PACK','','LOW POLY CAMPFIRE','BY MRE_SAUCE (SKETCHFAB)','LICENSED CC BY 4.0','','GLINT AND FALLING LEAF','SPRITES BY KAESSIS','','DARIEN GAP','BY LT','','LIVIN LOOSE','BY GEORGE CLANTON','','HIT GRUNTS','HARRY MASON','FROM SILENT HILL (KONAMI)','','SWORD SOUNDS','FROM CASTLEVANIA (KONAMI)','','WALKING SOUND','FROM DIGIMON WORLD (BANDAI)'],items:[BACK]}
   };
-  /* START: fade to black, then the lights come up (day), he gets up from Pose3 into the usual seated Pose2, and the main menu opens */
+  /* START: fade to black, then he gets up from Pose3 into the usual seated Pose2, the camera moves to the normal menu view, and the main menu opens */
   const fadeEl=document.getElementById('fade'); let startBusy=false;
   function startGame(){
     if(startBusy) return; startBusy=true; fadeEl.classList.add('on');
-    setTimeout(function(){ setNight(false); play(SEAT_CLIP); go('main'); fadeEl.classList.remove('on'); startBusy=false; },700);
+    setTimeout(function(){ menuCam(); play(SEAT_CLIP); go('main'); fadeEl.classList.remove('on'); startBusy=false; },700);
   }
-  /* START SCREEN (last entry of the main menu): the way back to where the game began - fade to black, back to night with him hunched in Pose3, and the PRESS START menu */
+  /* START SCREEN (last entry of the main menu): the way back to where the game began - fade to black, the low start camera, him hunched in Pose3, and the PRESS START menu */
   function toStartScreen(){
     if(startBusy||!actions[START_CLIP]) return; startBusy=true; fadeEl.classList.add('on');
-    setTimeout(function(){ play(START_CLIP); setNight(true); go('start'); fadeEl.classList.remove('on'); startBusy=false; },700);
+    setTimeout(function(){ play(START_CLIP); startCam(); go('start'); fadeEl.classList.remove('on'); startBusy=false; },700);
   }
   let cur=actions[START_CLIP]?'start':'main', idx=0, top=0, btns=[];
   /* long lists scroll: only a window of rows is shown, with a "N MORE" marker above / below (click it, use the mouse wheel, or just keep pressing up / down) */
@@ -2835,6 +2835,7 @@ function initMainMenu(){
   }
   function render(){
     const sc=SCREENS[cur]; scr.textContent=sc.name; root.innerHTML=''; btns=[];
+    startScr=(cur==='start'); document.body.classList.toggle('startscr',startScr);   // the start screen's camera can't be dragged
     if(sc.text){ const d=document.createElement('div'); d.className='txt'; d.innerHTML=sc.text.map(l=>l||'&nbsp;').join('<br>'); root.appendChild(d); }
     cust.hidden=!sc.panel;
     const items=sc.items, vis=visRows(), scrolls=items.length>vis;
