@@ -2851,7 +2851,7 @@ function initMainMenu(){
   const BACK={t:'BACK',go:'main'};
   const SCREENS={
     start:{name:'PRESS START',items:[{t:'START',run:startGame}]},
-    main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'CUSTOMIZE',go:'custom'},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'},{t:'START SCREEN',run:toStartScreen}]},
+    main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'CUSTOMIZE',go:'custom'},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
     anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':'SWORD',run:toggleStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
@@ -2876,7 +2876,7 @@ function initMainMenu(){
     if(startBusy) return; startBusy=true; fadeEl.classList.add('on');
     setTimeout(function(){ menuCam(); play(SEAT_CLIP); go('main'); fadeEl.classList.remove('on'); startBusy=false; },700);
   }
-  /* START SCREEN (last entry of the main menu): the way back to where the game began - fade to black, the low start camera, him hunched in Pose3, and the PRESS START menu */
+  /* START SCREEN (Escape / Backspace on the main menu): the way back to where the game began - fade to black, the low start camera, him hunched in Pose3, and the PRESS START menu */
   function toStartScreen(){
     if(startBusy||!actions[START_CLIP]) return; startBusy=true; fadeEl.classList.add('on');
     setTimeout(function(){ play(START_CLIP); startCam(); go('start'); fadeEl.classList.remove('on'); startBusy=false; },700);
@@ -2922,7 +2922,7 @@ function initMainMenu(){
     const k=e.key;
     if(k==='ArrowDown'||k==='s') move(1); else if(k==='ArrowUp'||k==='w'&&false) move(-1);
     else if(k==='Enter'||k===' ') act();
-    else if(k==='Escape'||k==='Backspace'){ if(cur!=='main'&&cur!=='start'){ blip(300,0.08); go('main'); } }
+    else if(k==='Escape'||k==='Backspace'){ if(cur==='main'){ if(!startBusy){ blip(300,0.08); toStartScreen(); } } else if(cur!=='start'){ blip(300,0.08); go('main'); } }
     else if((k==='ArrowLeft'||k==='ArrowRight')&&SCREENS[cur].items[idx].run) act();
   });
   uiEl.addEventListener('wheel',e=>{ if(exploring||SCREENS[cur].items.length<=visRows()) return; e.preventDefault(); blip(520,0.03); scrollBy(e.deltaY>0?1:-1); },{passive:false});
