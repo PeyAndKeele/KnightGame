@@ -2620,7 +2620,7 @@ function frame(now){
     if(swingDone){ swingDone=false; endSwing(); }
     if(flauntDone){ flauntDone=false; if(current===actions.AxeFlaunt) play(FLAUNT_IDLE); }   // AxeFlaunt has played through: carry on into its idle instead of freezing on the last frame
   }
-  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); }
+  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); inspectStep(dt); }
   shopSync(); if(mapMode) mapStep(dt);   // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
   if(!mapMode){
     const d=(camera.userData.fit||5)*zoom, cp=Math.cos(pitch);
@@ -2628,7 +2628,7 @@ function frame(now){
     camera.lookAt(target);
   }
   occUpdate();   // where the characters are on screen, for the see-through obstacles
-  renderer.render(scene,camera);
+  if(inspect.it&&inspect.k>0.002) inspectRender(); else renderer.render(scene,camera);
   if(dungeon) barsUpdate(dt);
 }
 requestAnimationFrame(frame);
@@ -3009,10 +3009,106 @@ function shopActivate(){   // Enter / Space / a click on the highlighted row
   else if(shopCur>=shopItems.length) shopBack();
   else { blip(880,0.09); if(window.toast) window.toast('COMING SOON'); }   // (nothing to pay with yet)
 }
+/* ---------- inspecting an item in the BUY list (Resident Evil style) ----------
+   The highlighted item leaves its shelf, flies to the front of the camera and turns slowly at a tilt. Everything else (the stall, the keeper, the forest) is blurred and darkened;
+   the menu (HTML) and the item stay sharp. How: the item lives on its own layer (1). The world is drawn without it into a render target, blurred in two passes while it is darkened
+   onto the screen, and then the item is drawn on top with a fresh depth buffer. Moving off the item, leaving BUY or leaving the shop sends it back to its shelf.
+   dist:  how far in front of the camera it floats, in knight heights.      at: where on the screen it sits, as -1..1 (x, y) - right of center, clear of the menu.
+   size:  its longest side as a fraction of the screen's height (sizeBy: a multiplier per item).      tilt: lean toward the camera and sideways, in radians.      spin: radians per second.
+   blur:  blur strength at full effect (pixels of the 240p picture; scaled up for the Modern look).      dark: [middle, edges] brightness of the world at full effect.
+   ease:  seconds for it to settle (fly in / out and the fade).      light: the glint on the metal while inspecting (position is relative to the item, in item-sizes). */
+const INSPECT={dist:1.2, at:[0.30,0.0], size:0.56, sizeBy:{POTION:0.75}, tilt:[0.55,-0.5], spin:1.05, blur:2.6, dark:[0.46,0.20], ease:0.1, light:{at:[-0.7,0.9,0.8],color:[1.0,0.9,0.72],intensity:1.5,spec:16}};
+const inspect={k:0, it:null, grp:null, fly:0, spin:0, shelf:null, saved:null, center:new THREE.Vector3(), maxDim:1, rtA:null, rtB:null, mat:null, quad:null, quadScene:null, quadCam:null};
+const _iv=new THREE.Vector3(), _iv2=new THREE.Vector2(), _ix=new THREE.Vector3(), _iy=new THREE.Vector3(), _iz=new THREE.Vector3(), _ip=new THREE.Vector3(), _iq=new THREE.Quaternion(), _iq2=new THREE.Quaternion(), _iq3=new THREE.Quaternion(), _ie=new THREE.Euler(), _iY=new THREE.Vector3(0,1,0), _tp=new THREE.Vector3();
+function inspectBegin(it){
+  const h=it.holder; if(!h||!h.parent) return;
+  h.updateWorldMatrix(true,false);
+  const sp=new THREE.Vector3(), sq=new THREE.Quaternion(), ss=new THREE.Vector3(); h.matrixWorld.decompose(sp,sq,ss);   // where it hangs now, in the world
+  inspect.saved={parent:h.parent,pos:h.position.clone(),quat:h.quaternion.clone(),scl:h.scale.clone()}; inspect.shelf={p:sp,q:sq,s:ss.x};
+  const scratch=new THREE.Group(); scratch.add(h); h.position.set(0,0,0); h.quaternion.identity(); h.scale.set(1,1,1); scratch.updateMatrixWorld(true);   // measure it on its own
+  const box=new THREE.Box3().setFromObject(h), sz=box.getSize(new THREE.Vector3()); box.getCenter(inspect.center); inspect.maxDim=Math.max(sz.x,sz.y,sz.z)||1;
+  const grp=new THREE.Group(), pivot=new THREE.Group(); pivot.position.copy(inspect.center).negate(); pivot.add(h); grp.add(pivot); scene.add(grp);   // turns about its own middle
+  h.traverse(o=>o.layers.set(1));
+  inspect.grp=grp; inspect.it=it; inspect.fly=0;
+}
+function inspectEnd(){
+  const it=inspect.it; if(!it) return; const h=it.holder, S=inspect.saved;
+  h.traverse(o=>o.layers.set(0)); S.parent.add(h); h.position.copy(S.pos); h.quaternion.copy(S.quat); h.scale.copy(S.scl);
+  scene.remove(inspect.grp); inspect.grp=null; inspect.it=null;
+}
+function inspectStep(dt){
+  const inShop=!!(shopGroup&&shopGroup.visible&&shopT>=0);   // (still true while the shop fades out, so the item flies home and the dimming lifts before the black)
+  let want=null; if(inShop&&shopView==='buy'&&shopSel>=0){ const it=shopItems[shopSel]; if(it&&it.holder&&it.holder.parent) want=it; }
+  if(!inShop){ inspectEnd(); inspect.k=0; inspect.fly=0; return; }
+  if(want&&want!==inspect.it){ inspectEnd(); inspectBegin(want); }   // a new pick: the old one goes back to its shelf at once, the new one flies out (the dimming carries on)
+  const a=1-Math.exp(-dt/INSPECT.ease), t=want?1:0;
+  inspect.k+=(t-inspect.k)*a; inspect.fly+=(t-inspect.fly)*a;
+  if(!want){ if(inspect.k<0.003) inspect.k=0; if(inspect.fly<0.004) inspectEnd(); }
+  else { if(inspect.k>0.997) inspect.k=1; if(inspect.fly>0.997) inspect.fly=1; }
+  inspect.spin+=dt*INSPECT.spin;
+}
+function inspectPose(){   // done at draw time, so it uses the camera exactly as it is drawn
+  const g=inspect.grp; if(!g) return;
+  camera.updateMatrixWorld(true);
+  const d=INSPECT.dist*playerH, Hw=2*d*Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+  _tp.set(INSPECT.at[0],INSPECT.at[1],0.5).unproject(camera).sub(camera.position).normalize().multiplyScalar(d).add(camera.position);   // the spot in front of the camera
+  _ie.set(INSPECT.tilt[0],0,INSPECT.tilt[1]); _iq.setFromEuler(_ie); _iq2.setFromAxisAngle(_iY,inspect.spin);
+  _iq3.copy(camera.quaternion).multiply(_iq).multiply(_iq2);   // facing the camera, leaning, and turning about its own axis
+  const ts=INSPECT.size*(INSPECT.sizeBy[inspect.it.label]||1)*Hw/inspect.maxDim, S=inspect.shelf;
+  const e=inspect.fly*inspect.fly*(3-2*inspect.fly);
+  _ip.copy(inspect.center).multiplyScalar(S.s).applyQuaternion(S.q).add(S.p);   // the shelf pose, as the position of the item's middle
+  g.position.lerpVectors(_ip,_tp,e); g.quaternion.copy(S.q).slerp(_iq3,e); g.scale.setScalar(S.s+(ts-S.s)*e);
+  g.userData.hw=Hw;
+}
+function inspectEnsure(w,h){
+  if(inspect.rtA&&inspect.rtA.width===w&&inspect.rtA.height===h) return;
+  if(inspect.rtA){ inspect.rtA.dispose(); inspect.rtB.dispose(); }
+  const o={minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat};
+  inspect.rtA=new THREE.WebGLRenderTarget(w,h,o); inspect.rtB=new THREE.WebGLRenderTarget(w,h,Object.assign({depthBuffer:false},o));
+  if(!inspect.mat){
+    inspect.mat=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,
+      uniforms:{tex:{value:null},step:{value:new THREE.Vector2()},k:{value:0},fin:{value:0},dk:{value:new THREE.Vector2(0.5,0.2)}},
+      vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
+      fragmentShader:'uniform sampler2D tex; uniform vec2 step; uniform float k; uniform float fin; uniform vec2 dk; varying vec2 vUv;\n'
+        +'void main(){\n'
+        +'  vec3 c=texture2D(tex,vUv).rgb*0.2270270;\n'
+        +'  c+=(texture2D(tex,vUv+step).rgb+texture2D(tex,vUv-step).rgb)*0.1945946;\n'
+        +'  c+=(texture2D(tex,vUv+step*2.0).rgb+texture2D(tex,vUv-step*2.0).rgb)*0.1216216;\n'
+        +'  c+=(texture2D(tex,vUv+step*3.0).rgb+texture2D(tex,vUv-step*3.0).rgb)*0.0540541;\n'
+        +'  c+=(texture2D(tex,vUv+step*4.0).rgb+texture2D(tex,vUv-step*4.0).rgb)*0.0162162;\n'
+        +'  if(fin>0.5){   // the second pass also darkens: dimmer toward the edges, and a little of the colour drained\n'
+        +'    float v=smoothstep(0.95,0.15,length((vUv-0.5)*vec2(1.0,0.85)));\n'
+        +'    c=mix(c,vec3(dot(c,vec3(0.3,0.5,0.2))),0.3*k);\n'
+        +'    c*=mix(1.0,mix(dk.y,dk.x,v),k);\n'
+        +'  }\n'
+        +'  gl_FragColor=vec4(c,1.0);\n}'});
+    inspect.quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),inspect.mat); inspect.quad.frustumCulled=false;
+    inspect.quadScene=new THREE.Scene(); inspect.quadScene.add(inspect.quad); inspect.quadCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  }
+}
+function inspectRender(){
+  const sz=renderer.getDrawingBufferSize(_iv2), w=sz.x, h=sz.y; inspectEnsure(w,h); inspectPose();
+  const M=inspect.mat, k=inspect.k, r=INSPECT.blur*k*h/240;   // (240 = the PS1 picture's height, so the Modern look blurs as much on screen)
+  renderer.setRenderTarget(inspect.rtA); renderer.render(scene,camera);   // the world, without the item (it is on layer 1)
+  M.uniforms.k.value=k; M.uniforms.dk.value.set(INSPECT.dark[0],INSPECT.dark[1]);
+  M.uniforms.tex.value=inspect.rtA.texture; M.uniforms.step.value.set(r/w,0); M.uniforms.fin.value=0;
+  renderer.setRenderTarget(inspect.rtB); renderer.render(inspect.quadScene,inspect.quadCam);   // blurred sideways
+  M.uniforms.tex.value=inspect.rtB.texture; M.uniforms.step.value.set(0,r/h); M.uniforms.fin.value=1;
+  renderer.setRenderTarget(null); renderer.render(inspect.quadScene,inspect.quadCam);   // blurred up and down, darkened, onto the screen
+  // the item on top: its own light, no night tint, no fog
+  const L=INSPECT.light, Hw=inspect.grp.userData.hw||1, P=U.uLampP.value, P2=U.uLamp2P.value;
+  const sv={lp:U.uLampPos.value.clone(), lc:U.uLampCol.value.clone(), P:P.clone(), P2:P2.clone(), n:U.uNight.value.clone(), fn:U.uFogNear.value, ff:U.uFogFar.value};
+  _ix.setFromMatrixColumn(camera.matrixWorld,0); _iy.setFromMatrixColumn(camera.matrixWorld,1); _iz.setFromMatrixColumn(camera.matrixWorld,2);
+  U.uLampPos.value.copy(inspect.grp.position).addScaledVector(_ix,L.at[0]*Hw*INSPECT.size).addScaledVector(_iy,L.at[1]*Hw*INSPECT.size).addScaledVector(_iz,L.at[2]*Hw*INSPECT.size);
+  U.uLampCol.value.set(L.color[0],L.color[1],L.color[2]); P.set(Hw*3,L.intensity,L.spec,0); P2.y=0;
+  U.uNight.value.set(1,1,1); U.uFogNear.value=1e4; U.uFogFar.value=2e4;
+  camera.layers.set(1); renderer.autoClear=false; renderer.clearDepth(); renderer.render(scene,camera); renderer.autoClear=true; camera.layers.set(0);
+  U.uLampPos.value.copy(sv.lp); U.uLampCol.value.copy(sv.lc); P.copy(sv.P); P2.copy(sv.P2); U.uNight.value.copy(sv.n); U.uFogNear.value=sv.fn; U.uFogFar.value=sv.ff;
+}
 function shopSpin(dt){   // the picked item turns about its vertical axis; the others ease back to how they hang
   shopItems.forEach((it,i)=>{
     const h=it.holder; if(!h) return;
-    if(i===shopSel) h.rotation.y+=dt*1.4;
+    if(i===shopSel&&inspect.it!==it) h.rotation.y+=dt*1.4;
     else if(h.rotation.y!==0){ const r=h.rotation.y, home=Math.round(r/(Math.PI*2))*Math.PI*2; h.rotation.y=Math.abs(r-home)<0.01?0:r-(r-home)*Math.min(1,dt*6); }
   });
 }
