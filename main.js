@@ -15,7 +15,7 @@ const U={
   uSunDir:{value:new THREE.Vector3(0.5,0.8,0.6).normalize()}, uFillDir:{value:new THREE.Vector3(-0.7,0.2,-0.5).normalize()},
   uAmb:{value:0.5}, uSun:{value:0.5}, uFill:{value:0.2},
   uNight:{value:new THREE.Vector3(1,1,1)}, uFogNear:{value:5}, uFogFar:{value:20}, uFogColor:{value:new THREE.Color(SKY)},
-  uLampPos:{value:new THREE.Vector3()}, uLampP:{value:new THREE.Vector4(1,0,14,0)}, uLampCol:{value:new THREE.Vector3(1,0.78,0.45)},
+  uLampPos:{value:new THREE.Vector3()}, uLampP:{value:new THREE.Vector4(1,0,14,0)}, uLampCol:{value:new THREE.Vector3(1,0.78,0.45)}, uMagmaPulse:{value:0},
   uLamp2Pos:{value:new THREE.Vector3()}, uLamp2P:{value:new THREE.Vector4(1,0,10,0)}, uLamp2Col:{value:new THREE.Vector3(1,0.86,0.62)},   // the shop's sign light (updateShopLamp)   // the shop lantern (updateShopLamp)
   uOccF:{value:Array.from({length:6},()=>new THREE.Vector4())}, uOccN:{value:0}, uOccGap:{value:1}, uOccNear:{value:new THREE.Vector2(-1,-0.5)}   // see-through obstacles (occUpdate): where up to 6 characters are on screen
 
@@ -62,6 +62,7 @@ void main(){
 const FS=`
 uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform float uBlackGrey;
 uniform vec3 uLampCol; uniform float uEmit; varying float vLampD; varying float vLampS;
+uniform float uMagma; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
 uniform vec3 uLamp2Col; varying float vLamp2D; varying float vLamp2S;
 uniform vec4 uOccF[6]; uniform float uOccN; uniform float uOccGap; uniform float uOccOn; uniform vec2 uOccNear;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying float vEnv; varying float vSpec;
@@ -95,8 +96,10 @@ void main(){
     lampT=(base*uLampCol*vLampD*mix(0.45,1.0,sh)+mix(vec3(1.0),uTint,0.5)*uLampCol*vLampS*sh)*sh;
     lampT+=(base*uLamp2Col*vLamp2D*mix(0.45,1.0,sh)+mix(vec3(1.0),uTint,0.5)*uLamp2Col*vLamp2S*sh)*sh;
   }
+  float mgm=uMagma*smoothstep(0.40,0.52,tx.r-0.5*tx.b);                                          // 1 on the orange texels (the charred dark ones stay dark), 0 elsewhere
+  lit=mix(lit,base*(1.30+0.55*uMagmaPulse)*vec3(1.0,0.94,0.82),mgm);                                // the magma shines from within: brighter than any light would make it, and it swells with the pulse
   lit=mix(lit,base,uEmit);                                                                      // uEmit: 1 on the lantern's bulb itself - it glows instead of being lit
-  vec3 c=mix(lit*mix(uNight,vec3(1.0),uEmit)+lampT,uFogColor,vFog);
+  vec3 c=mix(lit*mix(uNight,vec3(1.0),max(uEmit,mgm))+lampT,uFogColor,vFog);                    // (night does not dim a glow)
   if(uDither>0.5){
     vec2 p=floor(gl_FragCoord.xy);
     float b=(4.0*b2(p)+b2(floor(p*0.5)))/16.0-0.47;
@@ -165,7 +168,7 @@ function ps1Mat(tex,uvScale){
   tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
   tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
   return new THREE.ShaderMaterial({vertexShader:VS,fragmentShader:FS,side:THREE.DoubleSide,
-    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uEmit:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
+    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uEmit:{value:0},uMagma:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
 }
 function ps1FloorMat(texG,texF,texI,uvScale,H){
   [texG,texF,texI].forEach(tex=>{ tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false; tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true; });
@@ -599,6 +602,7 @@ function initTrees(H,groundY){
   if(iEl){
     buildTreeGroup(JSON.parse(iEl.textContent).parts,H,groundY,forest).then(grp=>{
       grp.position.z=-IGNIS_DIST*H; ignisTreeGroup=grp; if(mapArea==='ignis') treeGroup=grp;
+      grp.traverse(o=>{ if(o.isMesh&&o.material&&o.material.uniforms) o.material.uniforms.uMagma.value=1; });   // the magma on these trees glows (see uMagma in the shader)
     }).catch(e=>console.error('ignis tree load failed',e));
   }
 }
@@ -2659,7 +2663,7 @@ function frame(now){
     if(swingDone){ swingDone=false; endSwing(); }
     if(flauntDone){ flauntDone=false; if(current===actions.AxeFlaunt) play(FLAUNT_IDLE); }   // AxeFlaunt has played through: carry on into its idle instead of freezing on the last frame
   }
-  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); inspectStep(dt); applyAreaFog(); }
+  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); updateMagma(dt); inspectStep(dt); applyAreaFog(); }
   shopSync(); if(mapMode) mapStep(dt);   // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
   if(!mapMode){
     const d=(camera.userData.fit||5)*zoom, cp=Math.cos(pitch);
@@ -3177,6 +3181,12 @@ const SHOP_LAMP={color:[1.0,0.78,0.45],intensity:1.25,range:2.2,spec:14};
    x 0.44, y 0.81, z -0.06; +x is the open front); range is in the same units. */
 const SHOP_SIGN_LIGHT={at:[1.2,0.9,-0.06],color:[1.0,0.86,0.62],intensity:1.4,range:1.7,spec:10};
 let shopBulb=null, shopRoot=null, shopScale=1; const _lampV=new THREE.Vector3(), _lampV2=new THREE.Vector3(), _lampB=new THREE.Box3();
+/* The magma glow on the Ignis Mourne trees swells and fades very slowly: one full breath every MAGMA_PERIOD seconds, between MAGMA_LOW and 1 (the glow's own brightness range is set in the shader, uMagmaPulse). */
+const MAGMA_PERIOD=7, MAGMA_LOW=0.15; let magmaT=0;
+function updateMagma(dt){
+  magmaT+=dt; const w=0.5-0.5*Math.cos(magmaT*Math.PI*2/MAGMA_PERIOD);      // smooth 0..1..0
+  U.uMagmaPulse.value=MAGMA_LOW+(1-MAGMA_LOW)*w;
+}
 function updateShopLamp(){
   const P=U.uLampP.value;
   const P2=U.uLamp2P.value;
