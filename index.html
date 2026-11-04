@@ -251,19 +251,36 @@ body.mapui #mapyou{opacity:1}
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-// Restores the data <script id="..."> blocks from the repo root (listed in manifest.json),
-// then starts main.js. Needs http(s) -- GitHub Pages or a local server, not file://.
-(async()=>{
-  try{
-    const list=await (await fetch('manifest.json')).json();
+// Loads the game's data files, then starts the game script.
+// Works with either layout: assets/ + js/ folders, or everything in the repo root.
+// If anything goes wrong, the problem is printed on the page in red.
+(function(){
+  const box=document.createElement('pre');
+  box.style.cssText='position:fixed;left:8px;bottom:8px;right:8px;max-height:45vh;overflow:auto;margin:0;padding:10px;background:#300;color:#fdd;font:12px/1.4 monospace;z-index:99999;white-space:pre-wrap;display:none';
+  function say(m){box.textContent+=m+'\n';box.style.display='block';if(!box.parentNode)document.body.appendChild(box);}
+  window.addEventListener('error',e=>say('JS error: '+e.message+(e.filename?'  ('+e.filename.split('/').pop()+':'+e.lineno+')':'')));
+  window.addEventListener('unhandledrejection',e=>say('Promise error: '+(e.reason&&e.reason.message||e.reason)));
+  async function get(u){const r=await fetch(u,{cache:'no-cache'});if(!r.ok)throw new Error(r.status+' '+u);return r;}
+  (async()=>{
+    let list,mainUrl;
+    try{ list=await (await get('assets/manifest.json')).json(); mainUrl='js/main.js'; }
+    catch(e1){
+      try{ list=await (await get('manifest.json')).json(); mainUrl='main.js'; }
+      catch(e2){ say('Could not find manifest.json (tried assets/manifest.json and manifest.json).\nThe data files did not upload to the right place.'); return; }
+    }
+    const failed=[];
     await Promise.all(list.map(async a=>{
-      const el=document.createElement('script');
-      el.type=a.type; el.id=a.id;
-      el.textContent=await (await fetch(a.url)).text();
-      document.body.appendChild(el);
+      try{
+        const el=document.createElement('script');
+        el.type=a.type; el.id=a.id; el.textContent=await (await get(a.url)).text();
+        document.body.appendChild(el);
+      }catch(e){failed.push(e.message);}
     }));
-  }catch(e){console.error('Asset load failed',e);}
-  const s=document.createElement('script'); s.src='main.js'; document.body.appendChild(s);
+    if(failed.length){ say('Missing '+failed.length+' file(s) (404):\n  '+failed.join('\n  ')); return; }
+    const s=document.createElement('script'); s.src=mainUrl+'?t='+Date.now();
+    s.onerror=()=>say('Could not load '+mainUrl+' (404). Is it uploaded?');
+    document.body.appendChild(s);
+  })();
 })();
 </script>
 </body>
