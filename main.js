@@ -140,7 +140,7 @@ void main(){
   vFog=smoothstep(uFogNear,uFogFar,-mv.z);
 }`;
 const FS_FLOOR=`
-uniform sampler2D map; uniform sampler2D mapFrost; uniform float uUseFrost; uniform float uFrostZ; uniform float uFrostSpan;
+uniform sampler2D map; uniform sampler2D mapFrost; uniform sampler2D mapIgnis; uniform float uIgnisZ; uniform float uUseFrost; uniform float uFrostZ; uniform float uFrostSpan;
 uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying vec3 vWorldPos;
 float b2(vec2 p){ p=mod(p,2.0); if(p.x<1.0) return p.y<1.0?0.0:3.0; return p.y<1.0?2.0:1.0; }
@@ -148,9 +148,11 @@ void main(){
   vec2 st=uAffine>0.5 ? vUvA/vW : vUvP;
   vec4 txG=texture2D(map,st);
   vec4 txF=texture2D(mapFrost,st);
+  vec4 txI=texture2D(mapIgnis,st);
   float wave=sin(vWorldPos.x*0.35)*1.2+sin(vWorldPos.x*0.95+1.7)*0.55+cos(vWorldPos.x*1.8-0.6)*0.25;
   float k=uUseFrost*(1.0-smoothstep(uFrostZ-uFrostSpan, uFrostZ+uFrostSpan, vWorldPos.z+wave));
-  vec3 base=mix(txG.rgb,txF.rgb,k)*uTint, lit=base*vLit;
+  float k2=uUseFrost*(1.0-smoothstep(uIgnisZ-uFrostSpan, uIgnisZ+uFrostSpan, vWorldPos.z+wave));
+  vec3 base=mix(mix(txG.rgb,txF.rgb,k),txI.rgb,k2)*uTint, lit=base*vLit;
   vec3 c=mix(lit*uNight,uFogColor,vFog);
   if(uDither>0.5){
     vec2 p=floor(gl_FragCoord.xy);
@@ -165,10 +167,10 @@ function ps1Mat(tex,uvScale){
   return new THREE.ShaderMaterial({vertexShader:VS,fragmentShader:FS,side:THREE.DoubleSide,
     uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uEmit:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
 }
-function ps1FloorMat(texG,texF,uvScale,H){
-  [texG,texF].forEach(tex=>{ tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false; tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true; });
+function ps1FloorMat(texG,texF,texI,uvScale,H){
+  [texG,texF,texI].forEach(tex=>{ tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false; tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true; });
   return new THREE.ShaderMaterial({vertexShader:VS_FLOOR,fragmentShader:FS_FLOOR,side:THREE.DoubleSide,
-    uniforms:Object.assign({map:{value:texG},mapFrost:{value:texF},uUseFrost:{value:1},uFrostZ:{value:-10*H},uFrostSpan:{value:4.8*H},uUvScale:{value:uvScale||24},uTint:{value:new THREE.Vector3(1,1,1)}},U)});
+    uniforms:Object.assign({map:{value:texG},mapFrost:{value:texF},mapIgnis:{value:texI},uUseFrost:{value:1},uFrostZ:{value:-10*H},uIgnisZ:{value:-10*H},uFrostSpan:{value:4.8*H},uUvScale:{value:uvScale||24},uTint:{value:new THREE.Vector3(1,1,1)}},U)});
 }
 
 /* ---------- armor tint: multiplies every part of the knight (body, limbs, boots, helmets) except the plume (own color) and the sword (own tint, or matched to the armor) ---------- */
@@ -290,9 +292,9 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   const cv=document.createElement('canvas'); cv.width=cv.height=2; const g=cv.getContext('2d');
   g.fillStyle='#434d78'; g.fillRect(0,0,2,2); g.fillStyle='#363e63'; g.fillRect(0,0,1,1); g.fillRect(1,1,1,1);
   const ft=new THREE.CanvasTexture(cv); ft.wrapS=ft.wrapT=THREE.RepeatWrapping;
-  floorTexClassic=ft; floorTexForest=mkFloorTex('#5aa845','#4a9638'); floorTexFrost=mkFloorTex('#eef4ff','#d8e4f8'); floorMat=ps1FloorMat(floorTexForest,floorTexFrost,96,H);
-  const floor=new THREE.Mesh(new THREE.PlaneGeometry(H*96,H*96,96,96),floorMat);
-  floor.rotation.x=-Math.PI/2; floor.position.set(0,box.min.y-H*0.004,-0.5*FROST_DIST*H); scene.add(floor); floorMesh=floor;
+  floorTexClassic=ft; floorTexForest=mkFloorTex('#5aa845','#4a9638'); floorTexFrost=mkFloorTex('#eef4ff','#d8e4f8'); floorTexIgnis=mkFloorTex('#252220','#171514'); floorMat=ps1FloorMat(floorTexForest,floorTexFrost,floorTexIgnis,192,H);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(H*192,H*192,192,192),floorMat);
+  floor.rotation.x=-Math.PI/2; floor.position.set(0,box.min.y-H*0.004,-FROST_DIST*H); scene.add(floor); floorMesh=floor;
   const blob=new THREE.Mesh(new THREE.CircleGeometry(H*0.26,10),
     new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.42,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
   blob.rotation.x=-Math.PI/2; blob.position.set(ctr.x,box.min.y+H*0.002,ctr.z); scene.add(blob); blobMesh=blob; blobHome=blob.position.clone();
@@ -378,7 +380,7 @@ function tintOne(pl,hex){
 function tintPlume(hex){ plumeHex=hex; plumes.forEach(pl=>tintOne(pl,hex)); }
 
 /* ---------- world: forest / classic ---------- */
-let night=false, forest=true, mapArea='greenfield', floorMat=null, floorTexClassic=null, floorTexForest=null, floorTexFrost=null, treeGroup=null, greenTreeGroup=null, frostTreeGroup=null;
+let night=false, forest=true, mapArea='greenfield', floorMat=null, floorTexClassic=null, floorTexForest=null, floorTexFrost=null, floorTexIgnis=null, treeGroup=null, greenTreeGroup=null, frostTreeGroup=null, ignisTreeGroup=null;
 const SKY_CLASSIC=0x232a4a, SKY_FOREST=0x6ca8e6;
 function mkFloorTex(c1,c2){
   const cv=document.createElement('canvas'); cv.width=cv.height=2; const g=cv.getContext('2d');
@@ -386,33 +388,37 @@ function mkFloorTex(c1,c2){
   const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.encoding=THREE.LinearEncoding;
   t.generateMipmaps=false; t.minFilter=t.magFilter=THREE.NearestFilter; return t;
 }
+const IGNIS_DIST=52;   // Ignis Mourne sits another FROST_DIST north of The Veiled Frost
 const FROST_DIST=26;   // how far north (-Z, in knight-heights) The Veiled Frost sits from The Greenfield
-let mapAreaK=0, mapAreaTarget=0; const mapAreaV={v:0};   // 0 = The Greenfield, 1 = The Veiled Frost; smoothly glides between them
-let greenRockMesh=null, frostRockMesh=null, spareGreenRock=null, spareFrostRock=null;
-function areaZOffset(area){ return ((area||mapArea)==='frost'?-FROST_DIST:0)*(playerH||2.2); }
+let mapAreaK=0, mapAreaTarget=0; const mapAreaV={v:0};   // 0 = The Greenfield, 1 = The Veiled Frost, 2 = Ignis Mourne; smoothly glides between them
+let greenRockMesh=null, frostRockMesh=null, ignisRockMesh=null, spareGreenRock=null, spareFrostRock=null, spareIgnisRock=null;
+function areaTrees(a){ return (a==='ignis'&&ignisTreeGroup)?ignisTreeGroup:(a==='frost'&&frostTreeGroup)?frostTreeGroup:greenTreeGroup; }
+function areaZOffset(area){ const a=area||mapArea; return (a==='frost'?-FROST_DIST:a==='ignis'?-IGNIS_DIST:0)*(playerH||2.2); }
 function syncFrostBlend(){
   if(!floorMat||!floorMat.uniforms.uFrostZ) return;
   const H=playerH||2.2;
   floorMat.uniforms.uUseFrost.value=forest?1:0;
   // Border sits halfway between The Greenfield (z = 0) and The Veiled Frost (z = -FROST_DIST*H), at z = -10*H
-  const zBorder=-0.5*FROST_DIST*H+(mapAreaK-0.5)*2.0*H;
-  floorMat.uniforms.uFrostZ.value=zBorder;
+  const kF=Math.min(mapAreaK,1), kI=Math.max(0,mapAreaK-1);
+  floorMat.uniforms.uFrostZ.value=-0.5*FROST_DIST*H+(kF-0.5)*2.0*H;
+  floorMat.uniforms.uIgnisZ.value=-1.5*FROST_DIST*H+(kI-0.5)*2.0*H;   // the border between The Veiled Frost and Ignis Mourne
   floorMat.uniforms.uFrostSpan.value=4.2*H;
 }
 function syncRockMeshes(){
-  const onSeat=!!(current&&current.getClip().name===SEAT_CLIP);
-  const inFrost=(mapArea==='frost');
-  if(greenRockMesh) greenRockMesh.visible=onSeat&&!inFrost;
-  if(frostRockMesh) frostRockMesh.visible=onSeat&&inFrost;
-  if(spareGreenRock) spareGreenRock.visible=forest&&!dungeon&&inFrost;
-  if(spareFrostRock) spareFrostRock.visible=forest&&!dungeon&&!inFrost;
+  const onSeat=!!(current&&current.getClip().name===SEAT_CLIP), A=mapArea, sp=forest&&!dungeon;
+  if(greenRockMesh) greenRockMesh.visible=onSeat&&A==='greenfield';
+  if(frostRockMesh) frostRockMesh.visible=onSeat&&A==='frost';
+  if(ignisRockMesh) ignisRockMesh.visible=onSeat&&A==='ignis';
+  if(spareGreenRock) spareGreenRock.visible=sp&&A!=='greenfield';
+  if(spareFrostRock) spareFrostRock.visible=sp&&A!=='frost';
+  if(spareIgnisRock) spareIgnisRock.visible=sp&&A!=='ignis';
 }
 function moveKnightToArea(area){
   if(!playerRig||exploring||dungeon) return;
   const zOff=areaZOffset(area), dx=target.x-(homeTarget.x+playerRig.position.x), dz=target.z-(homeTarget.z+playerRig.position.z);
   playerRig.position.set(0,0,zOff);
   if(blobMesh&&blobHome) blobMesh.position.set(blobHome.x,blobHome.y,blobHome.z+zOff);
-  if(floorMesh) floorMesh.position.set(0,floorMesh.position.y,-0.5*FROST_DIST*(playerH||2.2));
+  if(floorMesh) floorMesh.position.set(0,floorMesh.position.y,-FROST_DIST*(playerH||2.2));
   target.set(homeTarget.x+dx,target.y,homeTarget.z+zOff+dz);
   syncRockMeshes();
 }
@@ -421,7 +427,8 @@ function setWorld(f){
   renderer.setClearColor(sky); U.uFogColor.value.setHex(sky);
   document.documentElement.style.setProperty('--sky','#'+sky.toString(16).padStart(6,'0'));
   if(floorMat){ floorMat.uniforms.map.value=f?floorTexForest:floorTexClassic; syncFrostBlend(); }
-  treeGroup=(mapArea==='frost'&&frostTreeGroup)?frostTreeGroup:greenTreeGroup;
+  treeGroup=areaTrees(mapArea);
+  if(ignisTreeGroup) ignisTreeGroup.visible=f&&!dungeon;
   if(greenTreeGroup) greenTreeGroup.visible=f&&!dungeon;
   if(frostTreeGroup) frostTreeGroup.visible=f&&!dungeon;
   if(skyGroup) skyGroup.visible=!f&&!night;
@@ -568,7 +575,7 @@ function buildTreeGroup(TD,H,groundY,vis){
 function initTrees(H,groundY){
   const TD=JSON.parse(document.getElementById('tree-data').textContent).parts;
   buildTreeGroup(TD,H,groundY,forest).then(grp=>{
-    greenTreeGroup=grp; if(mapArea!=='frost') treeGroup=grp;
+    greenTreeGroup=grp; if(mapArea==='greenfield') treeGroup=grp;
     colliders=grp.children.map(t=>({x:t.position.x,z:t.position.z,r:TREE_R*H*t.scale.x}));
   }).catch(e=>console.error('tree load failed',e));
   const sEl=document.getElementById('snow-tree-data');
@@ -578,6 +585,12 @@ function initTrees(H,groundY){
       grp.position.z=-FROST_DIST*H;
       frostTreeGroup=grp; if(mapArea==='frost') treeGroup=grp;
     }).catch(e=>console.error('snow tree load failed',e));
+  }
+  const iEl=document.getElementById('ignis-tree-data');
+  if(iEl){
+    buildTreeGroup(JSON.parse(iEl.textContent).parts,H,groundY,forest).then(grp=>{
+      grp.position.z=-IGNIS_DIST*H; ignisTreeGroup=grp; if(mapArea==='ignis') treeGroup=grp;
+    }).catch(e=>console.error('ignis tree load failed',e));
   }
 }
 
@@ -642,7 +655,7 @@ function initSnow(H,groundY){
 const _snV=new THREE.Vector3();
 function updateSnow(dt){
   if(!snow) return;
-  const want=snowOn&&!dungeon&&(mapArea==='frost'||mapAreaK>0.5);
+  const want=snowOn&&!dungeon&&(mapArea==='frost'||Math.abs(mapAreaK-1)<0.5);
   snow.pts.visible=want; if(!want) return;
   try{
     snowT+=dt;
@@ -667,7 +680,7 @@ function updateSnow(dt){
 }
 function updateLeaves(dt){
   if(!leaves) return;
-  const show=leavesOn&&mapArea!=='frost'&&treeGroup&&treeGroup.visible; let n=0;
+  const show=leavesOn&&mapArea==='greenfield'&&treeGroup&&treeGroup.visible; let n=0;
   const gy=leafGround+playerH*0.012, snap=playerH*0.02, near=U.uFogNear.value, far=U.uFogFar.value;
   for(const l of leaves){
     if(!l.on) continue;
@@ -744,6 +757,22 @@ function initRock(parent,groundY){
       scene.add(sp); spareFrostRock=sp;
       syncRockMeshes();
     }).catch(e=>console.error('snow rock load failed',e));
+  }
+  const iEl=document.getElementById('ignis-rock-data');
+  if(iEl){
+    const IRD=JSON.parse(iEl.textContent);
+    buildRockMesh(IRD,seat,gnd,'SeatRock').then(m=>{
+      parent.add(m); ignisRockMesh=m;
+      // Also place a standalone rock at Ignis Mourne's center for when the knight is elsewhere
+      const sp=m.clone(); sp.name='SpareIgnisRock';
+      parent.updateMatrixWorld(true);
+      sp.position.copy(m.getWorldPosition(new THREE.Vector3()));
+      sp.position.z-=IGNIS_DIST*playerH;
+      sp.quaternion.copy(m.getWorldQuaternion(new THREE.Quaternion()));
+      sp.scale.copy(m.getWorldScale(new THREE.Vector3()));
+      scene.add(sp); spareIgnisRock=sp;
+      syncRockMeshes();
+    }).catch(e=>console.error('ignis rock load failed',e));
   }
 }
 
@@ -1485,7 +1514,7 @@ async function startMusic(){
   try{
     const p=loadSong(); ac.resume(); await p;
     if(!musicOn) return;
-    if(!srcNode&&!flauntWant&&!battleWant&&!shopWant&&!frostWant){ srcNode=playTrack(songBuf); }
+    if(!srcNode&&!flauntWant&&!battleWant&&!shopWant&&!frostWant&&!ignisWant){ srcNode=playTrack(songBuf); }
     await ac.resume();
   }catch(e){ console.error(e); musicOn=false; setSwitch('music',false,'N/A'); }
 }
@@ -1517,12 +1546,13 @@ function loadBattle(){
 function setBattleMusic(on){ if(battleWant===on) return; battleWant=on; if(!on) battleResume=0; syncAudio(); }
 /* shop song (Sacrifice of Saint Dell, FM Skyline) plays in the shop; frost song (Ice, slowed, ZERTAL) plays once you travel to The Veiled Frost (on the map, from the transition between the areas) and stays while you are there.
    Priority: Flaunt song, battle song, shop song, frost song, main song. Same fades as every track, and they go through cz() so the BITCRUSH switch applies. */
-const xtra={shop:{id:'shop-song-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false;
+const xtra={shop:{id:'shop-song-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null},ignis:{id:'ignis-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false, ignisWant=false;
 function loadX(k){ const x=xtra[k]; if(x.loading) return x.loading; const t=atob(document.getElementById(x.id).textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i); x.loading=new Promise((res,rej)=>ac.decodeAudioData(u.buffer,res,rej)).then(b=>{x.buf=b;}); return x.loading; }
 function setShopMusic(on){ if(shopWant===on) return; shopWant=on; syncAudio(); }
 function setFrostMusic(on){ if(frostWant===on) return; frostWant=on; syncAudio(); }
+function setIgnisMusic(on){ if(ignisWant===on) return; ignisWant=on; syncAudio(); }
 async function syncAudio(){
-  const pick=()=>!musicOn?null:(flauntWant?'flaunt':(battleWant?'battle':(shopWant?'shop':(frostWant?'frost':'main'))));
+  const pick=()=>!musicOn?null:(flauntWant?'flaunt':(battleWant?'battle':(shopWant?'shop':(ignisWant?'ignis':(frostWant?'frost':'main')))));
   const stopX=keep=>{ for(const k in xtra){ if(k!==keep&&xtra[k].src){ stopTrack(xtra[k].src); xtra[k].src=null; } } };
   try{
     const want=pick();
@@ -1720,7 +1750,7 @@ function stopExplore(){
   if(!exploring) return;
   swooshHide(); exploring=false; document.body.classList.remove('explore'); swinging=swingQueued=swingDone=false; swingScaleReset(); keys.clear(); stick.x=stick.y=0; moving=false;
   playerRig.position.set(0,0,areaZOffset()); playerRig.rotation.y=Math.PI;
-  floorMesh.position.x=0; floorMesh.position.z=-0.5*FROST_DIST*playerH; if(blobMesh&&blobHome) blobMesh.position.set(blobHome.x,blobHome.y,blobHome.z+areaZOffset());
+  floorMesh.position.x=0; floorMesh.position.z=-FROST_DIST*playerH; if(blobMesh&&blobHome) blobMesh.position.set(blobHome.x,blobHome.y,blobHome.z+areaZOffset());
   target.set(homeTarget.x,homeTarget.y,homeTarget.z+areaZOffset()); yaw=Math.PI+0.65; pitch=0.1; zoom=0.82;
   if(actions.Walk) actions.Walk.timeScale=1;
   play(names.indexOf(SEAT_CLIP)>=0?SEAT_CLIP:names[0]); resize();
@@ -2813,9 +2843,17 @@ const MAP_AREAS={
       {n:'CONSECRATED GRAVEYARD', area:'frost', idx:1, x: 7.8, z:-6.2-FROST_DIST, col:'#c7b8ff', lock:1},
       {n:'CHILLED CAVERNS',       area:'frost', idx:2, x: 9.0, z: 4.8-FROST_DIST, col:'#6ad2ff', lock:1}
     ]
+  },
+  ignis:{
+    title:'IGNIS MOURNE', zOff:-IGNIS_DIST,
+    spots:[
+      {n:'BERTH OF FLAME',   area:'ignis', idx:0, x:-9.4, z:-2.8-IGNIS_DIST, col:'#ff8a4a', lock:1},
+      {n:'SMOLDERING KEEP',  area:'ignis', idx:1, x: 7.8, z:-6.2-IGNIS_DIST, col:'#ff4a4a', lock:1},
+      {n:"WORLD'S EDGE",     area:'ignis', idx:2, x: 0.0, z:-12.0-IGNIS_DIST, col:'#ff2a2a', lock:1}
+    ]
   }
 };
-const ALL_MAP_SPOTS=MAP_AREAS.greenfield.spots.concat(MAP_AREAS.frost.spots);
+const ALL_MAP_SPOTS=MAP_AREAS.greenfield.spots.concat(MAP_AREAS.frost.spots,MAP_AREAS.ignis.spots);
 let MAP_SPOTS=MAP_AREAS.greenfield.spots;
 let mapSel=0, mapBig=false, mapCam=null, mapFog0=null, mapAcc=0, mapPings=[], mapEls=null;
 const _mp=new THREE.Vector3();
@@ -2837,22 +2875,21 @@ function mapPose(s,c,H,A3,f0){
   return {x:mapLerp(c.p.x,c.t.x,k), y:y, z:mapLerp(basePz,tz,k), pit:pit, yaw:c.yaw+dy*k,
     fn:mapLerp(mapLerp(f0[0],10*H,f1),A3*1.5,f2), ff:mapLerp(mapLerp(f0[1],34*H,f1),A3*3,f2), view:1-mapIO(map01(s/1.2))};
 }
+const MAP_NORTH={greenfield:'frost',frost:'ignis'}, MAP_SOUTH={ignis:'frost',frost:'greenfield'}, MAP_IDX={greenfield:0,frost:1,ignis:2};
+function mapArrows(){   // the arrow at the top goes north, the one at the bottom goes back south (each only where there is somewhere to go)
+  const n=MAP_NORTH[mapArea], s=MAP_SOUTH[mapArea], aN=document.getElementById('maparrow'), aS=document.getElementById('maparrow2');
+  if(aN){ aN.style.display=n?'':'none'; if(n){ document.getElementById('maparrowlbl').textContent=MAP_AREAS[n].title; aN.setAttribute('aria-label','Travel to '+MAP_AREAS[n].title); } }
+  if(aS){ aS.style.display=s?'':'none'; if(s){ document.getElementById('maparrow2lbl').textContent=MAP_AREAS[s].title; aS.setAttribute('aria-label','Return to '+MAP_AREAS[s].title); } }
+}
 function switchMapArea(area){
   if(!MAP_AREAS[area]||mapArea===area) return;
   blip(740,0.1);
-  mapArea=area; mapAreaTarget=(area==='frost'?1:0); setFrostMusic(area==='frost');
+  mapArea=area; mapAreaTarget=MAP_IDX[area]; setFrostMusic(area==='frost'); setIgnisMusic(area==='ignis');
   MAP_SPOTS=MAP_AREAS[area].spots; mapSel=0;
-  treeGroup=(area==='frost'&&frostTreeGroup)?frostTreeGroup:greenTreeGroup;
+  treeGroup=areaTrees(area);
   moveKnightToArea(area);
-  const tEl=document.getElementById('maptitle'), aEl=document.getElementById('maparrow'), aLbl=document.getElementById('maparrowlbl');
-  if(tEl) tEl.textContent=MAP_AREAS[area].title;
-  if(aEl&&aLbl){
-    const toFrost=(area==='greenfield');
-    aEl.classList.toggle('south',!toFrost);
-    aEl.querySelector('.arr').innerHTML=toFrost?'&#9650;':'&#9660;';
-    aLbl.textContent=toFrost?'THE VEILED FROST':'THE GREENFIELD';
-    aEl.setAttribute('aria-label',toFrost?'Travel to The Veiled Frost':'Return to The Greenfield');
-  }
+  const tEl=document.getElementById('maptitle'); if(tEl) tEl.textContent=MAP_AREAS[area].title;
+  mapArrows();
   mapRefresh();
 }
 function mapBuild(){
@@ -2868,7 +2905,11 @@ function mapBuild(){
     el.appendChild(hit); box.insertBefore(el,info); mapPings.push({el:el,lbl:lbl,lw:0,d:d});
   });
   const aEl=document.getElementById('maparrow');
-  if(aEl) aEl.onclick=()=>switchMapArea(mapArea==='greenfield'?'frost':'greenfield');
+  if(aEl){
+    aEl.onclick=()=>{ const n=MAP_NORTH[mapArea]; if(n) switchMapArea(n); };
+    const a2=aEl.cloneNode(true); a2.id='maparrow2'; a2.classList.add('south'); a2.querySelector('.arr').innerHTML='&#9660;'; a2.querySelector('#maparrowlbl').id='maparrow2lbl';
+    a2.onclick=()=>{ const s=MAP_SOUTH[mapArea]; if(s) switchMapArea(s); }; aEl.parentNode.insertBefore(a2,aEl.nextSibling); mapArrows();
+  }
   mapEls.ok.onclick=mapConfirm; document.getElementById('mapback').onclick=mapClose;
 }
 function mapRefresh(){   // the info window and which ping is selected
@@ -2970,8 +3011,8 @@ addEventListener('keydown',e=>{
   if(k==='Escape'||k==='Backspace'){ e.preventDefault(); mapClose(); }
   else if(mapDir===0&&mapS>=3){
     if(k==='ArrowRight'||k==='d') mapMove(1); else if(k==='ArrowLeft'||k==='a') mapMove(-1);
-    else if(k==='ArrowUp'||k==='w'){ if(mapArea==='greenfield') switchMapArea('frost'); else mapMove(-1); }
-    else if(k==='ArrowDown'||k==='s'){ if(mapArea==='frost') switchMapArea('greenfield'); else mapMove(1); }
+    else if(k==='ArrowUp'||k==='w'){ if(MAP_NORTH[mapArea]) switchMapArea(MAP_NORTH[mapArea]); else mapMove(-1); }
+    else if(k==='ArrowDown'||k==='s'){ if(MAP_SOUTH[mapArea]) switchMapArea(MAP_SOUTH[mapArea]); else mapMove(1); }
     else if(k==='Enter'||k===' '){ e.preventDefault(); mapConfirm(); }
   }
 });

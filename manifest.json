@@ -258,5 +258,20 @@
   "id": "shop-face-data",
   "type": "application/json",
   "url": "shop-face-data.json"
+ },
+ {
+  "id": "ignis-song-data",
+  "type": "text/plain",
+  "url": "ignis-song-data.txt"
+ },
+ {
+  "id": "ignis-tree-data",
+  "type": "application/json",
+  "url": "ignis-tree-data.json"
+ },
+ {
+  "id": "ignis-rock-data",
+  "type": "application/json",
+  "url": "ignis-rock-data.json"
  }
 ]
