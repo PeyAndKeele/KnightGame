@@ -84,7 +84,7 @@ void main(){
     if((4.0*b2(q)+b2(floor(q*0.5))+0.5)/16.0<hide) discard;       // the same 4x4 ordered dither as the colour dither, so it reads as the same grain
   }
   vec3 base=tx.rgb*uTint, lit=base*vLit, lampT=vec3(0.0);
-  if(uBlackGrey>0.0) base=mix(base,vec3(uBlackGrey),1.0-smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b))));   // uBlackGrey (the shopkeeper's Helmet 6): the pure-black parts of the texture are this grey instead, untinted
+  if(uBlackGrey>0.0){ base=mix(base,vec3(uBlackGrey)/uNight,1.0-smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b)))); lit=base*vLit; }   // uBlackGrey (the shopkeeper's Helmet 6): the pure-black parts of the texture are this grey instead - untinted, and not bluish at night (/uNight cancels the night tint), still shaded by the light
   if(uShine>0.01){                                             // uShine (0..1) scales both the env ramp and the BRIGHTBOX lantern highlight
     float sh=clamp(uShine,0.0,1.0);
     if(uBlackNoShine>0.5) sh*=smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b)));   // uBlackNoShine (Helmet 6): the pure-black parts of the texture get no shine at all
@@ -1343,7 +1343,7 @@ function updateHelm6Face(dt){
    Only the shopkeeper's helmet uses these (shop-face-data: the kris*.gif art, 85x85, two frames of 500 ms each: normal, talking, angrytalking, spite).
    The player's and the enemies' Helmet 6 keep the original face above. shopFaceSet('talking') etc. switches it (also from the console: shopFace('talking')).
    SHOP_H6_GREY: the parts of his helmet that are pure black in the texture (the ones that never shine) show this grey instead - 0 is black, 1 is white. */
-const SHOP_H6_GREY=0.36;
+const SHOP_H6_GREY=0.40;
 let shopFace={faces:null,mat:null,pane:null,name:'normal',t:0,frame:-1};
 function shopFaceAttach(mesh,root){
   mesh.scale.x=root.scale.x<0?-1:1;
