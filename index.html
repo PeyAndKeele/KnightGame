@@ -251,11 +251,11 @@ body.mapui #mapyou{opacity:1}
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-// Restores the data <script id="..."> blocks from assets/ (listed in assets/manifest.json),
-// then starts js/main.js. Needs http(s) -- GitHub Pages or a local server, not file://.
+// Restores the data <script id="..."> blocks from the repo root (listed in manifest.json),
+// then starts main.js. Needs http(s) -- GitHub Pages or a local server, not file://.
 (async()=>{
   try{
-    const list=await (await fetch('assets/manifest.json')).json();
+    const list=await (await fetch('manifest.json')).json();
     await Promise.all(list.map(async a=>{
       const el=document.createElement('script');
       el.type=a.type; el.id=a.id;
@@ -263,7 +263,7 @@ body.mapui #mapyou{opacity:1}
       document.body.appendChild(el);
     }));
   }catch(e){console.error('Asset load failed',e);}
-  const s=document.createElement('script'); s.src='js/main.js'; document.body.appendChild(s);
+  const s=document.createElement('script'); s.src='main.js'; document.body.appendChild(s);
 })();
 </script>
 </body>
