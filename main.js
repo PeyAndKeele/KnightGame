@@ -1684,7 +1684,7 @@ canvas.addEventListener('wheel',e=>{e.preventDefault(); if(mapMode||startScr) re
    COLORS: how many shades per color channel the dithering rounds to: 31 = 15-bit (the PS1), 15 = 12-bit, 7 = 9-bit, 3 = 6-bit. */
 const PIX_STEPS=[['NORMAL',240],['CHUNKY',180],['HEAVY',120],['CRUSHED',80]];
 const COL_STEPS=[['15-BIT',31],['12-BIT',15],['9-BIT',7],['6-BIT',3]];
-let pixIdx=1, colIdx=2;   // the defaults: CHUNKY (180 px tall) and 9-BIT color
+let pixIdx=0, colIdx=2;   // the defaults: NORMAL (240 px tall) and 9-BIT color.   pixIdx: 0 NORMAL, 1 CHUNKY, 2 HEAVY, 3 CRUSHED.   colIdx: 0 15-BIT, 1 12-BIT, 2 9-BIT, 3 6-BIT
 U.uLevels.value=COL_STEPS[colIdx][1];
 function cyclePixels(){ if(!ps1) toggleLook(); pixIdx=(pixIdx+1)%PIX_STEPS.length; resize(); }
 function cycleColors(){ if(!ps1) toggleLook(); colIdx=(colIdx+1)%COL_STEPS.length; U.uLevels.value=COL_STEPS[colIdx][1]; }
