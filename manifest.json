@@ -190,11 +190,6 @@
   "url": "axe-data.json"
  },
  {
-  "id": "hammer-data",
-  "type": "application/json",
-  "url": "hammer-data.json"
- },
- {
   "id": "hatchet-data",
   "type": "application/json",
   "url": "hatchet-data.json"
