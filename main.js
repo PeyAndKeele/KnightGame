@@ -393,10 +393,11 @@ const FROST_DIST=26;   // how far north (-Z, in knight-heights) The Veiled Frost
 let mapAreaK=0, mapAreaTarget=0; const mapAreaV={v:0};   // 0 = The Greenfield, 1 = The Veiled Frost, 2 = Ignis Mourne; smoothly glides between them
 let greenRockMesh=null, frostRockMesh=null, ignisRockMesh=null, spareGreenRock=null, spareFrostRock=null, spareIgnisRock=null;
 const AREA_FOG={frost:new THREE.Color(0xcfd4da), ignis:new THREE.Color(0xe8761e)};   // The Veiled Frost: a greyish white - Ignis Mourne: a hellish orange-yellow (dimmer at night)
+const AREA_FOG_MIX=0.7;   // how strongly the area colours take over the normal sky colour (1 = fully, 0 = not at all)
 const _fogC=new THREE.Color(), _fogB=new THREE.Color(); let fogBase=SKY;
 function setSkyFog(hex){ fogBase=hex; applyAreaFog(); }
 function applyAreaFog(){   // the usual sky colour, pulled toward the area's colour as the map glides there, and back again when you leave
-  const kf=Math.min(Math.max(mapAreaK,0),1), ki=Math.min(Math.max(mapAreaK-1,0),1), dim=night?0.3:1;
+  const kf=Math.min(Math.max(mapAreaK,0),1)*AREA_FOG_MIX, ki=Math.min(Math.max(mapAreaK-1,0),1)*AREA_FOG_MIX, dim=night?0.3:1;
   _fogC.setHex(fogBase); _fogB.copy(AREA_FOG.frost).multiplyScalar(dim); _fogC.lerp(_fogB,kf); _fogB.copy(AREA_FOG.ignis).multiplyScalar(dim); _fogC.lerp(_fogB,ki);
   renderer.setClearColor(_fogC); U.uFogColor.value.copy(_fogC);
 }
