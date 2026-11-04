@@ -273,5 +273,15 @@
   "id": "ignis-rock-data",
   "type": "application/json",
   "url": "ignis-rock-data.json"
+ },
+ {
+  "id": "hill-data",
+  "type": "application/json",
+  "url": "hill-data.json"
+ },
+ {
+  "id": "mountain-data",
+  "type": "application/json",
+  "url": "mountain-data.json"
  }
 ]

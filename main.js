@@ -442,6 +442,8 @@ function setWorld(f){
   treeGroup=areaTrees(mapArea);
   if(ignisTreeGroup) ignisTreeGroup.visible=f&&!dungeon;
   if(greenTreeGroup) greenTreeGroup.visible=f&&!dungeon;
+  if(hillGroup) hillGroup.visible=f&&!dungeon;
+  if(mountainGroup) mountainGroup.visible=f&&!dungeon;
   if(frostTreeGroup) frostTreeGroup.visible=f&&!dungeon;
   if(skyGroup) skyGroup.visible=!f&&!night;
   setSwitch('world',f,f?'Forest':'Classic');
@@ -584,12 +586,46 @@ function buildTreeGroup(TD,H,groundY,vis){
     occMark(grp); scene.add(grp); return grp;   // trees dither away when they are in front of someone
   });
 }
+/* ---------- barrier: hills (Greenfield) and mountains (Veiled Frost) overlapping in a near-vertical line down each side of the area, past the trees ----------
+   BARRIER = line distance from the middle (knight-heights), sideways wobble, size range (knight-heights wide), z reach. Neighbours overlap by about 40%, so there is no gap. */
+const BARRIER={hill:{x:14.4,wob:0.6,w:[4,7],reach:14.5},mountain:{x:14.4,wob:0.6,w:[5,8.5],reach:14.5}};
+let hillGroup=null, mountainGroup=null; const barrierColliders=[];
+function buildBarrier(id,cfg,H,groundY,vis,zOff){
+  const el=document.getElementById(id); if(!el) return Promise.resolve(null);
+  const BD=JSON.parse(el.textContent).parts;
+  return Promise.all(BD.map(p=>loadImg(p.tex))).then(imgs=>{
+    const protos=BD.map((p,k)=>{
+      const geo=new THREE.BufferGeometry();
+      geo.setAttribute('position',new THREE.Float32BufferAttribute(p.p,3)); geo.setAttribute('normal',new THREE.Float32BufferAttribute(p.n,3)); geo.setAttribute('uv',new THREE.Float32BufferAttribute(p.uv,2)); geo.setIndex(p.i);
+      const tex=new THREE.Texture(imgs[k]); tex.flipY=false; tex.needsUpdate=true; geo.computeBoundingBox();
+      return {geo,mat:ps1Mat(tex,1)};
+    });
+    const bb=new THREE.Box3(); protos.forEach(pr=>bb.union(pr.geo.boundingBox));
+    const w0=Math.max(bb.max.x-bb.min.x,bb.max.z-bb.min.z), cx=(bb.max.x+bb.min.x)/2, cz=(bb.max.z+bb.min.z)/2;
+    const grp=new THREE.Group(); grp.visible=vis; grp.position.z=zOff; const cols=[];
+    let sd=777; const rnd=()=>{ sd=(sd+0x6D2B79F5)|0; let t=Math.imul(sd^(sd>>>15),1|sd); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; };
+    for(const side of [-1,1]){
+      let z=-cfg.reach;
+      while(z<=cfg.reach){
+        const wd=(cfg.w[0]+rnd()*(cfg.w[1]-cfg.w[0]))*H, s=wd/w0, tr=new THREE.Group();
+        tr.position.set(side*(cfg.x+(rnd()-0.5)*2*cfg.wob)*H,groundY-bb.min.y*s-0.06*H,z*H); tr.scale.setScalar(s); tr.rotation.y=rnd()*Math.PI*2;
+        protos.forEach(pr=>{ const m=new THREE.Mesh(pr.geo,pr.mat); m.position.set(-cx,0,-cz); tr.add(m); });
+        grp.add(tr); cols.push({x:tr.position.x,z:tr.position.z+zOff,r:0.4*wd});
+        z+=wd/H*0.6;
+      }
+    }
+    barrierColliders.push(...cols); colliders=(colliders||[]).concat(cols);
+    scene.add(grp); return grp;
+  }).catch(e=>{ console.error('barrier failed',id,e); return null; });
+}
 function initTrees(H,groundY){
   const TD=JSON.parse(document.getElementById('tree-data').textContent).parts;
   buildTreeGroup(TD,H,groundY,forest).then(grp=>{
     greenTreeGroup=grp; if(mapArea==='greenfield') treeGroup=grp;
-    colliders=grp.children.map(t=>({x:t.position.x,z:t.position.z,r:TREE_R*H*t.scale.x}));
+    colliders=grp.children.map(t=>({x:t.position.x,z:t.position.z,r:TREE_R*H*t.scale.x})).concat(barrierColliders);
   }).catch(e=>console.error('tree load failed',e));
+  buildBarrier('hill-data',BARRIER.hill,H,groundY,forest,0).then(g=>{ if(g) hillGroup=g; });
+  buildBarrier('mountain-data',BARRIER.mountain,H,groundY,forest,-FROST_DIST*H).then(g=>{ if(g) mountainGroup=g; });
   const sEl=document.getElementById('snow-tree-data');
   if(sEl){
     const STD=JSON.parse(sEl.textContent).parts;
