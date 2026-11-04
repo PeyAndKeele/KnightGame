@@ -60,7 +60,7 @@ void main(){
   }
 }`;
 const FS=`
-uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine;
+uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform float uBlackGrey;
 uniform vec3 uLampCol; uniform float uEmit; varying float vLampD; varying float vLampS;
 uniform vec3 uLamp2Col; varying float vLamp2D; varying float vLamp2S;
 uniform vec4 uOccF[6]; uniform float uOccN; uniform float uOccGap; uniform float uOccOn; uniform vec2 uOccNear;
@@ -84,6 +84,7 @@ void main(){
     if((4.0*b2(q)+b2(floor(q*0.5))+0.5)/16.0<hide) discard;       // the same 4x4 ordered dither as the colour dither, so it reads as the same grain
   }
   vec3 base=tx.rgb*uTint, lit=base*vLit, lampT=vec3(0.0);
+  if(uBlackGrey>0.0) base=mix(base,vec3(uBlackGrey),1.0-smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b))));   // uBlackGrey (the shopkeeper's Helmet 6): the pure-black parts of the texture are this grey instead, untinted
   if(uShine>0.01){                                             // uShine (0..1) scales both the env ramp and the BRIGHTBOX lantern highlight
     float sh=clamp(uShine,0.0,1.0);
     if(uBlackNoShine>0.5) sh*=smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b)));   // uBlackNoShine (Helmet 6): the pure-black parts of the texture get no shine at all
@@ -162,7 +163,7 @@ function ps1Mat(tex,uvScale){
   tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
   tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
   return new THREE.ShaderMaterial({vertexShader:VS,fragmentShader:FS,side:THREE.DoubleSide,
-    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uEmit:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
+    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uEmit:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
 }
 function ps1FloorMat(texG,texF,uvScale,H){
   [texG,texF].forEach(tex=>{ tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false; tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true; });
@@ -1338,6 +1339,42 @@ function updateHelm6Face(dt){
   if(i!==helm6.frame){ helm6.frame=i; helm6.mat.uniforms.map.value=f.tex[i]; }
   if(helm6.pane&&knightScene) helm6.pane.scale.x=knightScene.scale.x<0?-1:1;   // the model is mirrored (and un-mirrored with the axe): flip the pane back so the art never reads backwards
 }
+/* ---------- the shopkeeper's own Helmet 6 face ----------
+   Only the shopkeeper's helmet uses these (shop-face-data: the kris*.gif art, 85x85, two frames of 500 ms each: normal, talking, angrytalking, spite).
+   The player's and the enemies' Helmet 6 keep the original face above. shopFaceSet('talking') etc. switches it (also from the console: shopFace('talking')).
+   SHOP_H6_GREY: the parts of his helmet that are pure black in the texture (the ones that never shine) show this grey instead - 0 is black, 1 is white. */
+const SHOP_H6_GREY=0.36;
+let shopFace={faces:null,mat:null,pane:null,name:'normal',t:0,frame:-1};
+function shopFaceAttach(mesh,root){
+  mesh.scale.x=root.scale.x<0?-1:1;
+  const el=document.getElementById('shop-face-data');
+  if(!el){ if(helm6.mat) mesh.material=helm6.mat; return; }   // no data file: fall back to the original face
+  const FD=JSON.parse(el.textContent), blank=document.createElement('canvas'); blank.width=blank.height=1;
+  const mat=ps1Mat(new THREE.CanvasTexture(blank),1); if(H6_FACE.glow) mat.uniforms.uNight={value:new THREE.Vector3(1,1,1)};   // (a clear 1x1 until the images have loaded)
+  const pw=H6_FACE.w*FD.w/82;   // the original face is 82 px wide on a 0.30 pane: the same size per pixel, so the eyes keep their size on the helmet
+  mesh.geometry=new THREE.PlaneGeometry(pw,pw*FD.h/FD.w); mesh.material=mat;
+  shopFace={faces:null,mat,pane:mesh,name:shopFace.name||'normal',t:0,frame:-1};
+  Promise.all(FD.order.map(n=>loadImg(FD.faces[n].png))).then(imgs=>{
+    const faces={};
+    FD.order.forEach((n,k)=>{
+      const f=FD.faces[n], tex=[];
+      for(let i=0;i<f.frames;i++){
+        const cv=document.createElement('canvas'); cv.width=FD.w; cv.height=FD.h; cv.getContext('2d').drawImage(imgs[k],i*FD.w,0,FD.w,FD.h,0,0,FD.w,FD.h);
+        const t=new THREE.CanvasTexture(cv); t.flipY=true; t.encoding=THREE.LinearEncoding; t.generateMipmaps=false; t.minFilter=t.magFilter=THREE.NearestFilter; tex.push(t);
+      }
+      faces[n]={tex,ms:f.ms,total:f.ms.reduce((a,b)=>a+b,0)};
+    });
+    shopFace.faces=faces;
+  }).catch(e=>console.error('shopkeeper face load failed',e));
+}
+function shopFaceSet(name){ shopFace.name=name; shopFace.t=0; shopFace.frame=-1; }
+window.shopFace=shopFaceSet;
+function updateShopFace(dt){
+  const s=shopFace; if(!s.faces) return; const f=s.faces[s.name]; if(!f) return;
+  s.t+=dt*1000; const t=s.t%f.total; let i=0, acc=0;
+  while(i<f.ms.length-1&&t>=acc+f.ms[i]){ acc+=f.ms[i]; i++; }
+  if(i!==s.frame){ s.frame=i; s.mat.uniforms.map.value=f.tex[i]; }
+}
 function setHelmet(i){
   curHelmet=i; helmetSets.forEach((s,j)=>s.forEach(m=>{ m.visible=(i===j); }));
   const sel=document.getElementById('helmsel'); if(sel) sel.value=String(i);
@@ -2105,7 +2142,7 @@ function clearEnemies(){
   enemies.forEach(e=>{ e.mixer.stopAllAction(); e.mixer.uncacheRoot(e.root); scene.remove(e.rig); scene.remove(e.blob); e.blob.geometry.dispose(); e.blob.material.dispose(); e.tex.forEach(t=>t.dispose()); });
   enemies.length=0;
 }
-function stepEnemies(dt){ for(const e of enemies) e.mixer.update(dt); if(shopKeeper&&shopGroup&&shopGroup.visible){ shopKeeper.mixer.update(dt); shopEvtStep(dt); } fadeEnemies(dt); if(pointerMixer) pointerMixer.update(dt); }
+function stepEnemies(dt){ for(const e of enemies) e.mixer.update(dt); if(shopKeeper&&shopGroup&&shopGroup.visible){ shopKeeper.mixer.update(dt); shopEvtStep(dt); updateShopFace(dt); } fadeEnemies(dt); if(pointerMixer) pointerMixer.update(dt); }
 /* ---------- target pointer (pointer-data: Blockbench glTF with its own spin-and-bob animation) ----------
    One pointer floats above the enemy you have selected. LEFT / RIGHT (or A / D) move it between the enemies, as you see them on screen:
    it starts on the middle one; LEFT / RIGHT follow the TARGET window and wrap round at the ends. Later this is what picks the target of an attack. */
@@ -3168,11 +3205,11 @@ function spawnShopKeeperInBuilding(){
   knightScene.traverse(o=>oL.push(o)); root.traverse(o=>cL.push(o));
   helmetSets.forEach((set,j)=>set.forEach(m=>{ const cm=cL[oL.indexOf(m)]; if(cm) cm.visible=(j===h6Idx); }));
   shopKeeperMats=[];
-  const ah='#e878b0', ph='#f2f2f2';
+  const ah='#a38aeb', ph='#f2f2f2';
   root.traverse(o=>{
     if(o.name==='SeatRock') rocks.push(o);
     if(!o.isMesh||o.name==='SeatRock') return;
-    if(o.name==='H6Face'){ if(helm6.mat) o.material=helm6.mat; o.scale.x=root.scale.x<0?-1:1; o.frustumCulled=false; return; }   // Helmet 6's animated face, not tinted
+    if(o.name==='H6Face'){ shopFaceAttach(o,root); o.frustumCulled=false; return; }   // the keeper's own animated face (shop-face-data), not tinted
     const om=o.material; let nm=cache.get(om.uuid);
     if(!nm){
       const src=om.uniforms.map.value, isPl=/Plume$/.test(o.name); let tex=src;
@@ -3184,7 +3221,7 @@ function spawnShopKeeperInBuilding(){
           tintOne({tex:t,ctx:cv.getContext('2d'),base:pl.base,avgL:pl.avgL},ph); tex=t; pTex.push(t);
         }
       }
-      nm=ps1Mat(tex,1); if(/h6_/.test(o.name)) nm.uniforms.uBlackNoShine.value=1;
+      nm=ps1Mat(tex,1); if(/h6_/.test(o.name)){ nm.uniforms.uBlackNoShine.value=1; nm.uniforms.uBlackGrey.value=SHOP_H6_GREY; }
       if(!isPl) tintMat(nm,ah);
       nm.uniforms.uShine.value=shopShineOn?1:0;
       shopKeeperMats.push(nm);
@@ -3267,7 +3304,7 @@ function enterShop(){
     document.getElementById('shop-talk-btn').onclick=()=>{
       if(!shopKeeper||!actions.ShopIdleAnimationIntoTalk) return;
       blip(880,0.09);
-      helmet6Face(['talking','angrytalking'][Math.floor(Math.random()*2)]); shopTalkOn=true;   // one of the talking faces, and the camera centres on the shop and zooms in
+      shopFaceSet(['talking','angrytalking'][Math.floor(Math.random()*2)]); shopTalkOn=true;   // one of the talking faces, and the camera centres on the shop and zooms in
       const playShopClip=(name,loop,next)=>{
         const cl=actions[name]&&actions[name].getClip(); if(!cl) return;
         const a=shopKeeper.mixer.clipAction(cl);
@@ -3282,7 +3319,7 @@ function enterShop(){
     };
     document.getElementById('shop-endtalk-btn').onclick=()=>{
       if(!shopKeeper||!actions.ShopIdleAnimationOutroTalk) return;
-      blip(880,0.09); helmet6Face('normal'); shopTalkOn=false;   // back to the normal face, and the camera zooms back out
+      blip(880,0.09); shopFaceSet('normal'); shopTalkOn=false;   // back to the normal face, and the camera zooms back out
       const cl=actions.ShopIdleAnimationOutroTalk.getClip();
       const a=shopKeeper.mixer.clipAction(cl);
       a.reset(); a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true;

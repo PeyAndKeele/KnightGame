@@ -253,5 +253,10 @@
   "id": "flip-data",
   "type": "application/json",
   "url": "flip-data.json"
+ },
+ {
+  "id": "shop-face-data",
+  "type": "application/json",
+  "url": "shop-face-data.json"
  }
 ]
