@@ -392,6 +392,14 @@ const IGNIS_DIST=52;   // Ignis Mourne sits another FROST_DIST north of The Veil
 const FROST_DIST=26;   // how far north (-Z, in knight-heights) The Veiled Frost sits from The Greenfield
 let mapAreaK=0, mapAreaTarget=0; const mapAreaV={v:0};   // 0 = The Greenfield, 1 = The Veiled Frost, 2 = Ignis Mourne; smoothly glides between them
 let greenRockMesh=null, frostRockMesh=null, ignisRockMesh=null, spareGreenRock=null, spareFrostRock=null, spareIgnisRock=null;
+const AREA_FOG={frost:new THREE.Color(0xcfd4da), ignis:new THREE.Color(0xe8761e)};   // The Veiled Frost: a greyish white - Ignis Mourne: a hellish orange-yellow (dimmer at night)
+const _fogC=new THREE.Color(), _fogB=new THREE.Color(); let fogBase=SKY;
+function setSkyFog(hex){ fogBase=hex; applyAreaFog(); }
+function applyAreaFog(){   // the usual sky colour, pulled toward the area's colour as the map glides there, and back again when you leave
+  const kf=Math.min(Math.max(mapAreaK,0),1), ki=Math.min(Math.max(mapAreaK-1,0),1), dim=night?0.3:1;
+  _fogC.setHex(fogBase); _fogB.copy(AREA_FOG.frost).multiplyScalar(dim); _fogC.lerp(_fogB,kf); _fogB.copy(AREA_FOG.ignis).multiplyScalar(dim); _fogC.lerp(_fogB,ki);
+  renderer.setClearColor(_fogC); U.uFogColor.value.copy(_fogC);
+}
 function areaTrees(a){ return (a==='ignis'&&ignisTreeGroup)?ignisTreeGroup:(a==='frost'&&frostTreeGroup)?frostTreeGroup:greenTreeGroup; }
 function areaZOffset(area){ const a=area||mapArea; return (a==='frost'?-FROST_DIST:a==='ignis'?-IGNIS_DIST:0)*(playerH||2.2); }
 function syncFrostBlend(){
@@ -424,7 +432,7 @@ function moveKnightToArea(area){
 }
 function setWorld(f){
   forest=f; const sky=night?SKY_NIGHT:(f?SKY_FOREST:SKY_CLASSIC);
-  renderer.setClearColor(sky); U.uFogColor.value.setHex(sky);
+  setSkyFog(sky);
   document.documentElement.style.setProperty('--sky','#'+sky.toString(16).padStart(6,'0'));
   if(floorMat){ floorMat.uniforms.map.value=f?floorTexForest:floorTexClassic; syncFrostBlend(); }
   treeGroup=areaTrees(mapArea);
@@ -445,7 +453,7 @@ function startCam(){ const zOff=areaZOffset(); yaw=START_CAM_YAW; pitch=START_CA
 function menuCam(){ const zOff=areaZOffset(); yaw=Math.PI+0.65; pitch=0.1; zoom=0.82; target.set(homeTarget.x, homeTarget.y, homeTarget.z+zOff); }                                                 // the usual menu view
 function setNight(on){
   night=on; const sky=night?SKY_NIGHT:(forest?SKY_FOREST:SKY_CLASSIC);
-  renderer.setClearColor(sky); U.uFogColor.value.setHex(sky);
+  setSkyFog(sky);
   document.documentElement.style.setProperty('--sky','#'+sky.toString(16).padStart(6,'0'));
   U.uNight.value.set(on?NIGHT_TINT[0]:1,on?NIGHT_TINT[1]:1,on?NIGHT_TINT[2]:1);
   if(on){
@@ -2650,7 +2658,7 @@ function frame(now){
     if(swingDone){ swingDone=false; endSwing(); }
     if(flauntDone){ flauntDone=false; if(current===actions.AxeFlaunt) play(FLAUNT_IDLE); }   // AxeFlaunt has played through: carry on into its idle instead of freezing on the last frame
   }
-  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); inspectStep(dt); }
+  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); inspectStep(dt); applyAreaFog(); }
   shopSync(); if(mapMode) mapStep(dt);   // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
   if(!mapMode){
     const d=(camera.userData.fit||5)*zoom, cp=Math.cos(pitch);
@@ -2907,6 +2915,9 @@ function mapBuild(){
   const aEl=document.getElementById('maparrow');
   if(aEl){
     aEl.onclick=()=>{ const n=MAP_NORTH[mapArea]; if(n) switchMapArea(n); };
+    const st=document.createElement('style'); let css='';
+    for(const sh of document.styleSheets){ let rs; try{ rs=sh.cssRules; }catch(e){ continue; } for(const r of rs) if(r.cssText&&/#maparrow(?![\w-])/.test(r.cssText)) css+=r.cssText.replace(/#maparrow(?![\w-])/g,'#maparrow2')+'\n'; }
+    st.textContent=css; document.head.appendChild(st);
     const a2=aEl.cloneNode(true); a2.id='maparrow2'; a2.classList.add('south'); a2.querySelector('.arr').innerHTML='&#9660;'; a2.querySelector('#maparrowlbl').id='maparrow2lbl';
     a2.onclick=()=>{ const s=MAP_SOUTH[mapArea]; if(s) switchMapArea(s); }; aEl.parentNode.insertBefore(a2,aEl.nextSibling); mapArrows();
   }
