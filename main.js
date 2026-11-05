@@ -181,7 +181,7 @@ const armorMats=[]; let armorHex=null, armorAmt=0.55;
 let shiny=true;   // fake metal shading on the armor and sword (Customize > Shiny metal)
 function shineMat(m){ m.uniforms.uShine.value=shiny?1:0; }
 const swordMats=[]; let swordHex=null, swordMatch=true;   // the blade has its own tint, or follows the armor's while swordMatch is on
-const SHOP_ARMOR_TINT=0.99;   // how strongly the shopkeeper's armor takes its colour (0..1)
+const SHOP_ARMOR_TINT=0.87;   // how strongly the shopkeeper's armor takes its colour (0..1)
 function tintMat(m,hex,amt){   // amt: tint strength 0..1 (default: the ARMOR slider's armorAmt)
   shineMat(m);
   const v=m.uniforms.uTint.value; if(!hex){ v.set(1,1,1); return; }
@@ -633,7 +633,7 @@ function buildBarrier(id,cfg,H,groundY,vis,zOff){
 function initTrees(H,groundY){
   const TD=JSON.parse(document.getElementById('tree-data').textContent).parts;
   buildTreeGroup(TD,H,groundY,forest).then(grp=>{
-    greenTreeGroup=grp; if(mapArea==='greenfield') treeGroup=grp;
+    greenTreeGroup=grp; clearTreesForMapRuins(); if(mapArea==='greenfield') treeGroup=grp;
     colliders=grp.children.map(t=>({x:t.position.x,z:t.position.z,r:TREE_R*H*t.scale.x})).concat(barrierColliders);
   }).catch(e=>console.error('tree load failed',e));
   buildBarrier('hill-data',BARRIER.hill,H,groundY,forest,0).then(g=>{ if(g) hillGroup=g; });
@@ -2092,6 +2092,17 @@ function dropDuplicateTris(pos,idx){
   }
   return out;
 }
+/* the MOSSY RUINS also stand at their spot on the map (a second copy of the model, made before the flame is added); the trees near it are moved aside,
+   and it is turned toward the knight - RUINS_FACE of the way (1 = its gate points straight at him, 0 = it keeps the file's direction) */
+const RUINS_FACE=0.6; let mapRuins=null;
+function clearTreesForMapRuins(){
+  if(!mapRuins||!greenTreeGroup||mapRuins.done) return; mapRuins.done=true; const m=mapRuins;
+  greenTreeGroup.children.forEach(tr=>{
+    let dx=tr.position.x-m.x, dz=tr.position.z-m.z, d=Math.hypot(dx,dz); if(d>=m.R) return;
+    if(d<1e-3){ dx=1; dz=0; d=1; } tr.position.x=m.x+dx/d*m.R; tr.position.z=m.z+dz/d*m.R;   // pushed straight out to just beyond the ruins
+  });
+}
+function updateMapRuins(){ if(mapRuins) mapRuins.g.visible=forest&&!dungeon&&mapArea==='greenfield'; }
 function initRuins(H,groundY,ctr){
   const el=document.getElementById('ruins-data'); if(!el) return;
   const RD=JSON.parse(el.textContent), S=RUINS_SCALE*H;
@@ -2110,6 +2121,11 @@ function initRuins(H,groundY,ctr){
       const m=new THREE.Mesh(geo,ps1Mat(tex,1)); m.frustumCulled=false; if(pt.nocam) m.userData.noCam=true; grp.add(m);
     });
     occMark(grp);    // every wall and pillar can dither away when it is in front of someone (the flame, added next, is not an obstacle)
+    { const view=grp.clone(true), sp=MAP_AREAS.greenfield.spots[0], wx=ctr.x+sp.x*H, wz=ctr.z+sp.z*H, holder=new THREE.Group();
+      view.scale.setScalar(S); view.position.set(-S*RD.c[0],-S*RD.c[1],-S*RD.c[2]); holder.add(view);
+      holder.position.set(wx,groundY+0.003*H,wz); holder.rotation.y=Math.atan2(-(ctr.z-wz),ctr.x-wx)*RUINS_FACE;
+      scene.add(holder); holder.updateMatrixWorld(true); const sz=new THREE.Box3().setFromObject(holder).getSize(new THREE.Vector3());
+      mapRuins={g:holder,x:wx,z:wz,R:0.45*Math.hypot(sz.x,sz.z)+0.4*H}; clearTreesForMapRuins(); }
     initFire(grp);   // added after the line above, so the flame is never something the camera collides with
     grp.scale.setScalar(S);
     grp.position.set(ctr.x-S*RD.c[0], groundY+0.003*H-S*RD.c[1], ctr.z-S*RD.c[2]);   // the circle's middle lands exactly under the knight's shadow
@@ -2755,7 +2771,7 @@ function frame(now){
     if(swingDone){ swingDone=false; endSwing(); }
     if(flauntDone){ flauntDone=false; if(current===actions.AxeFlaunt) play(FLAUNT_IDLE); }   // AxeFlaunt has played through: carry on into its idle instead of freezing on the last frame
   }
-  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); applyFogThickness(); updateMagma(dt); inspectStep(dt); applyAreaFog(); }
+  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); updateMapRuins(); applyFogThickness(); updateMagma(dt); inspectStep(dt); applyAreaFog(); }
   shopSync(); if(mapMode) mapStep(dt);   // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
   if(!mapMode){
     invStep(dt);   // the inventory zoom
