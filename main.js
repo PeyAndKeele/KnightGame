@@ -21,7 +21,7 @@ const U={
 
 };
 const VS=`
-uniform vec2 uRes; uniform float uSnap; uniform float uModern; uniform vec3 uSunDir; uniform vec3 uFillDir;
+uniform vec2 uRes; uniform float uSnap; uniform vec3 uSunDir; uniform vec3 uFillDir;
 uniform float uAmb; uniform float uSun; uniform float uFill; uniform float uFogNear; uniform float uFogFar; uniform float uUvScale;
 uniform float uShine; uniform vec3 uLampPos; uniform vec4 uLampP; varying float vLampD; varying float vLampS;
 uniform vec3 uLamp2Pos; uniform vec4 uLamp2P; varying float vLamp2D; varying float vLamp2S;
@@ -29,7 +29,7 @@ varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; vary
 void main(){
   vec4 mv=modelViewMatrix*vec4(position,1.0);
   vec4 cp=projectionMatrix*mv;
-  if(uSnap>0.5&&uModern<0.5){ vec2 n=cp.xy/cp.w; vec2 g=uRes*0.5; n=floor(n*g+0.5)/g; cp.xy=n*cp.w; }
+  if(uSnap>0.5){ vec2 n=cp.xy/cp.w; vec2 g=uRes*0.5; n=floor(n*g+0.5)/g; cp.xy=n*cp.w; }
   gl_Position=cp;
   vec2 t=uv*uUvScale; vUvP=t; vUvA=t*cp.w; vW=cp.w;
   vec3 nr=normalize(normalMatrix*normal);
@@ -60,15 +60,15 @@ void main(){
   }
 }`;
 const FS=`
-uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform float uBlackGrey;
+uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform float uBlackGrey; uniform float uMaskNoShine;
 uniform vec3 uLampCol; uniform float uEmit; varying float vLampD; varying float vLampS;
-uniform float uMagma; uniform float uMagmaPulse; uniform float uModern; uniform float uGain;   // uModern (1 on the shopkeeper's face): skips the PS1 look - no affine warp, no dither/colour steps - so it always looks as it does in modern mode; uGain brightens it   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
+uniform float uMagma; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
 uniform vec3 uLamp2Col; varying float vLamp2D; varying float vLamp2S;
 uniform vec4 uOccF[6]; uniform float uOccN; uniform float uOccGap; uniform float uOccOn; uniform vec2 uOccNear;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying float vEnv; varying float vSpec;
 float b2(vec2 p){ p=mod(p,2.0); if(p.x<1.0) return p.y<1.0?0.0:3.0; return p.y<1.0?2.0:1.0; }
 void main(){
-  vec2 st=(uAffine>0.5&&uModern<0.5) ? vUvA/vW : vUvP;
+  vec2 st=uAffine>0.5 ? vUvA/vW : vUvP;
   vec4 tx=texture2D(map,st);
   if(tx.a<0.5) discard;
   if(uOccOn>0.5&&uOccN>0.5){                                      // see-through obstacles: what stands between the camera and the knight / an enemy is dithered away around him
@@ -88,6 +88,7 @@ void main(){
   if(uBlackGrey>0.0){ base=mix(base,vec3(uBlackGrey)/uNight,1.0-smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b)))); lit=base*vLit; }   // uBlackGrey (the shopkeeper's Helmet 6): the pure-black parts of the texture are this grey instead - untinted, and not bluish at night (/uNight cancels the night tint), still shaded by the light
   if(uShine>0.01){                                             // uShine (0..1) scales both the env ramp and the BRIGHTBOX lantern highlight
     float sh=clamp(uShine,0.0,1.0);
+    if(uMaskNoShine>0.5) sh*=step(0.998,tx.a);   // uMaskNoShine (the shopkeeper's helmet): texels with alpha 254 instead of 255 never shine (the old pure-black areas, now retextured)
     if(uBlackNoShine>0.5) sh*=smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b)));   // uBlackNoShine (Helmet 6): the pure-black parts of the texture get no shine at all
     float e=floor(clamp(vEnv*0.5+0.5,0.0,1.0)*3.0+0.5)/3.0;
     vec3 m=mix(base*base*0.7,base*1.35,e);
@@ -100,12 +101,11 @@ void main(){
   lit=mix(lit,base*(1.30+0.55*uMagmaPulse)*vec3(1.0,0.94,0.82),mgm);                                // the magma shines from within: brighter than any light would make it, and it swells with the pulse
   lit=mix(lit,base,uEmit);                                                                      // uEmit: 1 on the lantern's bulb itself - it glows instead of being lit
   vec3 c=mix(lit*mix(uNight,vec3(1.0),max(uEmit,mgm))+lampT,uFogColor,vFog);                    // (night does not dim a glow)
-  if(uDither>0.5&&uModern<0.5){
+  if(uDither>0.5){
     vec2 p=floor(gl_FragCoord.xy);
     float b=(4.0*b2(p)+b2(floor(p*0.5)))/16.0-0.47;
     c=floor(clamp(c+b/uLevels,0.0,1.0)*uLevels+0.5)/uLevels;
   }
-  c=min(c*uGain,vec3(1.0));
   gl_FragColor=vec4(c,1.0);
 }`;
 /* Texture bleed fix. The model's UV faces end exactly on texel borders, and with nearest-pixel sampling (plus the PS1 affine interpolation) a pixel on the very edge of a face sometimes lands in the NEXT texel, which belongs to another face of the texture,
@@ -169,7 +169,7 @@ function ps1Mat(tex,uvScale){
   tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
   tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
   return new THREE.ShaderMaterial({vertexShader:VS,fragmentShader:FS,side:THREE.DoubleSide,
-    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uEmit:{value:0},uMagma:{value:0},uModern:{value:0},uGain:{value:1},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
+    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uMaskNoShine:{value:0},uEmit:{value:0},uMagma:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
 }
 function ps1FloorMat(texG,texF,texI,uvScale,H){
   [texG,texF,texI].forEach(tex=>{ tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false; tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true; });
@@ -1479,15 +1479,26 @@ function updateHelm6Face(dt){
    The player's and the enemies' Helmet 6 keep the original face above. shopFaceSet('talking') etc. switches it (also from the console: shopFace('talking')).
    SHOP_H6_GREY: the parts of his helmet that are pure black in the texture (the ones that never shine) show this grey instead - 0 is black, 1 is white. */
 const SHOP_H6_GREY=0.40;
+/* The shopkeeper's helmet = Helmet 6's shape with the textures of shop-helmet-data (the gltf's retextured helmet). The areas that used to be pure black (never shine) were kept: they carry alpha 254 in
+   the new textures and uMaskNoShine reads that. The plume colour is the ph variable in spawnShopKeeperInBuilding. */
+let shopHelmTex=null;
+function shopHelmLoad(){
+  if(shopHelmTex) return; const el=document.getElementById('shop-helmet-data'); if(!el) return;
+  shopHelmTex={}; const D=JSON.parse(el.textContent);
+  Object.keys(D.tex).forEach(k=>loadImg(D.tex[k]).then(im=>{ const t=new THREE.Texture(im); t.flipY=false; t.encoding=THREE.LinearEncoding; t.generateMipmaps=false; t.minFilter=t.magFilter=THREE.NearestFilter; t.needsUpdate=true; shopHelmTex[k]=t; if(shopKeeper) shopHelmApply(shopKeeper.root); }));
+}
+function shopHelmApply(root){
+  if(!shopHelmTex) return;
+  root.traverse(o=>{ const t=shopHelmTex[o.name]; if(!o.isMesh||!t||!o.material||!o.material.uniforms) return; const u=o.material.uniforms; u.map.value=t; u.uMaskNoShine.value=1; u.uBlackNoShine.value=0; u.uBlackGrey.value=0; });
+}
 let shopFace={faces:null,mat:null,pane:null,name:'normal',t:0,frame:-1};
-const SHOP_FACE_GAIN=1.35;   // how much brighter the shopkeeper's face art is drawn (1 = as drawn)
 function shopFaceAttach(mesh,root){
   mesh.scale.x=root.scale.x<0?-1:1;
   const el=document.getElementById('shop-face-data');
   if(!el){ if(helm6.mat) mesh.material=helm6.mat; return; }   // no data file: fall back to the original face
   const FD=JSON.parse(el.textContent), blank=document.createElement('canvas'); blank.width=blank.height=1;
-  const mat=ps1Mat(new THREE.CanvasTexture(blank),1); if(H6_FACE.glow) mat.uniforms.uNight={value:new THREE.Vector3(1,1,1)};
-  mat.uniforms.uModern.value=1; mat.uniforms.uEmit.value=1; mat.uniforms.uGain.value=SHOP_FACE_GAIN;   // always as in modern mode, unlit (so no shadowed side), and brighter   // (a clear 1x1 until the images have loaded)
+  const mat=ps1Mat(new THREE.CanvasTexture(blank),1); if(H6_FACE.glow) mat.uniforms.uNight={value:new THREE.Vector3(1,1,1)};   // (a clear 1x1 until the images have loaded)
+  { const u=mat.uniforms; u.uEmit.value=1; u.uTint.value.set(1.3,1.3,1.3); u.uAffine={value:0}; u.uDither={value:0}; u.uLevels={value:255}; }   // the face gif: unlit and a bit over-bright, no wobble, no dither, full colour depth
   const pw=H6_FACE.w*FD.w/82;   // the original face is 82 px wide on a 0.30 pane: the same size per pixel, so the eyes keep their size on the helmet
   mesh.geometry=new THREE.PlaneGeometry(pw,pw*FD.h/FD.w); mesh.material=mat;
   shopFace={faces:null,mat,pane:mesh,name:shopFace.name||'normal',t:0,frame:-1};
@@ -1497,7 +1508,7 @@ function shopFaceAttach(mesh,root){
       const f=FD.faces[n], tex=[];
       for(let i=0;i<f.frames;i++){
         const cv=document.createElement('canvas'); cv.width=FD.w; cv.height=FD.h; cv.getContext('2d').drawImage(imgs[k],i*FD.w,0,FD.w,FD.h,0,0,FD.w,FD.h);
-        const t=new THREE.CanvasTexture(cv); t.flipY=true; t.encoding=THREE.LinearEncoding; t.generateMipmaps=false; t.minFilter=t.magFilter=THREE.LinearFilter; tex.push(t);   // smooth, not blocky
+        const t=new THREE.CanvasTexture(cv); t.flipY=true; t.encoding=THREE.LinearEncoding; t.generateMipmaps=false; t.minFilter=t.magFilter=THREE.NearestFilter; tex.push(t);
       }
       faces[n]={tex,ms:f.ms,total:f.ms.reduce((a,b)=>a+b,0)};
     });
@@ -3472,16 +3483,8 @@ function shopEvtStep(dt){   // every 5-11 s of plain idling he plays ShopIdleAni
     if(sk.curAct===a){ const idle=sk.idleAct; idle.reset(); a.crossFadeTo(idle,0.25,false); idle.play(); sk.curAct=idle; } };   // (if he started talking meanwhile, the talk clips already took over)
   sk.mixer.addEventListener('finished',onFin); shopEvt.clock=0; shopEvt.next=5+Math.random()*6;
 }
-const shopHelm={ready:false,loading:false,parts:null};
-function loadShopHelm(){
-  if(shopHelm.loading) return; shopHelm.loading=true;
-  const el=document.getElementById('shop-helmet-data'); if(!el){ shopHelm.ready=true; return; }   // no data file: he keeps Helmet 6
-  const D=JSON.parse(el.textContent);
-  Promise.all(D.parts.map(p=>loadImg(p.tex))).then(imgs=>{ shopHelm.parts=D.parts.map((p,k)=>({p,img:imgs[k]})); shopHelm.ready=true; }).catch(e=>{ console.error('shop helmet failed',e); shopHelm.ready=true; });
-}
 function spawnShopKeeperInBuilding(){
   if(shopKeeper||!shopGroup||!knightScene||!actions.ShopIdle) return;
-  if(!shopHelm.ready){ loadShopHelm(); return; }   // his own helmet (shop-helmet-data) has to be loaded first
   if(helmetNames.indexOf('Helmet 6')<0||!helm6.pane) return;   // the helmets (and Helmet 6's face pane) load a moment after the model; the keeper is cloned only once they are there, or he would end up with the first helmet
   const root=(()=>{ const st=[]; knightScene.traverse(o=>{ if(o.userData&&Object.keys(o.userData).length){ st.push([o,o.userData]); o.userData={}; } }); try{ return knightScene.clone(true); } finally{ st.forEach(([o,u])=>{ o.userData=u; }); } })();
   const cache=new Map(), pTex=[], rocks=[];
@@ -3490,19 +3493,8 @@ function spawnShopKeeperInBuilding(){
   const h6Idx=Math.max(0,helmetNames.indexOf('Helmet 6')), oL=[], cL=[];
   knightScene.traverse(o=>oL.push(o)); root.traverse(o=>cL.push(o));
   helmetSets.forEach((set,j)=>set.forEach(m=>{ const cm=cL[oL.indexOf(m)]; if(cm) cm.visible=(j===h6Idx); }));
-  let faceParent=null; root.traverse(o=>{ if(o.name==='H6Face') faceParent=o.parent; });
-  if(shopHelm.parts&&faceParent){   // the shopkeeper's helmet: the one from shop-helmet-data replaces Helmet 6's parts (his face pane stays)
-    root.traverse(o=>{ if(/^(alt_)?h6_/.test(o.name)) o.visible=false; });
-    shopHelm.parts.forEach(({p,img})=>{
-      const geo=new THREE.BufferGeometry();
-      geo.setAttribute('position',new THREE.Float32BufferAttribute(p.p,3)); geo.setAttribute('normal',new THREE.Float32BufferAttribute(p.n,3)); geo.setAttribute('uv',new THREE.Float32BufferAttribute(p.uv,2)); geo.setIndex(p.i);
-      const tex=new THREE.Texture(img); tex.flipY=false;
-      const m=new THREE.Mesh(geo,ps1Mat(tex,1)); m.name='sh_'+p.name; m.position.set(p.t[0],p.t[1],p.t[2]); m.rotation.order='ZYX'; m.rotation.set(p.r[0]*Math.PI/180,p.r[1]*Math.PI/180,p.r[2]*Math.PI/180);
-      faceParent.add(m);
-    });
-  }
   shopKeeperMats=[];
-  const ah='#a38aeb', ph='#f2f2f2';   // (ph is no longer used: his new plume keeps its own colours)
+  const ah='#a38aeb', ph='#876cab';   // ph: the keeper's plume colour, sampled from his new helmet's plume texture
   root.traverse(o=>{
     if(o.name==='SeatRock') rocks.push(o);
     if(!o.isMesh||o.name==='SeatRock') return;
@@ -3518,7 +3510,7 @@ function spawnShopKeeperInBuilding(){
           tintOne({tex:t,ctx:cv.getContext('2d'),base:pl.base,avgL:pl.avgL},ph); tex=t; pTex.push(t);
         }
       }
-      nm=ps1Mat(tex,1); if(/h6_|sh_/.test(o.name)){ nm.uniforms.uBlackNoShine.value=1; nm.uniforms.uBlackGrey.value=SHOP_H6_GREY; }   // the same parts unaffected by the shine as Helmet 6
+      nm=ps1Mat(tex,1); if(/h6_/.test(o.name)){ nm.uniforms.uBlackNoShine.value=1; nm.uniforms.uBlackGrey.value=SHOP_H6_GREY; }   // (until shopHelmApply swaps in his new helmet textures)
       if(!isPl) tintMat(nm,ah,SHOP_ARMOR_TINT);
       nm.uniforms.uShine.value=shopShineOn?1:0;
       shopKeeperMats.push(nm);
@@ -3537,6 +3529,7 @@ function spawnShopKeeperInBuilding(){
   const idleAct=mx.clipAction(actions.ShopIdle.getClip());
   idleAct.play(); mx.update(0);
   shopKeeper={rig,root,mixer:mx,tex:pTex,idleAct,curAct:idleAct};
+  shopHelmLoad(); shopHelmApply(root);
   shopFitKeeper(shopKeeper);
 }
 /* The keeper's arms rest on the counter. ShopIdle holds his hands about 1.2 high, a little below the counter top and well short of the shelf, so he is lifted and moved up to the counter:
