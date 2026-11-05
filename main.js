@@ -3641,7 +3641,7 @@ function invBuild(){
   invUi=document.createElement('div'); invUi.id='invui';
   invUi.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #7fc4ff;padding-bottom:6px;margin-bottom:8px"><span>INVENTORY</span><button type="button" id="inv-cust" style="font:inherit;font-size:.62em;color:#d4ecff;background:rgba(0,0,0,.35);border:2px solid #7fc4ff;padding:2px 10px;letter-spacing:.1em;cursor:pointer;text-shadow:inherit">CUSTOMIZE</button></div>'+INV_ROWS.map(r=>'<button class="mi" type="button"><span>'+r.t+'</span><span class="v"></span></button>').join('');
   [...invUi.querySelectorAll('.mi')].forEach((b,i)=>{ b.onmouseenter=()=>invSelect(i,true); b.onclick=()=>{ invSelect(i,false); invActivate(); }; });
-  document.getElementById('inv-cust').onclick=()=>{ blip(880,0.09); invShowCust(); };
+  invUi.querySelector('#inv-cust').onclick=()=>{ blip(880,0.09); invShowCust(); };   // (invUi is not in the page yet, so document.getElementById would find nothing)
   document.body.appendChild(invUi);
 }
 function invShowCust(){ invCust=true; invUi.classList.remove('on'); document.body.classList.remove('map'); invGoMenu('custom'); }   // the customize window takes the inventory's place, same camera
