@@ -1,292 +1,297 @@
 [
- {
-  "id": "song-data",
-  "type": "text/plain",
-  "url": "song-data.txt"
- },
- {
-  "id": "shop-song-data",
-  "type": "text/plain",
-  "url": "shop-song-data.txt"
- },
- {
-  "id": "frost-song-data",
-  "type": "text/plain",
-  "url": "frost-song-data.txt"
- },
- {
-  "id": "flaunt-data",
-  "type": "text/plain",
-  "url": "flaunt-data.txt"
- },
- {
-  "id": "battle-data",
-  "type": "text/plain",
-  "url": "battle-data.txt"
- },
- {
-  "id": "face-data",
-  "type": "application/json",
-  "url": "face-data.json"
- },
- {
-  "id": "helmet-data",
-  "type": "application/json",
-  "url": "helmet-data.json"
- },
- {
-  "id": "tree-data",
-  "type": "application/json",
-  "url": "tree-data.json"
- },
- {
-  "id": "snow-tree-data",
-  "type": "application/json",
-  "url": "snow-tree-data.json"
- },
- {
-  "id": "rock-data",
-  "type": "application/json",
-  "url": "rock-data.json"
- },
- {
-  "id": "snow-rock-data",
-  "type": "application/json",
-  "url": "snow-rock-data.json"
- },
- {
-  "id": "knight-data",
-  "type": "application/json",
-  "url": "knight-data.json"
- },
- {
-  "id": "sword-data",
-  "type": "application/json",
-  "url": "sword-data.json"
- },
- {
-  "id": "ruins-data",
-  "type": "application/json",
-  "url": "ruins-data.json"
- },
- {
-  "id": "pointer-data",
-  "type": "text/plain",
-  "url": "pointer-data.txt"
- },
- {
-  "id": "step-data",
-  "type": "application/json",
-  "url": "step-data.json"
- },
- {
-  "id": "flaunt-sfx-data",
-  "type": "application/json",
-  "url": "flaunt-sfx-data.json"
- },
- {
-  "id": "defeat-gif",
-  "type": "text/plain",
-  "url": "defeat-gif.txt"
- },
- {
-  "id": "shop-data",
-  "type": "text/plain",
-  "url": "shop-data.txt"
- },
- {
-  "id": "defeat-sfx-data",
-  "type": "application/json",
-  "url": "defeat-sfx-data.json"
- },
- {
-  "id": "knife-sfx-data",
-  "type": "application/json",
-  "url": "knife-sfx-data.json"
- },
- {
-  "id": "sword-sfx-data",
-  "type": "application/json",
-  "url": "sword-sfx-data.json"
- },
- {
-  "id": "block-sfx-data",
-  "type": "application/json",
-  "url": "block-sfx-data.json"
- },
- {
-  "id": "pose3-data",
-  "type": "application/json",
-  "url": "pose3-data.json"
- },
- {
-  "id": "shopidle-data",
-  "type": "application/json",
-  "url": "shopidle-data.json"
- },
- {
-  "id": "shopidleanimation1-data",
-  "type": "application/json",
-  "url": "shopidleanimation1-data.json"
- },
- {
-  "id": "shopintotalk-data",
-  "type": "application/json",
-  "url": "shopintotalk-data.json"
- },
- {
-  "id": "shopoutrotalk-data",
-  "type": "application/json",
-  "url": "shopoutrotalk-data.json"
- },
- {
-  "id": "shopwhiletalking-data",
-  "type": "application/json",
-  "url": "shopwhiletalking-data.json"
- },
- {
-  "id": "death-data",
-  "type": "application/json",
-  "url": "death-data.json"
- },
- {
-  "id": "axeidle-data",
-  "type": "application/json",
-  "url": "axeidle-data.json"
- },
- {
-  "id": "axeswing-data",
-  "type": "application/json",
-  "url": "axeswing-data.json"
- },
- {
-  "id": "axeflaunt-data",
-  "type": "application/json",
-  "url": "axeflaunt-data.json"
- },
- {
-  "id": "flauntidleaxe-data",
-  "type": "application/json",
-  "url": "flauntidleaxe-data.json"
- },
- {
-  "id": "drinkpotion-data",
-  "type": "application/json",
-  "url": "drinkpotion-data.json"
- },
- {
-  "id": "potion-data",
-  "type": "text/plain",
-  "url": "potion-data.txt"
- },
- {
-  "id": "potion-sfx-data",
-  "type": "application/json",
-  "url": "potion-sfx-data.json"
- },
- {
-  "id": "axe-data",
-  "type": "application/json",
-  "url": "axe-data.json"
- },
- {
-  "id": "hatchet-data",
-  "type": "application/json",
-  "url": "hatchet-data.json"
- },
- {
-  "id": "hammer-data",
-  "type": "application/json",
-  "url": "hammer-data.json"
- },
- {
-  "id": "grunt-data",
-  "type": "application/json",
-  "url": "grunt-data.json"
- },
- {
-  "id": "v2-sword-sfx-data",
-  "type": "application/json",
-  "url": "v2-sword-sfx-data.json"
- },
- {
-  "id": "v2-block-sfx-data",
-  "type": "application/json",
-  "url": "v2-block-sfx-data.json"
- },
- {
-  "id": "v2-grunt-data",
-  "type": "application/json",
-  "url": "v2-grunt-data.json"
- },
- {
-  "id": "v2-die-data",
-  "type": "application/json",
-  "url": "v2-die-data.json"
- },
- {
-  "id": "v2-flaunt-sfx-data",
-  "type": "application/json",
-  "url": "v2-flaunt-sfx-data.json"
- },
- {
-  "id": "elemental-data",
-  "type": "text/plain",
-  "url": "elemental-data.txt"
- },
- {
-  "id": "slime-atk-sfx-data",
-  "type": "application/json",
-  "url": "slime-atk-sfx-data.json"
- },
- {
-  "id": "slime-hit-sfx-data",
-  "type": "application/json",
-  "url": "slime-hit-sfx-data.json"
- },
- {
-  "id": "slime-die-sfx-data",
-  "type": "application/json",
-  "url": "slime-die-sfx-data.json"
- },
- {
-  "id": "slime-win-sfx-data",
-  "type": "application/json",
-  "url": "slime-win-sfx-data.json"
- },
- {
-  "id": "flip-data",
-  "type": "application/json",
-  "url": "flip-data.json"
- },
- {
-  "id": "shop-face-data",
-  "type": "application/json",
-  "url": "shop-face-data.json"
- },
- {
-  "id": "ignis-song-data",
-  "type": "text/plain",
-  "url": "ignis-song-data.txt"
- },
- {
-  "id": "ignis-tree-data",
-  "type": "application/json",
-  "url": "ignis-tree-data.json"
- },
- {
-  "id": "ignis-rock-data",
-  "type": "application/json",
-  "url": "ignis-rock-data.json"
- },
- {
-  "id": "hill-data",
-  "type": "application/json",
-  "url": "hill-data.json"
- },
- {
-  "id": "mountain-data",
-  "type": "application/json",
-  "url": "mountain-data.json"
- }
+  {
+    "id": "song-data",
+    "type": "text/plain",
+    "url": "song-data.txt"
+  },
+  {
+    "id": "shop-song-data",
+    "type": "text/plain",
+    "url": "shop-song-data.txt"
+  },
+  {
+    "id": "frost-song-data",
+    "type": "text/plain",
+    "url": "frost-song-data.txt"
+  },
+  {
+    "id": "flaunt-data",
+    "type": "text/plain",
+    "url": "flaunt-data.txt"
+  },
+  {
+    "id": "battle-data",
+    "type": "text/plain",
+    "url": "battle-data.txt"
+  },
+  {
+    "id": "face-data",
+    "type": "application/json",
+    "url": "face-data.json"
+  },
+  {
+    "id": "helmet-data",
+    "type": "application/json",
+    "url": "helmet-data.json"
+  },
+  {
+    "id": "tree-data",
+    "type": "application/json",
+    "url": "tree-data.json"
+  },
+  {
+    "id": "snow-tree-data",
+    "type": "application/json",
+    "url": "snow-tree-data.json"
+  },
+  {
+    "id": "rock-data",
+    "type": "application/json",
+    "url": "rock-data.json"
+  },
+  {
+    "id": "snow-rock-data",
+    "type": "application/json",
+    "url": "snow-rock-data.json"
+  },
+  {
+    "id": "knight-data",
+    "type": "application/json",
+    "url": "knight-data.json"
+  },
+  {
+    "id": "sword-data",
+    "type": "application/json",
+    "url": "sword-data.json"
+  },
+  {
+    "id": "ruins-data",
+    "type": "application/json",
+    "url": "ruins-data.json"
+  },
+  {
+    "id": "pointer-data",
+    "type": "text/plain",
+    "url": "pointer-data.txt"
+  },
+  {
+    "id": "step-data",
+    "type": "application/json",
+    "url": "step-data.json"
+  },
+  {
+    "id": "flaunt-sfx-data",
+    "type": "application/json",
+    "url": "flaunt-sfx-data.json"
+  },
+  {
+    "id": "defeat-gif",
+    "type": "text/plain",
+    "url": "defeat-gif.txt"
+  },
+  {
+    "id": "shop-data",
+    "type": "text/plain",
+    "url": "shop-data.txt"
+  },
+  {
+    "id": "defeat-sfx-data",
+    "type": "application/json",
+    "url": "defeat-sfx-data.json"
+  },
+  {
+    "id": "knife-sfx-data",
+    "type": "application/json",
+    "url": "knife-sfx-data.json"
+  },
+  {
+    "id": "sword-sfx-data",
+    "type": "application/json",
+    "url": "sword-sfx-data.json"
+  },
+  {
+    "id": "block-sfx-data",
+    "type": "application/json",
+    "url": "block-sfx-data.json"
+  },
+  {
+    "id": "pose3-data",
+    "type": "application/json",
+    "url": "pose3-data.json"
+  },
+  {
+    "id": "shopidle-data",
+    "type": "application/json",
+    "url": "shopidle-data.json"
+  },
+  {
+    "id": "shopidleanimation1-data",
+    "type": "application/json",
+    "url": "shopidleanimation1-data.json"
+  },
+  {
+    "id": "shopintotalk-data",
+    "type": "application/json",
+    "url": "shopintotalk-data.json"
+  },
+  {
+    "id": "shopoutrotalk-data",
+    "type": "application/json",
+    "url": "shopoutrotalk-data.json"
+  },
+  {
+    "id": "shopwhiletalking-data",
+    "type": "application/json",
+    "url": "shopwhiletalking-data.json"
+  },
+  {
+    "id": "death-data",
+    "type": "application/json",
+    "url": "death-data.json"
+  },
+  {
+    "id": "axeidle-data",
+    "type": "application/json",
+    "url": "axeidle-data.json"
+  },
+  {
+    "id": "axeswing-data",
+    "type": "application/json",
+    "url": "axeswing-data.json"
+  },
+  {
+    "id": "axeflaunt-data",
+    "type": "application/json",
+    "url": "axeflaunt-data.json"
+  },
+  {
+    "id": "flauntidleaxe-data",
+    "type": "application/json",
+    "url": "flauntidleaxe-data.json"
+  },
+  {
+    "id": "drinkpotion-data",
+    "type": "application/json",
+    "url": "drinkpotion-data.json"
+  },
+  {
+    "id": "potion-data",
+    "type": "text/plain",
+    "url": "potion-data.txt"
+  },
+  {
+    "id": "potion-sfx-data",
+    "type": "application/json",
+    "url": "potion-sfx-data.json"
+  },
+  {
+    "id": "axe-data",
+    "type": "application/json",
+    "url": "axe-data.json"
+  },
+  {
+    "id": "hatchet-data",
+    "type": "application/json",
+    "url": "hatchet-data.json"
+  },
+  {
+    "id": "hammer-data",
+    "type": "application/json",
+    "url": "hammer-data.json"
+  },
+  {
+    "id": "grunt-data",
+    "type": "application/json",
+    "url": "grunt-data.json"
+  },
+  {
+    "id": "v2-sword-sfx-data",
+    "type": "application/json",
+    "url": "v2-sword-sfx-data.json"
+  },
+  {
+    "id": "v2-block-sfx-data",
+    "type": "application/json",
+    "url": "v2-block-sfx-data.json"
+  },
+  {
+    "id": "v2-grunt-data",
+    "type": "application/json",
+    "url": "v2-grunt-data.json"
+  },
+  {
+    "id": "v2-die-data",
+    "type": "application/json",
+    "url": "v2-die-data.json"
+  },
+  {
+    "id": "v2-flaunt-sfx-data",
+    "type": "application/json",
+    "url": "v2-flaunt-sfx-data.json"
+  },
+  {
+    "id": "elemental-data",
+    "type": "text/plain",
+    "url": "elemental-data.txt"
+  },
+  {
+    "id": "slime-atk-sfx-data",
+    "type": "application/json",
+    "url": "slime-atk-sfx-data.json"
+  },
+  {
+    "id": "slime-hit-sfx-data",
+    "type": "application/json",
+    "url": "slime-hit-sfx-data.json"
+  },
+  {
+    "id": "slime-die-sfx-data",
+    "type": "application/json",
+    "url": "slime-die-sfx-data.json"
+  },
+  {
+    "id": "slime-win-sfx-data",
+    "type": "application/json",
+    "url": "slime-win-sfx-data.json"
+  },
+  {
+    "id": "flip-data",
+    "type": "application/json",
+    "url": "flip-data.json"
+  },
+  {
+    "id": "shop-face-data",
+    "type": "application/json",
+    "url": "shop-face-data.json"
+  },
+  {
+    "id": "ignis-song-data",
+    "type": "text/plain",
+    "url": "ignis-song-data.txt"
+  },
+  {
+    "id": "ignis-tree-data",
+    "type": "application/json",
+    "url": "ignis-tree-data.json"
+  },
+  {
+    "id": "ignis-rock-data",
+    "type": "application/json",
+    "url": "ignis-rock-data.json"
+  },
+  {
+    "id": "hill-data",
+    "type": "application/json",
+    "url": "hill-data.json"
+  },
+  {
+    "id": "mountain-data",
+    "type": "application/json",
+    "url": "mountain-data.json"
+  },
+  {
+    "id": "shop-helmet-data",
+    "type": "application/json",
+    "url": "shop-helmet-data.json"
+  }
 ]
