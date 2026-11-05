@@ -458,6 +458,15 @@ const START_CAM_YAW=Math.PI+0.55, START_CAM_PITCH=-0.52, START_CAM_ZOOM=0.28, ST
 let nightGroup=null, nightStars=null, nightMoon=null, nightFogDay=null;
 function startCam(){ const zOff=areaZOffset(); yaw=START_CAM_YAW; pitch=START_CAM_PITCH; zoom=START_CAM_ZOOM; target.set(homeTarget.x, homeTarget.y+playerH*START_TARGET_Y, homeTarget.z+zOff); }   // low and close, looking up at him
 function menuCam(){ const zOff=areaZOffset(); yaw=Math.PI+0.65; pitch=0.1; zoom=0.82; target.set(homeTarget.x, homeTarget.y, homeTarget.z+zOff); }                                                 // the usual menu view
+let fogT=5;   // OPTIONS > WORLD > FOG: 1 (thin) .. 9 (thick); 5 = the normal fog
+const fogRec={base:null,set:null};
+function applyFogThickness(){
+  if(mapMode||dungeon||shopT>=0||fogBak) return;
+  const n=U.uFogNear.value, f=U.uFogFar.value;
+  if(!fogRec.base||!fogRec.set||n!==fogRec.set[0]||f!==fogRec.set[1]) fogRec.base=[n,f];
+  const s=Math.pow(1.3,5-fogT), nn=fogRec.base[0]*s, ff=fogRec.base[1]*s;
+  U.uFogNear.value=nn; U.uFogFar.value=ff; fogRec.set=[nn,ff];
+}
 function setNight(on){
   night=on; const sky=night?SKY_NIGHT:(forest?SKY_FOREST:SKY_CLASSIC);
   setSkyFog(sky);
@@ -2744,7 +2753,7 @@ function frame(now){
     if(swingDone){ swingDone=false; endSwing(); }
     if(flauntDone){ flauntDone=false; if(current===actions.AxeFlaunt) play(FLAUNT_IDLE); }   // AxeFlaunt has played through: carry on into its idle instead of freezing on the last frame
   }
-  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); updateMagma(dt); inspectStep(dt); applyAreaFog(); }
+  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); applyFogThickness(); updateMagma(dt); inspectStep(dt); applyAreaFog(); }
   shopSync(); if(mapMode) mapStep(dt);   // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
   if(!mapMode){
     invStep(dt);   // the inventory zoom
@@ -3673,26 +3682,34 @@ function initMainMenu(){
   const root=document.getElementById('mm'), scr=document.getElementById('scr'), cust=document.getElementById('cust'), toastEl=document.getElementById('toast');
   ['vlbl','voicesel','hlbl','helmsel','plbl','sws','albl','asws','astrl','astr','shiny','slbl','ssws','smatch'].forEach(id=>{ const n=document.getElementById(id); if(n) cust.appendChild(n); });
   let tt=0; window.toast=toast; function toast(t){ toastEl.textContent=t; toastEl.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>toastEl.classList.remove('show'),1700); }
-  const BACK={t:'BACK',go:'main'};
+  const BACK={t:'BACK',go:'main'}, BACK_OPT={t:'BACK',go:'options'};   // BACK_OPT: from a group of options back to OPTIONS
   const SCREENS={
     start:{name:'PRESS START',items:[{t:'START',run:startGame}]},
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
     anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
-    options:{name:'OPTIONS',items:[
+    options:{name:'OPTIONS',items:[{t:'GRAPHICS',go:'opt_gfx'},{t:'WORLD',go:'opt_world'},{t:'SOUND',go:'opt_sound'},{t:'KNIGHT',go:'opt_knight'},BACK]},
+    opt_gfx:{name:'GRAPHICS',up:'options',items:[
       {t:'LOOK',v:()=>ps1?'PS1':'MODERN',run:toggleLook},
       {t:'PIXELS',v:()=>PIX_STEPS[pixIdx][0],run:cyclePixels},
       {t:'COLORS',v:()=>COL_STEPS[colIdx][0],run:cycleColors},
+      {t:'SHINE',v:()=>shineOn?'ON':'OFF',run:toggleShine},BACK_OPT]},
+    opt_world:{name:'WORLD',up:'options',items:[
       {t:'WORLD',v:()=>forest?'FOREST':'CLASSIC',run:()=>setWorld(!forest)},
       {t:'TIME',v:()=>night?'NIGHT':'DAY',run:()=>setNight(!night)},
+      {t:'FOG',v:()=>'#'.repeat(fogT)+'.'.repeat(9-fogT),adj:d=>{ fogT=d?Math.max(1,Math.min(9,fogT+d)):fogT%9+1; }},   // thickness: LEFT / RIGHT (or click) - 5 is the normal fog
+      {t:'LEAVES',v:()=>leavesOn?'ON':'OFF',run:toggleLeaves},
+      {t:'SNOW',v:()=>snowOn?'ON':'OFF',run:()=>{ snowOn=!snowOn; }},BACK_OPT]},
+    opt_sound:{name:'SOUND',up:'options',items:[
       {t:'MUSIC',v:()=>musicOn?'ON':'OFF',run:()=>{ toggleMusic(); setTimeout(render,0); }},
       {t:'BITCRUSH',v:()=>crushOn?'ON':'OFF',run:toggleCrush},
-      {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},
-      {t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'SWOOSH',v:()=>swooshOn?'ON':'OFF',run:toggleSwoosh},
-      {t:'SHINE',v:()=>shineOn?'ON':'OFF',run:toggleShine},
-      {t:'LEAVES',v:()=>leavesOn?'ON':'OFF',run:toggleLeaves},
-      {t:'SNOW',v:()=>snowOn?'ON':'OFF',run:()=>{ snowOn=!snowOn; }},BACK]},
+      {t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},BACK_OPT]},
+    opt_knight:{name:'KNIGHT',up:'options',items:[
+      {t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},
+      {t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},
+      {t:'SWOOSH',v:()=>swooshOn?'ON':'OFF',run:toggleSwoosh},
+      {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},BACK_OPT]},
     /* Attribution: This work is based on "Low Poly Campfire" (https://sketchfab.com/3d-models/low-poly-campfire-695c62069ac44614acbfc6effcf7499d) by MrE_Sauce (https://sketchfab.com/MrE_Sauce) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Glint and falling-leaf sprites by Kaessis. */
     credits:{name:'CREDITS',text:['KNIGHT MODEL AND ART','BUILT BY YOU, BLOCKBENCH','AND A LOT OF PATIENCE','','ADVENTURER BASE MESH','FROM A FREE LOW-POLY PACK','','LOW POLY CAMPFIRE','BY MRE_SAUCE (SKETCHFAB)','LICENSED CC BY 4.0','','GLINT AND FALLING LEAF','SPRITES BY KAESSIS','','DARIEN GAP','BY LT','','LIVIN LOOSE','BY GEORGE CLANTON','','HIT GRUNTS','HARRY MASON','FROM SILENT HILL (KONAMI)','','SWORD SOUNDS','FROM CASTLEVANIA (KONAMI)','','WALKING SOUND','FROM DIGIMON WORLD (BANDAI)'],items:[BACK,'','SACRIFICE OF SAINT DELL','BY FM SKYLINE','','ICE (SLOWED)','BY ZERTAL']}
   };
@@ -3740,7 +3757,7 @@ function initMainMenu(){
     const it=SCREENS[cur].items[idx];
     if(it.lock){ blip(140,0.14); toast('LOCKED'); return; }
     blip(880,0.09);
-    if(it.go) go(it.go); else if(it.run){ it.run(); render(); }
+    if(it.adj){ it.adj(0); render(); } else if(it.go) go(it.go); else if(it.run){ it.run(); render(); }
   }
   function move(d){ const n=SCREENS[cur].items.length; idx=(idx+d+n)%n; blip(520,0.05); if(idx<top||idx>=top+visRows()) render(); else mark(); }
   addEventListener('keydown',e=>{
@@ -3749,8 +3766,8 @@ function initMainMenu(){
     const k=e.key;
     if(k==='ArrowDown'||k==='s') move(1); else if(k==='ArrowUp'||k==='w'&&false) move(-1);
     else if(k==='Enter'||k===' ') act();
-    else if(k==='Escape'||k==='Backspace'){ if(cur==='main'){ if(!startBusy){ blip(300,0.08); toStartScreen(); } } else if(cur!=='start'){ blip(300,0.08); go('main'); } }
-    else if((k==='ArrowLeft'||k==='ArrowRight')&&SCREENS[cur].items[idx].run) act();
+    else if(k==='Escape'||k==='Backspace'){ if(cur==='main'){ if(!startBusy){ blip(300,0.08); toStartScreen(); } } else if(cur!=='start'){ blip(300,0.08); go(SCREENS[cur].up||'main'); } }
+    else if(k==='ArrowLeft'||k==='ArrowRight'){ const it=SCREENS[cur].items[idx]; if(it.adj){ it.adj(k==='ArrowRight'?1:-1); blip(660,0.05); render(); } else if(it.run) act(); }
   });
   uiEl.addEventListener('wheel',e=>{ if(exploring||SCREENS[cur].items.length<=visRows()) return; e.preventDefault(); blip(520,0.03); scrollBy(e.deltaY>0?1:-1); },{passive:false});
   addEventListener('resize',()=>{ if(!exploring) render(); });
