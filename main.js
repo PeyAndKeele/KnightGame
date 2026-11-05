@@ -248,7 +248,7 @@ function toggleShine(){
 }
 
 /* ---------- state ---------- */
-let invHid=[], invOn=false, invK=0, invPrev=null, invCur=0, invUi=null;   // inventory (main menu > INVENTORY)
+let invCust=false, invGoMenu=null, invHid=[], invOn=false, invK=0, invPrev=null, invCur=0, invUi=null;   // inventory (main menu > INVENTORY)
 let exploring=false, ps1=true, spin=false, paused=false, mixer=null, actions={}, names=[], menuNames=[], current=null;
 let mapMode=false, startScr=false, mapS=0, mapDir=0, mapViewK=1;   // the map (see MAP below): mapS 0 = menu camera ... 3 = the map, mapDir +1 opening / -1 closing / 0 resting, mapViewK 1 = picture shifted right for the menu ... 0 = centered
 let yaw=Math.PI+0.65, pitch=0.1, zoom=0.82, baseDist=5, target=new THREE.Vector3();
@@ -3639,10 +3639,13 @@ function invBuild(){
   if(invUi) return;
   const st=document.createElement('style'); st.textContent='#invui{position:fixed;left:3vw;top:9vh;width:min(32vw,440px);max-height:74vh;box-sizing:border-box;border:3px solid #7fc4ff;background:rgba(40,100,230,.30);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:12px;padding:24px;font-size:min(34px,5vh);letter-spacing:.14em;color:#d4ecff;text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}#invui.on{opacity:1;pointer-events:auto}#invui .mi{display:flex;justify-content:space-between}@media (max-aspect-ratio:9/10){#invui{left:4vw;width:92vw;top:4vh;max-height:46vh}}'; document.head.appendChild(st);
   invUi=document.createElement('div'); invUi.id='invui';
-  invUi.innerHTML='<div style="border-bottom:2px solid #7fc4ff;padding-bottom:6px;margin-bottom:8px">INVENTORY</div>'+INV_ROWS.map(r=>'<button class="mi" type="button"><span>'+r.t+'</span><span class="v"></span></button>').join('');
+  invUi.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #7fc4ff;padding-bottom:6px;margin-bottom:8px"><span>INVENTORY</span><button type="button" id="inv-cust" style="font:inherit;font-size:.62em;color:#d4ecff;background:rgba(0,0,0,.35);border:2px solid #7fc4ff;padding:2px 10px;letter-spacing:.1em;cursor:pointer;text-shadow:inherit">CUSTOMIZE</button></div>'+INV_ROWS.map(r=>'<button class="mi" type="button"><span>'+r.t+'</span><span class="v"></span></button>').join('');
   [...invUi.querySelectorAll('.mi')].forEach((b,i)=>{ b.onmouseenter=()=>invSelect(i,true); b.onclick=()=>{ invSelect(i,false); invActivate(); }; });
+  document.getElementById('inv-cust').onclick=()=>{ blip(880,0.09); invShowCust(); };
   document.body.appendChild(invUi);
 }
+function invShowCust(){ invCust=true; invUi.classList.remove('on'); document.body.classList.remove('map'); invGoMenu('custom'); }   // the customize window takes the inventory's place, same camera
+function invShowInv(){ invCust=false; invGoMenu('main'); document.body.classList.add('map'); invUi.classList.add('on'); invRefresh(); }
 function openInventory(){
   if(invOn||exploring||mapMode) return;
   invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,clip:current?current.getClip().name:null}; invOn=true; invCur=0;
@@ -3654,12 +3657,13 @@ function openInventory(){
 }
 function closeInventory(){
   if(!invOn) return;
-  invOn=false; invUi.classList.remove('on'); if(invPrev&&invPrev.spin&&!spin) toggleSpin();
+  invOn=false; invCust=false; invUi.classList.remove('on'); if(invPrev&&invPrev.spin&&!spin) toggleSpin();
   invHid.forEach(h=>{ h.o.visible=h.v; }); invHid=[]; if(invPrev&&invPrev.clip&&actions[invPrev.clip]) play(invPrev.clip);   // the world comes back and he returns to the pose he was in
   document.body.classList.remove('map');
 }
 addEventListener('keydown',e=>{
-  if(!invOn) return; const k=e.key;
+  if(!invOn||invCust) return; const k=e.key;
+  if(k==='c'||k==='C'||k==='Tab'){ e.preventDefault(); invShowCust(); return; }
   if(k==='Escape'||k==='Backspace'){ e.preventDefault(); blip(300,0.08); closeInventory(); }
   else if(k==='ArrowDown'||k==='s'){ e.preventDefault(); invSelect(invCur+1,true); }
   else if(k==='ArrowUp'||k==='w'){ e.preventDefault(); invSelect(invCur-1,true); }
@@ -3672,7 +3676,7 @@ function initMainMenu(){
   const BACK={t:'BACK',go:'main'};
   const SCREENS={
     start:{name:'PRESS START',items:[{t:'START',run:startGame}]},
-    main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'CUSTOMIZE',go:'custom'},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
+    main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
     anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
@@ -3730,7 +3734,8 @@ function initMainMenu(){
     if(scrolls) root.appendChild(moreRow(1,items.length-top-vis,vis));
   }
   function mark(){ btns.forEach(b=>b.classList.toggle('on',b._i===idx)); }
-  function go(n){ cur=n; idx=0; top=0; render(); }
+  function go(n){ if(invOn&&invCust&&n==='main'){ invShowInv(); return; } cur=n; idx=0; top=0; render(); }   // CUSTOMIZE lives in the inventory now: its BACK returns there
+  invGoMenu=go;
   function act(){
     const it=SCREENS[cur].items[idx];
     if(it.lock){ blip(140,0.14); toast('LOCKED'); return; }
@@ -3740,7 +3745,7 @@ function initMainMenu(){
   function move(d){ const n=SCREENS[cur].items.length; idx=(idx+d+n)%n; blip(520,0.05); if(idx<top||idx>=top+visRows()) render(); else mark(); }
   addEventListener('keydown',e=>{
     if(e.target.tagName==='SELECT'||e.target.tagName==='INPUT') return;
-    if(exploring||mapMode||invOn) return;
+    if(exploring||mapMode||(invOn&&!invCust)) return;
     const k=e.key;
     if(k==='ArrowDown'||k==='s') move(1); else if(k==='ArrowUp'||k==='w'&&false) move(-1);
     else if(k==='Enter'||k===' ') act();
