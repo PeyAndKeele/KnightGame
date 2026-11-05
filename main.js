@@ -3720,7 +3720,7 @@ function initMainMenu(){
     const sc=SCREENS[cur]; scr.textContent=sc.name; root.innerHTML=''; btns=[];
     startScr=(cur==='start'); document.body.classList.toggle('startscr',startScr);   // the start screen's camera can't be dragged
     if(sc.text){ const d=document.createElement('div'); d.className='txt'; d.innerHTML=sc.text.map(l=>l||'&nbsp;').join('<br>'); root.appendChild(d); }
-    cust.hidden=!sc.panel;
+    cust.hidden=!sc.panel; document.body.classList.toggle('custscr',!!sc.panel);   // the customize screen gets the blue inventory-style panel (see index.html)
     const items=sc.items, vis=visRows(), scrolls=items.length>vis;
     if(scrolls){ if(idx<top) top=idx; if(idx>=top+vis) top=idx-vis+1; top=Math.max(0,Math.min(top,items.length-vis)); root.appendChild(moreRow(-1,top,vis)); } else top=0;
     items.forEach((it,i)=>{
