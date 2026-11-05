@@ -195,6 +195,11 @@
   "url": "hatchet-data.json"
  },
  {
+  "id": "hammer-data",
+  "type": "application/json",
+  "url": "hammer-data.json"
+ },
+ {
   "id": "grunt-data",
   "type": "application/json",
   "url": "grunt-data.json"

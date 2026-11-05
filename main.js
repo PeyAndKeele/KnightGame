@@ -248,7 +248,7 @@ function toggleShine(){
 }
 
 /* ---------- state ---------- */
-let invOn=false, invK=0, invPrev=null, invCur=0, invUi=null;   // inventory (main menu > INVENTORY)
+let invHid=[], invOn=false, invK=0, invPrev=null, invCur=0, invUi=null;   // inventory (main menu > INVENTORY)
 let exploring=false, ps1=true, spin=false, paused=false, mixer=null, actions={}, names=[], menuNames=[], current=null;
 let mapMode=false, startScr=false, mapS=0, mapDir=0, mapViewK=1;   // the map (see MAP below): mapS 0 = menu camera ... 3 = the map, mapDir +1 opening / -1 closing / 0 resting, mapViewK 1 = picture shifted right for the menu ... 0 = centered
 let yaw=Math.PI+0.65, pitch=0.1, zoom=0.82, baseDist=5, target=new THREE.Vector3();
@@ -304,7 +304,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   blob.rotation.x=-Math.PI/2; blob.position.set(ctr.x,box.min.y+H*0.002,ctr.z); scene.add(blob); blobMesh=blob; blobHome=blob.position.clone();
 
   U.uFogNear.value=H*2.6; U.uFogFar.value=H*5.2;
-  initTrees(H,box.min.y); initRuins(H,box.min.y,ctr); initPointer(); initElemental(); initDgForest(H,box.min.y,ctr); initSky(H,box.min.y); initNight(H,box.min.y); groundYNight=box.min.y; initLeaves(box.min.y); initSnow(H,box.min.y); initRock(gltf.scene,box.min.y); initSword(gltf.scene); initHatchet(gltf.scene); initAxe(gltf.scene); initPotion(gltf.scene); setWorld(true);
+  initTrees(H,box.min.y); initRuins(H,box.min.y,ctr); initPointer(); initElemental(); initDgForest(H,box.min.y,ctr); initSky(H,box.min.y); initNight(H,box.min.y); groundYNight=box.min.y; initLeaves(box.min.y); initSnow(H,box.min.y); initRock(gltf.scene,box.min.y); initSword(gltf.scene); initHatchet(gltf.scene); initHammer(gltf.scene); initAxe(gltf.scene); initPotion(gltf.scene); setWorld(true);
   baseDist=H; resize();
 
   // animations
@@ -865,6 +865,8 @@ function initSword(parent){
 /* ---------- the Hatchet (hatchet-data: Blockbench glTF). The small axe: an alternate style for the SWORD. It is a light weapon, so it is held exactly like the sword and uses the sword's
    own animations (Idle, Swing, ...) and the same swoosh. Pick it with OPTIONS > SWORD STYLE (or the same row on the animations screen). It follows the sword's hand and mount constants above;
    HATCHET_GRIP_Y is where the middle of its handle sits, HATCHET_TURN_DEG turns it about the handle (0 = the edge on the hand's side, 180 = the other way), HATCHET_NUDGE shifts it (forearm space). ---------- */
+/* the Hammer (hammer-data): a second alternate style for the SWORD, held like the hatchet. HAMMER_GRIP is the middle of its handle (the handle stands at x 0, z 0.125 in the model). */
+const HAMMER_GRIP=[0,0.72,0.125], HAMMER_TURN_DEG=0, HAMMER_NUDGE=[0,0,0];
 const HATCHET_GRIP_Y=1.156, HATCHET_TURN_DEG=0, HATCHET_NUDGE=[0,0,0];
 let voice='voice1';   // 'voice1' (original sounds) or 'voice2' (new sounds)
 function setVoice(v){
@@ -873,10 +875,11 @@ function setVoice(v){
   const sel=document.getElementById('voicesel'); if(sel) sel.value=voice;
 }
 function toggleVoice(){ setVoice(voice==='voice1'?'voice2':'voice1'); }
-let hatchetGrp=null, swordStyle='sword';   // swordStyle: 'sword' or 'hatchet' (only shows while the weapon is the light one)
+let hatchetGrp=null, hammerGrp=null, swordStyle='sword';   // swordStyle: 'sword' or 'hatchet' (only shows while the weapon is the light one)
 function showWeapons(){
   if(swordGrp) swordGrp.visible=(weapon==='sword'&&swordStyle==='sword');
   if(hatchetGrp) hatchetGrp.visible=(weapon==='sword'&&swordStyle==='hatchet');
+  if(hammerGrp) hammerGrp.visible=(weapon==='sword'&&swordStyle==='hammer');
   if(axeGrp) axeGrp.visible=(weapon==='axe');
   swooshUse();
 }
@@ -919,8 +922,47 @@ function initHatchet(parent){
     showWeapons();
   }).catch(e=>console.error('hatchet load failed',e));
 }
+function initHammer(parent){
+  const el=document.getElementById('hammer-data'); if(!el) return;
+  const HD=JSON.parse(el.textContent);
+  const fore=parent.getObjectByName(SWORD_HAND+'_Forearm'), hand=parent.getObjectByName('Adventurer_'+SWORD_HAND+'_Hand');
+  if(!fore||!hand){ console.error('hammer: hand bones not found'); return; }
+  parent.updateMatrixWorld(true);
+  const hc=new THREE.Box3().setFromObject(hand).getCenter(new THREE.Vector3()); fore.worldToLocal(hc);
+  const D=Math.PI/180, Y=new THREE.Vector3(0,1,0);
+  // start from the sword's own mount (same pointing, same flat-on-its-side hold) ...
+  const qS=new THREE.Quaternion().setFromEuler(new THREE.Euler(SWORD_ROT_DEG[0]*D,SWORD_ROT_DEG[1]*D,SWORD_ROT_DEG[2]*D,'ZYX'));
+  qS.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),SWORD_ROLL_DEG*D));
+  // ... then turn it a quarter about its handle: the sword is wide along its x, the hammer's head reaches out along its -z, so this lines the head up where the blade would be.
+  // In the sword's hold the width runs along the forearm, so the quarter is chosen that puts the cutting edge on the fist's side of the handle - which is the side that swings down when the arm hangs
+  const edge=new THREE.Vector3(0,0,-1);
+  let q=qS.clone().multiply(new THREE.Quaternion().setFromAxisAngle(Y,Math.PI/2));
+  if(edge.clone().applyQuaternion(q).x*(SWORD_HAND==='Left'?1:-1)<0) q=qS.clone().multiply(new THREE.Quaternion().setFromAxisAngle(Y,-Math.PI/2));
+  if(HAMMER_TURN_DEG) q.multiply(new THREE.Quaternion().setFromAxisAngle(Y,HAMMER_TURN_DEG*D));
+  const grp=new THREE.Group(); grp.name='Hammer'; grp.quaternion.copy(q);
+  const grip=new THREE.Vector3(HAMMER_GRIP[0],HAMMER_GRIP[1],HAMMER_GRIP[2]).applyQuaternion(q);
+  grp.position.copy(hc).sub(grip).add(new THREE.Vector3(HAMMER_NUDGE[0],HAMMER_NUDGE[1],HAMMER_NUDGE[2]));
+  Promise.all(HD.parts.map(p=>loadImg(p.tex))).then(imgs=>{
+    HD.parts.forEach((p,k)=>{
+      const geo=new THREE.BufferGeometry();
+      geo.setAttribute('position',new THREE.Float32BufferAttribute(p.p,3));
+      geo.setAttribute('normal',new THREE.Float32BufferAttribute(p.n,3));
+      geo.setAttribute('uv',new THREE.Float32BufferAttribute(p.uv,2));
+      geo.setIndex(p.i);
+      const tex=new THREE.Texture(imgs[k]); tex.flipY=false;
+      const hmat=ps1Mat(tex,1); swordMats.push(hmat); tintMat(hmat,swordMatch?armorHex:swordHex);   // the same weapon color as the sword
+      const m=new THREE.Mesh(geo,hmat); m.name='hammer_'+p.name;
+      m.position.set(p.t[0],p.t[1],p.t[2]); m.rotation.order='ZYX';
+      m.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
+      grp.add(m);
+    });
+    fore.add(grp); hammerGrp=grp;
+    swooshAddRig('hammer',grp,parent.getObjectByName(SWORD_HAND+'_Arm')||fore,HAMMER_SWOOSH.tip,HAMMER_SWOOSH.hilt,{width:HAMMER_SWOOSH.width,start:SWOOSH_START_SPEED,stop:SWOOSH_STOP_SPEED});
+    showWeapons();
+  }).catch(e=>console.error('hammer load failed',e));
+}
 function toggleStyle(){
-  swordStyle=(swordStyle==='hatchet')?'sword':'hatchet';
+  swordStyle=(swordStyle==='sword')?'hatchet':(swordStyle==='hatchet')?'hammer':'sword';
   if(weapon!=='sword') setWeapon('sword'); else showWeapons();   // a sword style only shows on the light weapon, so changing it brings that one out
   refreshAnim();
 }
@@ -1124,6 +1166,7 @@ const WAIST_CLIPS=['Drinking_Potion'], WAIST_AT=[-0.27,0.1,0.0], WAIST_DIR=[0,-1
 function waistStep(stow){
   const hips=knightScene&&knightScene.getObjectByName('Root_Hips');
   if(hatchetGrp&&weapon==='sword'&&swordStyle==='hatchet') hatchetGrp.visible=!stow;
+  if(hammerGrp&&weapon==='sword'&&swordStyle==='hammer') hammerGrp.visible=!stow;
   const g=swordGrp; if(!g||!hips) return;
   if(stow){
     if(!g.userData.home) g.userData.home={parent:g.parent,p:g.position.clone(),q:g.quaternion.clone()};
@@ -1236,6 +1279,7 @@ const swRigs={};
 const AXE_SWOOSH={bit:0.875,mid:1.906,hilt:1.366,width:0.75,start:10.5,stop:7.5};
 /* The Hatchet follows the sword's swing, so it uses the sword's speeds; the trail follows the edge of its head (tip = the outer corner of the blade). */
 const HATCHET_SWOOSH={tip:[0,1.766,-0.48],hilt:[0,1.0,0],width:0.5};
+const HAMMER_SWOOSH={tip:[0,1.2,0.44],hilt:[0,0.6,0.125],width:0.4};   // the trail follows the far face of the head
 function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   const tip=new THREE.Object3D(), hilt=new THREE.Object3D();
   tip.position.set(tipPos[0],tipPos[1],tipPos[2]); hilt.position.set(hiltPos[0],hiltPos[1],hiltPos[2]); grp.add(tip); grp.add(hilt);
@@ -1243,7 +1287,7 @@ function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop};
 }
 function swooshUse(){
-  const key=weapon==='axe'?'axe':(swordStyle==='hatchet'?'hatchet':'sword'), r=swRigs[key]||swRigs.sword; if(!r) return;
+  const key=weapon==='axe'?'axe':(swordStyle==='hatchet'?'hatchet':swordStyle==='hammer'?'hammer':'sword'), r=swRigs[key]||swRigs.sword; if(!r) return;
   swTip=r.tip; swAlt=r.alt||null; swHilt=r.hilt; swPivot=r.pivot; swLen=r.len; swWidth=r.width; swStart=r.start; swStop=r.stop; swsh.hasPrev=false; swsh.emit=false;
 }
 const swsh={mesh:null,geo:null,mat:null,pts:[],emit:false,active:false,age:0,hasPrev:false,k:1,
@@ -2179,7 +2223,7 @@ function spawnEnemies(){
     }
     const ah=A[k%A.length], ph=P[k%P.length], sh=W[k%W.length];
     const root=(()=>{ const st=[]; knightScene.traverse(o=>{ if(o.userData&&Object.keys(o.userData).length){ st.push([o,o.userData]); o.userData={}; } }); try{ return knightScene.clone(true); } finally{ st.forEach(([o,u])=>{ o.userData=u; }); } })(), cache=new Map(), pTex=[], rocks=[]; root.scale.x=MIRROR_MODEL?-1:1;   // enemies keep the normal handedness whatever the player's weapon
-    root.traverse(o=>{ if(o.name==='Shortsword') o.visible=true; else if(o.name==='Axe'||o.name==='Hatchet') o.visible=false; });   // enemies stay with swords + the normal Idle
+    root.traverse(o=>{ if(o.name==='Shortsword') o.visible=true; else if(o.name==='Axe'||o.name==='Hatchet'||o.name==='Hammer') o.visible=false; });   // enemies stay with swords + the normal Idle
     if(HP.length){   // swap the helmet: show this enemy's set in the clone and hide the rest (clone meshes are found by their position in the hierarchy)
       const hi=HP[k%HP.length], oL=[], cL=[]; knightScene.traverse(o=>oL.push(o)); root.traverse(o=>cL.push(o));
       helmetSets.forEach((set,j)=>set.forEach(m=>{ const cm=cL[oL.indexOf(m)]; if(cm) cm.visible=(j===hi); }));
@@ -3273,7 +3317,7 @@ function placeShopGoods(root,markers){
       cb(grp);
     });
   };
-  markers.forEach(mk=>{
+  markers.concat([{name:'HAMMER HERE. HEAD UP.',center:new THREE.Vector3(0.36,0.281,-0.3)}]).forEach(mk=>{   // + the hammer: stood on the counter shelf (the stall model has no marker for it)
     const name=mk.name.toUpperCase(), c=mk.center;
     const it={label:shopLabel(mk.name),holder:null}; shopItems.push(it);   // one entry in the shop list per labelled cylinder
     if(name.indexOf('SWORD')>=0){
@@ -3287,6 +3331,13 @@ function placeShopGoods(root,markers){
         holder.add(orient);
         holder.scale.setScalar(itemScale);
         holder.position.copy(c);
+        root.add(holder); it.holder=holder;
+      });
+    } else if(name.indexOf('HAMMER')>=0){
+      buildParts('hammer-data',grp=>{
+        const holder=new THREE.Group();
+        grp.position.set(-HAMMER_GRIP[0],-0.25,-HAMMER_GRIP[2]);   // handle's foot on the shelf, handle centred over the spot
+        holder.add(grp); holder.scale.setScalar(itemScale); holder.position.copy(c);
         root.add(holder); it.holder=holder;
       });
     } else if(name.indexOf('HATCHED')>=0||name.indexOf('HATCHET')>=0){
@@ -3397,7 +3448,7 @@ function spawnShopKeeperInBuilding(){
   const root=(()=>{ const st=[]; knightScene.traverse(o=>{ if(o.userData&&Object.keys(o.userData).length){ st.push([o,o.userData]); o.userData={}; } }); try{ return knightScene.clone(true); } finally{ st.forEach(([o,u])=>{ o.userData=u; }); } })();
   const cache=new Map(), pTex=[], rocks=[];
   root.scale.x=MIRROR_MODEL?1:-1;   // the keeper is mirrored the other way from the player, so every shop clip plays flipped left-for-right (mirroring the model is the exact way to mirror an animation: see MIRROR_MODEL)
-  root.traverse(o=>{ if(o.name==='Shortsword'||o.name==='Axe'||o.name==='Hatchet') o.visible=false; });
+  root.traverse(o=>{ if(o.name==='Shortsword'||o.name==='Axe'||o.name==='Hatchet'||o.name==='Hammer') o.visible=false; });
   const h6Idx=Math.max(0,helmetNames.indexOf('Helmet 6')), oL=[], cL=[];
   knightScene.traverse(o=>oL.push(o)); root.traverse(o=>cL.push(o));
   helmetSets.forEach((set,j)=>set.forEach(m=>{ const cm=cL[oL.indexOf(m)]; if(cm) cm.visible=(j===h6Idx); }));
@@ -3562,10 +3613,11 @@ function exitShop(){
 }
 /* ---------- INVENTORY (main menu > INVENTORY) ----------
    The camera eases in on the knight (closer, a little above the middle of him) with the picture pushed right to leave room for the panel on the left - the same layout as the shop -
-   and the turntable is switched on while it is open (and back to what it was when it closes). The panel mocks the shop's: SWORD / HATCHET / AXE equip that weapon, POTION is only listed. */
+   he is put in his idle pose and everything except him is hidden, so the fog/sky colour is the background (the turntable stays off). The panel mocks the shop's: SWORD / HATCHET / AXE equip that weapon, POTION is only listed. */
 const INV_ZOOM=0.5, INV_PITCH=0.06, INV_TY=0.1, INV_VIEW=1.25;   // zoom, tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift)
 function invStep(dt){
   if(!invOn&&invK===0) return;
+  if(invOn) invHid.forEach(h=>{ h.o.visible=false; });   // (kept hidden every frame, in case something else switches it back on)
   const goal=invOn?1:0; invK+=(goal-invK)*(1-Math.exp(-dt*4)); if(Math.abs(goal-invK)<0.002) invK=goal;
   if(!invPrev) return;
   zoom=mapLerp(invPrev.zoom,INV_ZOOM,invK); pitch=mapLerp(invPrev.pitch,INV_PITCH,invK);
@@ -3577,6 +3629,7 @@ const INV_ROWS=[
   {t:'SWORD',  v:()=>(weapon==='sword'&&swordStyle==='sword')?'EQUIPPED':'', run:()=>{ swordStyle='sword'; setWeapon('sword'); refreshAnim(); }},
   {t:'HATCHET',v:()=>(weapon==='sword'&&swordStyle==='hatchet')?'EQUIPPED':'', run:()=>{ swordStyle='hatchet'; setWeapon('sword'); refreshAnim(); }},
   {t:'AXE',    v:()=>weapon==='axe'?'EQUIPPED':'', run:()=>{ setWeapon('axe'); refreshAnim(); }},
+  {t:'HAMMER', v:()=>(weapon==='sword'&&swordStyle==='hammer')?'EQUIPPED':'', run:()=>{ swordStyle='hammer'; setWeapon('sword'); refreshAnim(); }},
   {t:'POTION', v:()=>'x1', run:()=>{}},
   {t:'BACK',   v:()=>'', run:()=>closeInventory()}];
 function invRefresh(){ if(!invUi) return; [...invUi.querySelectorAll('.mi')].forEach((b,i)=>{ b.classList.toggle('on',i===invCur); b.lastChild.textContent=INV_ROWS[i].v(); }); }
@@ -3592,14 +3645,17 @@ function invBuild(){
 }
 function openInventory(){
   if(invOn||exploring||mapMode) return;
-  invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin}; invOn=true; invCur=0;
-  if(!spin) toggleSpin();
+  invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,clip:current?current.getClip().name:null}; invOn=true; invCur=0;
+  if(spin) toggleSpin();   // the turntable stays off
+  invHid=scene.children.filter(o=>o!==playerRig).map(o=>({o:o,v:o.visible})); if(rockMesh) invHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
+  play(idleName());        // his proper idle (the axe's with the axe)
   document.body.classList.add('map');   // the menu window steps aside, as it does for the map
   invBuild(); invRefresh(); requestAnimationFrame(()=>invUi.classList.add('on'));
 }
 function closeInventory(){
   if(!invOn) return;
-  invOn=false; invUi.classList.remove('on'); if(invPrev&&!invPrev.spin&&spin) toggleSpin();
+  invOn=false; invUi.classList.remove('on'); if(invPrev&&invPrev.spin&&!spin) toggleSpin();
+  invHid.forEach(h=>{ h.o.visible=h.v; }); invHid=[]; if(invPrev&&invPrev.clip&&actions[invPrev.clip]) play(invPrev.clip);   // the world comes back and he returns to the pose he was in
   document.body.classList.remove('map');
 }
 addEventListener('keydown',e=>{
@@ -3619,7 +3675,7 @@ function initMainMenu(){
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'CUSTOMIZE',go:'custom'},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
-    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':'SWORD',run:toggleStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
+    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
     options:{name:'OPTIONS',items:[
       {t:'LOOK',v:()=>ps1?'PS1':'MODERN',run:toggleLook},
       {t:'PIXELS',v:()=>PIX_STEPS[pixIdx][0],run:cyclePixels},
@@ -3629,7 +3685,7 @@ function initMainMenu(){
       {t:'MUSIC',v:()=>musicOn?'ON':'OFF',run:()=>{ toggleMusic(); setTimeout(render,0); }},
       {t:'BITCRUSH',v:()=>crushOn?'ON':'OFF',run:toggleCrush},
       {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},
-      {t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':'SWORD',run:toggleStyle},{t:'SWOOSH',v:()=>swooshOn?'ON':'OFF',run:toggleSwoosh},
+      {t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'SWOOSH',v:()=>swooshOn?'ON':'OFF',run:toggleSwoosh},
       {t:'SHINE',v:()=>shineOn?'ON':'OFF',run:toggleShine},
       {t:'LEAVES',v:()=>leavesOn?'ON':'OFF',run:toggleLeaves},
       {t:'SNOW',v:()=>snowOn?'ON':'OFF',run:()=>{ snowOn=!snowOn; }},BACK]},
