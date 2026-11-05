@@ -181,6 +181,31 @@ body.mapui #mapyou{opacity:1}
 .mapwin .mh{margin-top:9px; font-size:18px; letter-spacing:.06em; color:var(--dim)}
 #fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .7s linear;z-index:60}
 #fade.on{opacity:1}
+
+/* CUSTOMIZE restyled to match the inventory / shop panels: the same blue box on the left, a header, two columns of controls, BACK at the bottom, no inner scrollbar.
+   (body.custscr is set by main.js while the customize screen is showing.) */
+body.custscr .title,body.custscr .sub{display:none}
+body.custscr #ui{left:3vw;top:9vh;transform:none;animation:none;width:min(36vw,500px);max-height:82vh;overflow-y:auto;scrollbar-width:none;box-sizing:border-box;padding:14px 16px 10px;
+  border:3px solid #7fc4ff;background:rgba(40,100,230,.30);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column}
+body.custscr #ui::-webkit-scrollbar{display:none}
+body.custscr .scr{order:1;font-size:34px;color:#fff;letter-spacing:.14em;border-bottom:2px solid #7fc4ff;margin:0 0 10px;padding-bottom:6px}
+body.custscr #cust{order:2;max-height:none;overflow:visible;padding:0;display:grid;grid-template-columns:1fr 1fr;column-gap:14px;row-gap:5px;align-items:center}
+body.custscr #mm{order:3;margin-top:10px;border-top:2px solid #7fc4ff;padding-top:6px}
+body.custscr #mm .mi{font-size:34px}
+body.custscr #cust .lbl{font-size:22px;letter-spacing:.08em;color:#cfe8ff;margin:6px 0 0}
+body.custscr #cust select.pick{background:rgba(0,0,0,.38);border:2px solid #7fc4ff;margin:0!important}
+body.custscr #cust .sws{display:flex;flex-wrap:wrap;gap:6px}
+body.custscr #cust .sw{width:28px;height:28px}
+body.custscr #cust .chk{color:#fff}
+body.custscr #vlbl{grid-area:1/1}body.custscr #voicesel{grid-area:2/1}
+body.custscr #hlbl{grid-area:1/2}body.custscr #helmsel{grid-area:2/2}
+body.custscr #plbl{grid-area:3/1/auto/-1}body.custscr #sws{grid-area:4/1/auto/-1}
+body.custscr #albl{grid-area:5/1/auto/-1}body.custscr #asws{grid-area:6/1/auto/-1}
+body.custscr #astrl{grid-area:7/1/auto/-1}body.custscr #astr{grid-area:8/1/auto/-1}
+body.custscr #shiny{grid-area:9/1/auto/-1}
+body.custscr #slbl{grid-area:10/1/auto/-1}body.custscr #ssws{grid-area:11/1/auto/-1}
+body.custscr #smatch{grid-area:12/1/auto/-1}
+@media (max-width:640px){body.custscr #ui{left:4vw;top:3vh;width:92vw;max-height:94vh}}
 </style>
 </head>
 <body>
