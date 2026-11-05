@@ -248,6 +248,7 @@ function toggleShine(){
 }
 
 /* ---------- state ---------- */
+let invOn=false, invK=0, invPrev=null, invCur=0, invUi=null;   // inventory (main menu > INVENTORY)
 let exploring=false, ps1=true, spin=false, paused=false, mixer=null, actions={}, names=[], menuNames=[], current=null;
 let mapMode=false, startScr=false, mapS=0, mapDir=0, mapViewK=1;   // the map (see MAP below): mapS 0 = menu camera ... 3 = the map, mapDir +1 opening / -1 closing / 0 resting, mapViewK 1 = picture shifted right for the menu ... 0 = centered
 let yaw=Math.PI+0.65, pitch=0.1, zoom=0.82, baseDist=5, target=new THREE.Vector3();
@@ -1750,13 +1751,13 @@ addEventListener('contextmenu',e=>e.preventDefault());   // right-drag orbits th
 const ptrs=new Map(); let pinch=0;
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,[e.clientX,e.clientY]); pinch=0;});
 canvas.addEventListener('pointermove',e=>{
-  const p=ptrs.get(e.pointerId); if(!p||mapMode||startScr) return;
+  const p=ptrs.get(e.pointerId); if(!p||mapMode||startScr||invOn) return;
   if(ptrs.size===1){ yaw-=(e.clientX-p[0])*0.01; pitch=Math.max(-0.35,Math.min(1.2,pitch+(e.clientY-p[1])*0.008)); }
   ptrs.set(e.pointerId,[e.clientX,e.clientY]);
   if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a[0]-b[0],a[1]-b[1]); if(pinch) zoom=Math.max(0.5,Math.min(2.2,zoom*pinch/d)); pinch=d; }
 });
 ['pointerup','pointercancel'].forEach(t=>canvas.addEventListener(t,e=>{ptrs.delete(e.pointerId);pinch=0;}));
-canvas.addEventListener('wheel',e=>{e.preventDefault(); if(mapMode||startScr) return; zoom=Math.max(0.5,Math.min(2.2,zoom*Math.exp(e.deltaY*0.001)));},{passive:false});
+canvas.addEventListener('wheel',e=>{e.preventDefault(); if(mapMode||startScr||invOn) return; zoom=Math.max(0.5,Math.min(2.2,zoom*Math.exp(e.deltaY*0.001)));},{passive:false});
 
 /* ---------- pixel filter (Options > PIXELS and COLORS; both only show in the PS1 look) ----------
    PIXELS: how many pixels tall the picture is rendered (it is then scaled up with hard edges): 240 is the normal PS1 look, lower is chunkier.
@@ -2702,6 +2703,7 @@ function frame(now){
   if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); updateMagma(dt); inspectStep(dt); applyAreaFog(); }
   shopSync(); if(mapMode) mapStep(dt);   // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
   if(!mapMode){
+    invStep(dt);   // the inventory zoom
     const d=(camera.userData.fit||5)*zoom, cp=Math.cos(pitch);
     camera.position.set(target.x+d*Math.sin(yaw)*cp, target.y+d*Math.sin(pitch), target.z+d*Math.cos(yaw)*cp);
     camera.lookAt(target);
@@ -3558,6 +3560,55 @@ function exitShop(){
   shopSetView('main');
   fadeThen(()=>{ shopT=-1; shopOut=false; mapSnap(); });   // under the black: back to the menu camera
 }
+/* ---------- INVENTORY (main menu > INVENTORY) ----------
+   The camera eases in on the knight (closer, a little above the middle of him) with the picture pushed right to leave room for the panel on the left - the same layout as the shop -
+   and the turntable is switched on while it is open (and back to what it was when it closes). The panel mocks the shop's: SWORD / HATCHET / AXE equip that weapon, POTION is only listed. */
+const INV_ZOOM=0.5, INV_PITCH=0.06, INV_TY=0.1, INV_VIEW=1.25;   // zoom, tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift)
+function invStep(dt){
+  if(!invOn&&invK===0) return;
+  const goal=invOn?1:0; invK+=(goal-invK)*(1-Math.exp(-dt*4)); if(Math.abs(goal-invK)<0.002) invK=goal;
+  if(!invPrev) return;
+  zoom=mapLerp(invPrev.zoom,INV_ZOOM,invK); pitch=mapLerp(invPrev.pitch,INV_PITCH,invK);
+  target.set(invPrev.tx,mapLerp(invPrev.ty,homeTarget.y+playerH*INV_TY,invK),invPrev.tz);
+  mapViewK=mapLerp(1,INV_VIEW,invK); applyView();
+  if(!invOn&&invK===0){ invPrev=null; mapViewK=1; applyView(); }
+}
+const INV_ROWS=[
+  {t:'SWORD',  v:()=>(weapon==='sword'&&swordStyle==='sword')?'EQUIPPED':'', run:()=>{ swordStyle='sword'; setWeapon('sword'); refreshAnim(); }},
+  {t:'HATCHET',v:()=>(weapon==='sword'&&swordStyle==='hatchet')?'EQUIPPED':'', run:()=>{ swordStyle='hatchet'; setWeapon('sword'); refreshAnim(); }},
+  {t:'AXE',    v:()=>weapon==='axe'?'EQUIPPED':'', run:()=>{ setWeapon('axe'); refreshAnim(); }},
+  {t:'POTION', v:()=>'x1', run:()=>{}},
+  {t:'BACK',   v:()=>'', run:()=>closeInventory()}];
+function invRefresh(){ if(!invUi) return; [...invUi.querySelectorAll('.mi')].forEach((b,i)=>{ b.classList.toggle('on',i===invCur); b.lastChild.textContent=INV_ROWS[i].v(); }); }
+function invSelect(i,sound){ i=((i%INV_ROWS.length)+INV_ROWS.length)%INV_ROWS.length; if(i===invCur) return; invCur=i; if(sound) blip(520,0.05); invRefresh(); }
+function invActivate(){ blip(880,0.09); INV_ROWS[invCur].run(); invRefresh(); }
+function invBuild(){
+  if(invUi) return;
+  const st=document.createElement('style'); st.textContent='#invui{position:fixed;left:3vw;top:9vh;width:min(32vw,440px);max-height:74vh;box-sizing:border-box;border:3px solid #7fc4ff;background:rgba(40,100,230,.30);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:12px;padding:24px;font-size:min(34px,5vh);letter-spacing:.14em;color:#d4ecff;text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}#invui.on{opacity:1;pointer-events:auto}#invui .mi{display:flex;justify-content:space-between}@media (max-aspect-ratio:9/10){#invui{left:4vw;width:92vw;top:4vh;max-height:46vh}}'; document.head.appendChild(st);
+  invUi=document.createElement('div'); invUi.id='invui';
+  invUi.innerHTML='<div style="border-bottom:2px solid #7fc4ff;padding-bottom:6px;margin-bottom:8px">INVENTORY</div>'+INV_ROWS.map(r=>'<button class="mi" type="button"><span>'+r.t+'</span><span class="v"></span></button>').join('');
+  [...invUi.querySelectorAll('.mi')].forEach((b,i)=>{ b.onmouseenter=()=>invSelect(i,true); b.onclick=()=>{ invSelect(i,false); invActivate(); }; });
+  document.body.appendChild(invUi);
+}
+function openInventory(){
+  if(invOn||exploring||mapMode) return;
+  invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin}; invOn=true; invCur=0;
+  if(!spin) toggleSpin();
+  document.body.classList.add('map');   // the menu window steps aside, as it does for the map
+  invBuild(); invRefresh(); requestAnimationFrame(()=>invUi.classList.add('on'));
+}
+function closeInventory(){
+  if(!invOn) return;
+  invOn=false; invUi.classList.remove('on'); if(invPrev&&!invPrev.spin&&spin) toggleSpin();
+  document.body.classList.remove('map');
+}
+addEventListener('keydown',e=>{
+  if(!invOn) return; const k=e.key;
+  if(k==='Escape'||k==='Backspace'){ e.preventDefault(); blip(300,0.08); closeInventory(); }
+  else if(k==='ArrowDown'||k==='s'){ e.preventDefault(); invSelect(invCur+1,true); }
+  else if(k==='ArrowUp'||k==='w'){ e.preventDefault(); invSelect(invCur-1,true); }
+  else if(k==='Enter'||k===' '){ e.preventDefault(); invActivate(); }
+});
 function initMainMenu(){
   const root=document.getElementById('mm'), scr=document.getElementById('scr'), cust=document.getElementById('cust'), toastEl=document.getElementById('toast');
   ['vlbl','voicesel','hlbl','helmsel','plbl','sws','albl','asws','astrl','astr','shiny','slbl','ssws','smatch'].forEach(id=>{ const n=document.getElementById(id); if(n) cust.appendChild(n); });
@@ -3565,7 +3616,7 @@ function initMainMenu(){
   const BACK={t:'BACK',go:'main'};
   const SCREENS={
     start:{name:'PRESS START',items:[{t:'START',run:startGame}]},
-    main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'CUSTOMIZE',go:'custom'},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
+    main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'CUSTOMIZE',go:'custom'},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
     anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':'SWORD',run:toggleStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
@@ -3633,7 +3684,7 @@ function initMainMenu(){
   function move(d){ const n=SCREENS[cur].items.length; idx=(idx+d+n)%n; blip(520,0.05); if(idx<top||idx>=top+visRows()) render(); else mark(); }
   addEventListener('keydown',e=>{
     if(e.target.tagName==='SELECT'||e.target.tagName==='INPUT') return;
-    if(exploring||mapMode) return;
+    if(exploring||mapMode||invOn) return;
     const k=e.key;
     if(k==='ArrowDown'||k==='s') move(1); else if(k==='ArrowUp'||k==='w'&&false) move(-1);
     else if(k==='Enter'||k===' ') act();
