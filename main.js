@@ -181,11 +181,13 @@ const armorMats=[]; let armorHex=null, armorAmt=0.55;
 let shiny=true;   // fake metal shading on the armor and sword (Customize > Shiny metal)
 function shineMat(m){ m.uniforms.uShine.value=shiny?1:0; }
 const swordMats=[]; let swordHex=null, swordMatch=true;   // the blade has its own tint, or follows the armor's while swordMatch is on
-function tintMat(m,hex){
+const SHOP_ARMOR_TINT=0.87;   // how strongly the shopkeeper's armor takes its colour (0..1)
+function tintMat(m,hex,amt){   // amt: tint strength 0..1 (default: the ARMOR slider's armorAmt)
   shineMat(m);
   const v=m.uniforms.uTint.value; if(!hex){ v.set(1,1,1); return; }
   const c=new THREE.Color(hex), mx=Math.max(c.r,c.g,c.b,1e-4);   // brightest channel = 1, so it recolors without darkening
-  v.set(1+(c.r/mx-1)*armorAmt, 1+(c.g/mx-1)*armorAmt, 1+(c.b/mx-1)*armorAmt);
+  const a=amt===undefined?armorAmt:amt;
+  v.set(1+(c.r/mx-1)*a, 1+(c.g/mx-1)*a, 1+(c.b/mx-1)*a);
 }
 function tintArmorMat(m){ tintMat(m,armorHex); }
 function applySwordTint(){ swordMats.forEach(m=>tintMat(m,swordMatch?armorHex:swordHex)); }
@@ -3479,7 +3481,7 @@ function spawnShopKeeperInBuilding(){
         }
       }
       nm=ps1Mat(tex,1); if(/h6_/.test(o.name)){ nm.uniforms.uBlackNoShine.value=1; nm.uniforms.uBlackGrey.value=SHOP_H6_GREY; }
-      if(!isPl) tintMat(nm,ah);
+      if(!isPl) tintMat(nm,ah,SHOP_ARMOR_TINT);
       nm.uniforms.uShine.value=shopShineOn?1:0;
       shopKeeperMats.push(nm);
       cache.set(om.uuid,nm);
