@@ -60,7 +60,7 @@ void main(){
   }
 }`;
 const FS=`
-uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform float uBlackGrey; uniform float uMaskNoShine;
+uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform vec3 uBlackGrey; uniform float uMaskNoShine;
 uniform vec3 uLampCol; uniform float uEmit; varying float vLampD; varying float vLampS;
 uniform float uMagma; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
 uniform vec3 uLamp2Col; varying float vLamp2D; varying float vLamp2S;
@@ -86,7 +86,7 @@ void main(){
   }
   vec3 base=tx.rgb*uTint, lit=base*vLit, lampT=vec3(0.0);
   if(uMaskNoShine>0.5&&tx.a<0.998){ base=tx.rgb/uNight; lit=base; }   // the shopkeeper's no-shine pixels: exactly the texture colour - no armor tint, no lighting, no night tint
-  if(uBlackGrey>0.0){ base=mix(base,vec3(uBlackGrey)/uNight,1.0-smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b)))); lit=base*vLit; }   // uBlackGrey (the shopkeeper's Helmet 6): the pure-black parts of the texture are this grey instead - untinted, and not bluish at night (/uNight cancels the night tint), still shaded by the light
+  if(uBlackGrey.r>0.0||uBlackGrey.g>0.0||uBlackGrey.b>0.0){ base=mix(base,uBlackGrey/uNight,1.0-smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b)))); lit=base*vLit; }   // uBlackGrey (the shopkeeper's Helmet 6): the pure-black parts of the texture are this color instead - untinted, and not bluish at night (/uNight cancels the night tint), still shaded by the light
   if(uShine>0.01){                                             // uShine (0..1) scales both the env ramp and the BRIGHTBOX lantern highlight
     float sh=clamp(uShine,0.0,1.0);
     if(uMaskNoShine>0.5) sh*=step(0.998,tx.a);   // uMaskNoShine (the shopkeeper's helmet): texels with alpha 254 instead of 255 never shine (the old pure-black areas, now retextured)
@@ -170,7 +170,7 @@ function ps1Mat(tex,uvScale){
   tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
   tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
   return new THREE.ShaderMaterial({vertexShader:VS,fragmentShader:FS,side:THREE.DoubleSide,
-    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uMaskNoShine:{value:0},uEmit:{value:0},uMagma:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
+    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:new THREE.Vector3(0,0,0)},uMaskNoShine:{value:0},uEmit:{value:0},uMagma:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
 }
 function ps1FloorMat(texG,texF,texI,uvScale,H){
   [texG,texF,texI].forEach(tex=>{ tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false; tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true; });
@@ -1479,7 +1479,7 @@ function updateHelm6Face(dt){
    Only the shopkeeper's helmet uses these (shop-face-data: the kris*.gif art, 85x85, two frames of 500 ms each: normal, talking, angrytalking, spite).
    The player's and the enemies' Helmet 6 keep the original face above. shopFaceSet('talking') etc. switches it (also from the console: shopFace('talking')).
    SHOP_H6_GREY: the parts of his helmet that are pure black in the texture (the ones that never shine) show this grey instead - 0 is black, 1 is white. */
-const SHOP_H6_GREY=0.40;
+const SHOP_H6_GREY=new THREE.Vector3(128/255, 127/255, 149/255);
 /* The shopkeeper's helmet = Helmet 6's shape with the textures of shop-helmet-data (the gltf's retextured helmet). The areas that used to be pure black (never shine) were kept: they carry alpha 254 in
    the new textures and uMaskNoShine reads that. The plume colour is the ph variable in spawnShopKeeperInBuilding. */
 let shopHelmTex=null;
@@ -1490,7 +1490,7 @@ function shopHelmLoad(){
 }
 function shopHelmApply(root){
   if(!shopHelmTex) return;
-  root.traverse(o=>{ const t=shopHelmTex[o.name]; if(!o.isMesh||!t||!o.material||!o.material.uniforms) return; const u=o.material.uniforms; u.map.value=t; u.uMaskNoShine.value=1; u.uLevels={value:255}; u.uDither={value:0}; u.uBlackNoShine.value=0; u.uBlackGrey.value=0; });
+  root.traverse(o=>{ const t=shopHelmTex[o.name]; if(!o.isMesh||!t||!o.material||!o.material.uniforms) return; const u=o.material.uniforms; u.map.value=t; u.uMaskNoShine.value=1; u.uLevels={value:255}; u.uDither={value:0}; u.uBlackNoShine.value=0; u.uBlackGrey.value.set(0,0,0); });
 }
 let shopFace={faces:null,mat:null,pane:null,name:'normal',t:0,frame:-1};
 function shopFaceAttach(mesh,root){
@@ -3511,7 +3511,7 @@ function spawnShopKeeperInBuilding(){
           tintOne({tex:t,ctx:cv.getContext('2d'),base:pl.base,avgL:pl.avgL},ph); tex=t; pTex.push(t);
         }
       }
-      nm=ps1Mat(tex,1); if(/h6_/.test(o.name)){ nm.uniforms.uBlackNoShine.value=1; nm.uniforms.uBlackGrey.value=SHOP_H6_GREY; }   // (until shopHelmApply swaps in his new helmet textures)
+      nm=ps1Mat(tex,1); if(/h6_/.test(o.name)){ nm.uniforms.uBlackNoShine.value=1; nm.uniforms.uBlackGrey.value.copy(SHOP_H6_GREY); }   // (until shopHelmApply swaps in his new helmet textures)
       if(!isPl) tintMat(nm,ah,SHOP_ARMOR_TINT);
       nm.uniforms.uShine.value=shopShineOn?1:0;
       if(/Plume$/.test(o.name)) nm.uniforms.uShine.value=0; else shopKeeperMats.push(nm);   // the plume never shines
