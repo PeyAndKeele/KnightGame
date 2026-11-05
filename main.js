@@ -3494,7 +3494,7 @@ function spawnShopKeeperInBuilding(){
   knightScene.traverse(o=>oL.push(o)); root.traverse(o=>cL.push(o));
   helmetSets.forEach((set,j)=>set.forEach(m=>{ const cm=cL[oL.indexOf(m)]; if(cm) cm.visible=(j===h6Idx); }));
   shopKeeperMats=[];
-  const ah='#a38aeb', ph='#876cab';   // ph: the keeper's plume colour, sampled from his new helmet's plume texture
+  const ah='#a38aeb', ph='#9177b6';   // ph: the keeper's plume colour, sampled from his new helmet's plume texture
   root.traverse(o=>{
     if(o.name==='SeatRock') rocks.push(o);
     if(!o.isMesh||o.name==='SeatRock') return;
@@ -3513,7 +3513,7 @@ function spawnShopKeeperInBuilding(){
       nm=ps1Mat(tex,1); if(/h6_/.test(o.name)){ nm.uniforms.uBlackNoShine.value=1; nm.uniforms.uBlackGrey.value=SHOP_H6_GREY; }   // (until shopHelmApply swaps in his new helmet textures)
       if(!isPl) tintMat(nm,ah,SHOP_ARMOR_TINT);
       nm.uniforms.uShine.value=shopShineOn?1:0;
-      shopKeeperMats.push(nm);
+      if(/Plume$/.test(o.name)) nm.uniforms.uShine.value=0; else shopKeeperMats.push(nm);   // the plume never shines
       cache.set(om.uuid,nm);
     }
     o.material=nm; o.frustumCulled=false;
