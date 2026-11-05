@@ -181,7 +181,7 @@ const armorMats=[]; let armorHex=null, armorAmt=0.55;
 let shiny=true;   // fake metal shading on the armor and sword (Customize > Shiny metal)
 function shineMat(m){ m.uniforms.uShine.value=shiny?1:0; }
 const swordMats=[]; let swordHex=null, swordMatch=true;   // the blade has its own tint, or follows the armor's while swordMatch is on
-const SHOP_ARMOR_TINT=0.87;   // how strongly the shopkeeper's armor takes its colour (0..1)
+const SHOP_ARMOR_TINT=0.99;   // how strongly the shopkeeper's armor takes its colour (0..1)
 function tintMat(m,hex,amt){   // amt: tint strength 0..1 (default: the ARMOR slider's armorAmt)
   shineMat(m);
   const v=m.uniforms.uTint.value; if(!hex){ v.set(1,1,1); return; }
