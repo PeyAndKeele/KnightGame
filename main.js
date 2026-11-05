@@ -85,6 +85,7 @@ void main(){
     if((4.0*b2(q)+b2(floor(q*0.5))+0.5)/16.0<hide) discard;       // the same 4x4 ordered dither as the colour dither, so it reads as the same grain
   }
   vec3 base=tx.rgb*uTint, lit=base*vLit, lampT=vec3(0.0);
+  if(uMaskNoShine>0.5&&tx.a<0.998){ base=tx.rgb/uNight; lit=base; }   // the shopkeeper's no-shine pixels: exactly the texture colour - no armor tint, no lighting, no night tint
   if(uBlackGrey>0.0){ base=mix(base,vec3(uBlackGrey)/uNight,1.0-smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b)))); lit=base*vLit; }   // uBlackGrey (the shopkeeper's Helmet 6): the pure-black parts of the texture are this grey instead - untinted, and not bluish at night (/uNight cancels the night tint), still shaded by the light
   if(uShine>0.01){                                             // uShine (0..1) scales both the env ramp and the BRIGHTBOX lantern highlight
     float sh=clamp(uShine,0.0,1.0);
@@ -1489,7 +1490,7 @@ function shopHelmLoad(){
 }
 function shopHelmApply(root){
   if(!shopHelmTex) return;
-  root.traverse(o=>{ const t=shopHelmTex[o.name]; if(!o.isMesh||!t||!o.material||!o.material.uniforms) return; const u=o.material.uniforms; u.map.value=t; u.uMaskNoShine.value=1; u.uBlackNoShine.value=0; u.uBlackGrey.value=0; });
+  root.traverse(o=>{ const t=shopHelmTex[o.name]; if(!o.isMesh||!t||!o.material||!o.material.uniforms) return; const u=o.material.uniforms; u.map.value=t; u.uMaskNoShine.value=1; u.uLevels={value:255}; u.uDither={value:0}; u.uBlackNoShine.value=0; u.uBlackGrey.value=0; });
 }
 let shopFace={faces:null,mat:null,pane:null,name:'normal',t:0,frame:-1};
 function shopFaceAttach(mesh,root){
