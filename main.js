@@ -1386,7 +1386,7 @@ function swooshSample(h){
 }
 /* advance the mixer; while the sword swings, do it in small steps and sample the blade after each one */
 function stepMixer(dt){
-  const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing');
+  const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease');
   if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); return; }
   const n=Math.max(1,Math.ceil(dt/SWOOSH_STEP-1e-6)), h=dt/n;
   for(let i=0;i<n;i++){ mixer.update(h); swooshSample(h); }
@@ -1428,7 +1428,7 @@ function swooshBuild(){
 const FLAG_N=10, FLAG_START=0.08, FLAG_END=0.5, FLAG_IN=0.06, FLAG_OUT=0.1; const _fd=new THREE.Vector3();
 function updateFlag(){
   const m=swsh.mesh, act=current, cn=act&&act.getClip().name, dur=act?act.getClip().duration:0, t=act?act.time:0, tEnd=dur*FLAG_END;
-  if(!(swooshOn&&swTip&&swPivot&&cn==='AxeSwing'&&t>=FLAG_START&&t<tEnd)){ if(swFlagOn||m.visible){ swFlagOn=false; swsh.active=false; m.visible=false; } return; }
+  if(!(swooshOn&&swTip&&swPivot&&(cn==='AxeSwing'||cn==='SwingHeavyRelease')&&t>=FLAG_START&&t<tEnd)){ if(swFlagOn||m.visible){ swFlagOn=false; swsh.active=false; m.visible=false; } return; }
   swTip.getWorldPosition(swsh.a); swHilt.getWorldPosition(swsh.b); swPivot.getWorldPosition(swsh.c);
   const k=swsh.a.distanceTo(swsh.b)/swLen; if(!(k>1e-5)) return;
   const seg=swFlag*k/(FLAG_N-1), P=swsh.pts;
@@ -2516,7 +2516,7 @@ function startRender(){
   if(!actions.SwingHeavyWindUp||!actions.SwingHeavyTurnHold||!actions.SwingHeavyRelease){ bmToast('NO RENDER ANIMATION'); return; }
   btBegin('render'); bt.heading=-Math.PI/2; bt.stage=0;
   pl.render=true; pl.buf=true; bmToast('RENDER');   // pl.render: holding the pose (first enemy turn). pl.buf: the 10% buffer, lasts through BOTH enemy turns
-  playHeavy('SwingHeavyWindUp',1,false);
+  playHeavy('SwingHeavyWindUp',1,false); playSfxSet('render-charge-sfx-data',0,0.9,1,0);
 }
 function playHeavy(n,ts,loop){   // one of the SwingHeavy clips: WindUp / Release play once and clamp, TurnHold loops
   const a=actions[n]; if(!a) return;
@@ -2526,7 +2526,7 @@ function playHeavy(n,ts,loop){   // one of the SwingHeavy clips: WindUp / Releas
 function startRenderRelease(){   // the enemies are done: no new turn for the player, he swings the heavy release instead
   turn='player'; ep=null; blockHitBag=[]; enemies.forEach(e=>setEnemyYaw(e,Math.PI/2));
   setTurnLabel('RENDER SWING'); btBegin('renderswing'); bt.heading=-Math.PI/2; bt.stage=0;
-  playHeavy('SwingHeavyRelease',1,false); playSword(1);
+  playHeavy('SwingHeavyRelease',1,false);
 }
 function playBlockIdle(){ if(actions.BlockIdle) play('BlockIdle'); else play(idleName()); }   // the guard held while the enemies attack; endEnemyPhase puts him back in Idle
 function playBlockAnim(){
@@ -2743,7 +2743,7 @@ function updateBattle(dt){
     if(bt.stage===0&&bt.t>=actions.SwingHeavyWindUp.getClip().duration){ bt.stage=1; playHeavy('SwingHeavyTurnHold',1,true); afterPlayerAction(); }   // windup done: he holds while the enemies take their turn
   } else if(bt.act==='renderswing'){
     const rd=actions.SwingHeavyRelease.getClip().duration;
-    if(bt.stage===0&&bt.t>=rd*0.45){ bt.stage=1; bt.hold=0; enemies.forEach(e=>{ if(!e.dead) hurtEnemy(e,RENDER_DAMAGE); }); }   // the blade connects: all targets
+    if(bt.stage===0&&bt.t>=rd*0.45){ bt.stage=1; bt.hold=0; playSfxSet('render-swish-sfx-data',0,0.9,1,0); playSfxSet('render-hit-sfx-data',0,0.9,1,0.03); enemies.forEach(e=>{ if(!e.dead) hurtEnemy(e,RENDER_DAMAGE); }); }   // the blade connects: all targets
     else if(bt.stage===1){ bt.hold+=dt; if(bt.t>=rd&&bt.hold>=HIT_HOLD){ bt.stage=2; enemies.forEach(e=>{ if(!e.dead&&e.hit){ e.idle.reset().fadeIn(0.12).play(); e.hit.fadeOut(0.12); } }); play(idleName()); btEnd(); } }   // btEnd -> victory, or the enemies go again; then he gets to pick
   } else if(bt.act==='potion'){
     const c=current&&current.getClip().name==='Drinking_Potion';
@@ -3019,7 +3019,7 @@ function playBlockSfx(){
   }catch(_){}
 }
 function blip(f,len){
-  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data');
+  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['render-swish-sfx-data','render-hit-sfx-data','render-charge-sfx-data'].forEach(loadSfxSet);
     ['v2-sword-sfx-data','v2-block-sfx-data','v2-grunt-data','v2-die-data','v2-flaunt-sfx-data','slime-atk-sfx-data','slime-hit-sfx-data','slime-die-sfx-data','slime-win-sfx-data'].forEach(loadSfxSet);   // voice 2 and the slimes too, so their very first play is not lost
     const o=sfx.createOscillator(), g=sfx.createGain(); o.type='square'; o.frequency.value=f; g.gain.value=0.045;
     o.connect(g); g.connect(sfx.destination); const t=sfx.currentTime; g.gain.setValueAtTime(0.045,t); g.gain.exponentialRampToValueAtTime(0.001,t+len); o.start(t); o.stop(t+len+0.02);

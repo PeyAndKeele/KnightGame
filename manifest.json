@@ -333,5 +333,20 @@
     "id": "swingheavyrelease-data",
     "type": "application/json",
     "url": "swingheavyrelease-data.json"
+  },
+  {
+    "id": "render-swish-sfx-data",
+    "type": "application/json",
+    "url": "render-swish-sfx-data.json"
+  },
+  {
+    "id": "render-hit-sfx-data",
+    "type": "application/json",
+    "url": "render-hit-sfx-data.json"
+  },
+  {
+    "id": "render-charge-sfx-data",
+    "type": "application/json",
+    "url": "render-charge-sfx-data.json"
   }
 ]
