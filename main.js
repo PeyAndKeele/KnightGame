@@ -1670,7 +1670,7 @@ const xtra={xtal:{id:'xtal-song-data',buf:null,src:null,loading:null},shop:{id:'
 /* Two songs for the shop: 'xtal' (Xtal, the default) and 'shop' (Sacrifice of Saint Dell). The little button at the bottom right of the shop view flips between them (the music crossfades like any other track change). */
 let shopSong='xtal', shopSongBtn=null; const SHOP_SONG_NAMES={xtal:'XTAL',shop:'SACRIFICE OF SAINT DELL'};
 function toggleShopSong(){ shopSong=(shopSong==='xtal')?'shop':'xtal'; if(shopSongBtn) shopSongBtn.textContent='\u266A '+SHOP_SONG_NAMES[shopSong]; if(shopWant) syncAudio(); }
-function loadX(k){ const x=xtra[k]; if(x.loading) return x.loading; const t=atob(document.getElementById(x.id).textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i); x.loading=new Promise((res,rej)=>ac.decodeAudioData(u.buffer,res,rej)).then(b=>{x.buf=b;}); return x.loading; }
+function loadX(k){ const x=xtra[k]; if(x.loading) return x.loading; const t=atob(document.getElementById(x.id).textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i); x.loading=new Promise((res,rej)=>ac.decodeAudioData(u.buffer,res,rej)).then(b=>{ x.buf=b; if(k==='xtal') crushParams.set(b,XTAL_CRUSH); }); return x.loading; }
 function setShopMusic(on){ if(shopWant===on) return; shopWant=on; syncAudio(); }
 function setFrostMusic(on){ if(frostWant===on) return; frostWant=on; syncAudio(); }
 function setIgnisMusic(on){ if(ignisWant===on) return; ignisWant=on; syncAudio(); }
@@ -1709,14 +1709,17 @@ async function syncAudio(){
    Does to every audio file what the defeat sound gets: mono, sample-and-hold down to DEFEAT_RATE Hz, quantised to DEFEAT_BITS bits, then the DEFEAT_LOWPASS Hz low-pass
    (the "inside a helmet" muffle). Music tracks and sound effects both go through cz(); copies are made once and kept. The defeat sound is always crushed, with or without the switch. */
 const crushCache=new WeakMap();
+/* per-song crush: everything is crushed with DEFEAT_BITS / DEFEAT_RATE / DEFEAT_LOWPASS (6 bits, 8000 Hz, 3200 Hz low-pass) unless a buffer has its own entry here. Xtal is a little gentler: 7 bits, 11025 Hz, 4500 Hz low-pass. */
+const crushParams=new WeakMap(), XTAL_CRUSH={bits:7,rate:11025,lp:4500};
 function crushCopy(b){
   let c=crushCache.get(b); if(c) return c;
   const n=b.length, sr=b.sampleRate;
   c=(typeof AudioBuffer==='function')?new AudioBuffer({length:n,numberOfChannels:1,sampleRate:sr}):(ac||sfx).createBuffer(1,n,sr);
   const o=c.getChannelData(0), ch=[]; for(let k=0;k<b.numberOfChannels;k++) ch.push(b.getChannelData(k));
-  const step=Math.max(1,Math.round(sr/DEFEAT_RATE)), lv=Math.pow(2,DEFEAT_BITS-1); let hold=0;
+  const P=crushParams.get(b)||{bits:DEFEAT_BITS,rate:DEFEAT_RATE,lp:DEFEAT_LOWPASS};
+  const step=Math.max(1,Math.round(sr/P.rate)), lv=Math.pow(2,P.bits-1); let hold=0;
   for(let i=0;i<n;i++){ if(i%step===0){ let v=0; for(let k=0;k<ch.length;k++) v+=ch[k][i]; v/=ch.length; hold=Math.round(v*lv)/lv; } o[i]=hold; }
-  const w=2*Math.PI*DEFEAT_LOWPASS/sr, cs=Math.cos(w), al=Math.sin(w)/(2*0.7071), a0=1+al, b0=(1-cs)/2/a0, b1=(1-cs)/a0, b2=b0, a1=-2*cs/a0, a2=(1-al)/a0;   // biquad low-pass
+  const w=2*Math.PI*P.lp/sr, cs=Math.cos(w), al=Math.sin(w)/(2*0.7071), a0=1+al, b0=(1-cs)/2/a0, b1=(1-cs)/a0, b2=b0, a1=-2*cs/a0, a2=(1-al)/a0;   // biquad low-pass
   let x1=0,x2=0,y1=0,y2=0; for(let i=0;i<n;i++){ const x0=o[i], y0=b0*x0+b1*x1+b2*x2-a1*y1-a2*y2; o[i]=y0; x2=x1; x1=x0; y2=y1; y1=y0; }
   crushCache.set(b,c); return c;
 }
