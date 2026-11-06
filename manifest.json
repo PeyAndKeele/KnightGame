@@ -95,6 +95,11 @@
     "url": "shop-data.txt"
   },
   {
+    "id": "crate-data",
+    "type": "text/plain",
+    "url": "crate-data.txt"
+  },
+  {
     "id": "defeat-sfx-data",
     "type": "application/json",
     "url": "defeat-sfx-data.json"
