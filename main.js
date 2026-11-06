@@ -846,7 +846,7 @@ const SWORD_GRIP_Y=0.844;              // where the handle's middle sits along t
 const SWORD_ROT_DEG=[90,0,90];         // x,y,z (ZYX): 90,0,90 = blade pointing forward, edge up/down. Tweak to tilt it, e.g. 60,0,90 points it up a bit
 const SWORD_NUDGE=[0,0,0];             // extra x,y,z shift in forearm space
 const SWORD_ROLL_DEG=90;               // extra turn about the z axis, applied last. Use -90 to turn it the other way, 0 for none
-let swordGrp=null, swordOn=true, axeGrp=null, weapon='sword';   // weapon: 'sword' (light) or 'axe' (heavy)
+let swordGrp=null, swordOn=true, axeGrp=null, axeStyle='axe', weapon='sword';   // axeStyle: 'axe' or 'shovel' (the shovel is the axe's alternate model: same rig, mount, animations and stats)   // weapon: 'sword' (light) or 'axe' (heavy)
 function initSword(parent){
   const el=document.getElementById('sword-data'); if(!el) return;
   const SD=JSON.parse(el.textContent);
@@ -890,7 +890,7 @@ function setVoice(v){
 }
 function toggleVoice(){ setVoice(voice==='voice1'?'voice2':'voice1'); }
 let hatchetGrp=null, hammerGrp=null, swordStyle='sword';   // swordStyle: 'sword' or 'hatchet' (only shows while the weapon is the light one)
-function showWeapons(){
+function showWeapons(){ applyAxeStyle();
   if(swordGrp) swordGrp.visible=(weapon==='sword'&&swordStyle==='sword');
   if(hatchetGrp) hatchetGrp.visible=(weapon==='sword'&&swordStyle==='hatchet');
   if(hammerGrp) hammerGrp.visible=(weapon==='sword'&&swordStyle==='hammer');
@@ -975,6 +975,22 @@ function initHammer(parent){
     showWeapons();
   }).catch(e=>console.error('hammer load failed',e));
 }
+function applyAxeStyle(){ if(axeGrp) axeGrp.children.forEach(m=>{ if(m.name.indexOf('shovel_')===0) m.visible=(axeStyle==='shovel'); else if(m.name.indexOf('axe_')===0) m.visible=(axeStyle!=='shovel'); }); }
+function toggleAxeStyle(){ axeStyle=(axeStyle==='axe')?'shovel':'axe'; if(weapon!=='axe') setWeapon('axe'); else showWeapons(); refreshAnim(); }
+function initShovel(grp){   // the shovel's meshes ride in the axe's own group, so they follow every bit of the axe's logic
+  const el=document.getElementById('shovel-data'); if(!el) return;
+  const SD=JSON.parse(el.textContent);
+  Promise.all(SD.parts.map(p=>loadImg(p.tex))).then(imgs=>{
+    SD.parts.forEach((p,k)=>{
+      const geo=new THREE.BufferGeometry();
+      geo.setAttribute('position',new THREE.Float32BufferAttribute(p.p,3)); geo.setAttribute('normal',new THREE.Float32BufferAttribute(p.n,3)); geo.setAttribute('uv',new THREE.Float32BufferAttribute(p.uv,2)); geo.setIndex(p.i);
+      const tex=new THREE.Texture(imgs[k]); tex.flipY=false;
+      const mat=ps1Mat(tex,1); swordMats.push(mat); tintMat(mat,swordMatch?armorHex:swordHex);
+      const m=new THREE.Mesh(geo,mat); m.name='shovel_'+p.name; grp.add(m);
+    });
+    applyAxeStyle();
+  });
+}
 function toggleStyle(){
   swordStyle=(swordStyle==='sword')?'hatchet':(swordStyle==='hatchet')?'hammer':'sword';
   if(weapon!=='sword') setWeapon('sword'); else showWeapons();   // a sword style only shows on the light weapon, so changing it brings that one out
@@ -1027,7 +1043,7 @@ function initAxe(parent){
       m.rotation.set(p.r[0]*Math.PI/180,p.r[1]*Math.PI/180,p.r[2]*Math.PI/180);
       grp.add(m);
     });
-    grp.visible=(weapon==='axe'); fore.add(grp); axeGrp=grp;
+    grp.visible=(weapon==='axe'); fore.add(grp); axeGrp=grp; initShovel(grp);
     swooshAddRig('axe',grp,parent.getObjectByName((AXE_HEAD_RIGHT?'Right':'Left')+'_Arm')||fore,[0,AXE_SWOOSH.mid,AXE_SWOOSH.bit],[0,AXE_SWOOSH.hilt,0],Object.assign({alt:[0,AXE_SWOOSH.mid,-AXE_SWOOSH.bit]},AXE_SWOOSH)); swooshUse();
     const mkHand=side=>{ const A=parent.getObjectByName(side+'_Arm'), F=parent.getObjectByName(side+'_Forearm'), Hd=parent.getObjectByName('Adventurer_'+side+'_Hand'); if(!A||!F||!Hd) return null;
       parent.updateMatrixWorld(true); const hc=new THREE.Box3().setFromObject(Hd).getCenter(new THREE.Vector3()); F.worldToLocal(hc); return {arm:A,fore:F,hc}; };
@@ -3387,7 +3403,7 @@ function placeShopGoods(root,markers){
       cb(grp);
     });
   };
-  markers.concat([{name:'HAMMER HERE. HEAD UP.',center:new THREE.Vector3(0.36,0.281,-0.3)}]).forEach(mk=>{   // + the hammer: stood on the counter shelf (the stall model has no marker for it)
+  markers.concat([{name:'HAMMER HERE. HEAD UP.',center:new THREE.Vector3(0.36,0.281,-0.3)},{name:'SHOVEL HERE. HEAD UP.',center:new THREE.Vector3(0.36,0.281,0.02)}]).forEach(mk=>{   // + the hammer: stood on the counter shelf (the stall model has no marker for it)
     const name=mk.name.toUpperCase(), c=mk.center;
     const it={label:shopLabel(mk.name),holder:null}; shopItems.push(it);   // one entry in the shop list per labelled cylinder
     if(name.indexOf('SWORD')>=0){
@@ -3403,6 +3419,8 @@ function placeShopGoods(root,markers){
         holder.position.copy(c);
         root.add(holder); it.holder=holder;
       });
+    } else if(name.indexOf('SHOVEL')>=0){
+      buildParts('shovel-data',grp=>{ const holder=new THREE.Group(); holder.add(grp); holder.scale.setScalar(itemScale*0.6); holder.position.copy(c); root.add(holder); it.holder=holder; });   // stood on the shelf at the axe's display scale
     } else if(name.indexOf('HAMMER')>=0){
       buildParts('hammer-data',grp=>{
         const holder=new THREE.Group();
@@ -3702,7 +3720,8 @@ function invStep(dt){
 const INV_ROWS=[
   {t:'SWORD',  v:()=>(weapon==='sword'&&swordStyle==='sword')?'EQUIPPED':'', run:()=>{ swordStyle='sword'; setWeapon('sword'); refreshAnim(); }},
   {t:'HATCHET',v:()=>(weapon==='sword'&&swordStyle==='hatchet')?'EQUIPPED':'', run:()=>{ swordStyle='hatchet'; setWeapon('sword'); refreshAnim(); }},
-  {t:'AXE',    v:()=>weapon==='axe'?'EQUIPPED':'', run:()=>{ setWeapon('axe'); refreshAnim(); }},
+  {t:'AXE',    v:()=>(weapon==='axe'&&axeStyle==='axe')?'EQUIPPED':'', run:()=>{ axeStyle='axe'; setWeapon('axe'); showWeapons(); refreshAnim(); }},
+  {t:'SHOVEL', v:()=>(weapon==='axe'&&axeStyle==='shovel')?'EQUIPPED':'', run:()=>{ axeStyle='shovel'; setWeapon('axe'); showWeapons(); refreshAnim(); }},
   {t:'HAMMER', v:()=>(weapon==='sword'&&swordStyle==='hammer')?'EQUIPPED':'', run:()=>{ swordStyle='hammer'; setWeapon('sword'); refreshAnim(); }},
   {t:'POTION', v:()=>'x1', run:()=>{}},
   {t:'BACK',   v:()=>'', run:()=>closeInventory()}];
@@ -3753,7 +3772,7 @@ function initMainMenu(){
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
-    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
+    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
     options:{name:'OPTIONS',items:[{t:'GRAPHICS',go:'opt_gfx'},{t:'WORLD',go:'opt_world'},{t:'SOUND',go:'opt_sound'},{t:'KNIGHT',go:'opt_knight'},BACK]},
     opt_gfx:{name:'GRAPHICS',up:'options',items:[
       {t:'LOOK',v:()=>ps1?'PS1':'MODERN',run:toggleLook},
@@ -3772,7 +3791,7 @@ function initMainMenu(){
       {t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},BACK_OPT]},
     opt_knight:{name:'KNIGHT',up:'options',items:[
       {t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},
-      {t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},
+      {t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},
       {t:'SWOOSH',v:()=>swooshOn?'ON':'OFF',run:toggleSwoosh},
       {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},BACK_OPT]},
     /* Attribution: This work is based on "Low Poly Campfire" (https://sketchfab.com/3d-models/low-poly-campfire-695c62069ac44614acbfc6effcf7499d) by MrE_Sauce (https://sketchfab.com/MrE_Sauce) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Glint and falling-leaf sprites by Kaessis. */
