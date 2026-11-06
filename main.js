@@ -327,7 +327,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   })();
   /* AxeIdle (the axe's idle) and AxeSwing (its swing, the rig's Swing3): embedded as axeidle-data / axeswing-data and added exactly like Death above.
      They are used whenever the Axe is the chosen weapon; the sword keeps Idle and Swing. */
-  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data'].forEach(function(id){
+  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data'].forEach(function(id){
     const el=document.getElementById(id); if(!el) return;
     const D=JSON.parse(el.textContent), base={};
     if((id==='axeswing-data'&&AXE_SWING_REVERSE)||D.rev){   // play the swing backwards: keyframes in reverse order, times counted from the end
@@ -336,6 +336,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
     }
     gltf.animations.forEach(a=>a.tracks.forEach(t=>{ const b=t.name.slice(0,t.name.lastIndexOf('.')); base[b.replace(/_\d+$/,'')]=b; }));
     const tr=D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); });
+    if(id==='block-data'){ const old=gltf.animations.findIndex(a=>a.name==='Block'); if(old>=0) gltf.animations.splice(old,1); }   // the new Block replaces the rig's own
     gltf.animations.push(new THREE.AnimationClip(D.name,-1,tr));
   });
   { [START_CLIP,'ShopIdle','ShopIdleAnimation1','ShopIdleAnimationIntoTalk','ShopIdleAnimationOutroTalk','ShopIdleAnimationWhileTalking'].forEach(cn=>{ const p3=gltf.animations.find(a=>a.name===cn); if(p3) setLeftShin(p3,LEFT_SHIN_DEG); }); }   // Pose3 shares Pose2's legs, so it gets the same tweak and sits on the same rock. Its head is left as authored; the occasional look at the sky is added on top, see headLook()
@@ -1044,7 +1045,7 @@ let blockFlipped=false;   // true while the Block animation plays with the axe o
 function applyHandedness(){ if(knightScene) knightScene.scale.x=(MIRROR_MODEL?-1:1)*((AXE_MIRROR&&weapon==='axe')?-1:1)*(blockFlipped?-1:1); }
 /* Block with the big axe is flipped: the model is already mirrored while the axe is out, and Block is turned the other way round again, so the guard happens on the opposite side from the sword's. Set BLOCK_FLIP_AXE=false to undo. */
 const BLOCK_FLIP_AXE=true;
-function syncBlockFlip(){ const f=!!(BLOCK_FLIP_AXE&&weapon==='axe'&&current&&current.getClip().name==='Block'); if(f!==blockFlipped){ blockFlipped=f; applyHandedness(); } }
+function syncBlockFlip(){ const f=!!(BLOCK_FLIP_AXE&&weapon==='axe'&&current&&/^Block(Idle)?$/.test(current.getClip().name)); if(f!==blockFlipped){ blockFlipped=f; applyHandedness(); } }
 function swingBone(bone,fromW,toW){   // turn a bone about its joint so the line joint->fromW points at toW; done in the parent's space, so it also works on a mirrored model
   const P=bone.parent, j=bone.position.clone(), a=P.worldToLocal(fromW.clone()).sub(j), b=P.worldToLocal(toW.clone()).sub(j);
   if(a.lengthSq()<1e-12||b.lengthSq()<1e-12) return;
@@ -1084,7 +1085,7 @@ function axePose(nm){
   const wantF=(AXE_FOLLOW_ARMS&&(nm==='AxeIdle'||nm==='AxeSwing'||nm==='Walk'))?1:0;
   axeFollowK+=clamp(wantF-axeFollowK,dt/AXE_FOLLOW_EASE);
   const hand=g.userData.hand, back=g.userData.back;
-  if(blockFlipped&&nm==='Block'&&axeOff&&axeOff.fore){   // the flipped Block turns the model round, so the axe moves to the other forearm to stay in the hand it is normally in on screen: the mount is mirrored across the forearm's length and its grip is put on that hand
+  if(blockFlipped&&/^Block(Idle)?$/.test(nm)&&axeOff&&axeOff.fore){   // the flipped Block turns the model round, so the axe moves to the other forearm to stay in the hand it is normally in on screen: the mount is mirrored across the forearm's length and its grip is put on that hand
     const lf=axeOff.fore; if(g.parent!==lf) lf.add(g);
     g.quaternion.set(q0.x,-q0.y,-q0.z,q0.w);
     g.position.copy(axeOff.hc).sub(_aV[0].set(0,AXE_TOP_GRIP,0).applyQuaternion(g.quaternion));
@@ -2392,7 +2393,7 @@ const BM_MENUS={
 const SWING_SPEED=1.25;        // same swing speed as in Walk Around
 const CARVE_HIT_AT=0.5;        // seconds into the Swing clip when the blade connects: the enemy's Hit starts then
 const HIT_HOLD=1.0;            // seconds the last frame of Hit is held before the enemy goes back to Idle
-const BLOCK_HOLD=0.3;          // seconds the last frame of Block is held before he goes back to Idle
+const BLOCK_HOLD=0.05;          // seconds the last frame of Block is held before he goes back to Idle
 const FLAUNT_TIME=3.0;         // seconds the Flaunt plays (4 loops of the 0.75 s clip) before he returns to Idle
 const HINT_AIM='LEFT / RIGHT AIM &nbsp; ENTER SELECT &nbsp; ESC LEAVE', HINT_MENU='UP / DOWN CHOOSE &nbsp; ENTER OK &nbsp; ESC BACK', HINT_BUSY='ESC LEAVE';
 let bmOpen=false, bmIdx=0, bmTT=0, bmLevel='root';
@@ -2464,6 +2465,7 @@ function startBlock(){
   pl.guard=true; bmToast('GUARDING');   // the enemies' attacks this round do much less damage
   playBlockAnim(); playBlockSfx();
 }
+function playBlockIdle(){ if(actions.BlockIdle) play('BlockIdle'); else play(idleName()); }   // the guard held while the enemies attack; endEnemyPhase puts him back in Idle
 function playBlockAnim(){
   const b=actions.Block; if(!b) return;
   if(current&&current!==b) current.fadeOut(0.08);
@@ -2627,7 +2629,7 @@ function playerStruck(e){
   const g=pl.guard, dmg=g?Math.max(1,Math.round(ENEMY_DAMAGE*GUARD_FACTOR)):ENEMY_DAMAGE;
   pl.hp=Math.max(0,pl.hp-dmg); popup('-'+dmg,headPos({isPl:true},new THREE.Vector3()),g?'pl blk':'pl');
   if(pl.hp<=0){ pl.dead=true; play('Death'); }
-  else if(g){ playBlockAnim(); playBlockSfx(); }
+  else if(g){ if(!(current&&current.getClip().name==='BlockIdle')) playBlockIdle(); playBlockSfx(); }   // guarding: he stays in BlockIdle, the hit is just the sound
   else { const h=actions.Hit; if(h){ if(current&&current!==h) current.fadeOut(0.06); h.reset().setLoop(THREE.LoopOnce,1); h.clampWhenFinished=true; h.timeScale=1; h.fadeIn(0.06).play(); current=h; } blip(130,0.14); playGrunt(); }
 }
 function updateEnemyPhase(dt){
@@ -2646,7 +2648,8 @@ function updateEnemyPhase(dt){
     setEnemyYaw(e,Math.PI/2);
     e.idle.reset().fadeIn(0.12).play(); e.atk.fadeOut(0.12);
     if(pl.dead){ battleEnd('lose'); return; }
-    play(idleName()); epNext();
+    if(!pl.guard) play(idleName());   // a raised guard stays up between the enemies' attacks
+    epNext();
   }
 }
 function battleEnd(kind){
@@ -2671,7 +2674,7 @@ function updateBattle(dt){
   } else if(bt.act==='flaunt'){
     if(bt.t>=FLAUNT_TIME){ play(idleName()); btEnd(); }
   } else if(bt.act==='block'){
-    if(bt.t>=actions.Block.getClip().duration+BLOCK_HOLD){ play(idleName()); btEnd(); }
+    if(bt.t>=actions.Block.getClip().duration+BLOCK_HOLD){ playBlockIdle(); btEnd(); }   // Block has played: he stays in BlockIdle (a loop) through the enemies' whole turn
   } else if(bt.act==='potion'){
     const c=current&&current.getClip().name==='Drinking_Potion';
     if(!bt.healed&&c&&current.time>=POTION_HEAL_AT){

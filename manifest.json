@@ -298,5 +298,15 @@
     "id": "shop-helmet-data",
     "type": "application/json",
     "url": "shop-helmet-data.json"
+  },
+  {
+    "id": "block-data",
+    "type": "application/json",
+    "url": "block-data.json"
+  },
+  {
+    "id": "blockidle-data",
+    "type": "application/json",
+    "url": "blockidle-data.json"
   }
 ]
