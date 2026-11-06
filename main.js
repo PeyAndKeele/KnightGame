@@ -2618,7 +2618,7 @@ function setEnemyYaw(e,th){
     e.rig.position.set(e.x-(ox*Math.cos(th)+oz*Math.sin(th)),0,e.z-(-ox*Math.sin(th)+oz*Math.cos(th)));
   }
 }
-function endEnemyPhase(){
+function endEnemyPhase(){ blockHitBag=[];   // a new turn starts with all three block-hit sounds available again
   enemies.forEach(e=>setEnemyYaw(e,Math.PI/2));
   pl.guard=false; ep=null; turn='player';
   if(!pl.dead) play(idleName());
@@ -2904,7 +2904,7 @@ const BLOCK_BURST=[0,0.22,0.24];   // where the loud "haah" starts inside each f
 /* ---------- guarding: a hit taken in BlockIdle plays the three block sounds (wpn_block_blunt_01..03) one after another, in a random order, none twice ----------
    A new hit while the sequence is still playing cuts it off and starts a fresh one. BLOCK_HIT_GAIN = volume. */
 const BLOCK_HIT_GAIN=0.9;
-let blockHitBufs=null, blockHitLoading=null, blockHitSrcs=[];
+let blockHitBufs=null, blockHitLoading=null, blockHitBag=[];   // blockHitBag: the sounds not yet used this turn
 function playBlockHitSeq(){
   if(!sfx) return;
   if(!blockHitBufs){
@@ -2917,10 +2917,8 @@ function playBlockHitSeq(){
     return;
   }
   if(sfx.state==='suspended') sfx.resume();
-  blockHitSrcs.forEach(s=>{ try{ s.stop(); }catch(_){} }); blockHitSrcs=[];
-  const order=[0,1,2]; for(let i=2;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [order[i],order[j]]=[order[j],order[i]]; }   // shuffle: each sound exactly once
-  let t=sfx.currentTime+0.02;
-  order.forEach(i=>{ const b=cz(blockHitBufs[i]), src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=b; g.gain.value=BLOCK_HIT_GAIN; src.connect(g); g.connect(sfx.destination); src.start(t); blockHitSrcs.push(src); t+=b.duration; });
+  if(!blockHitBag.length){ blockHitBag=[0,1,2]; for(let i=2;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [blockHitBag[i],blockHitBag[j]]=[blockHitBag[j],blockHitBag[i]]; } }   // a shuffled bag of the three: every hit takes the next one, so no sound repeats within a turn (the bag is emptied again when the enemy phase ends)
+  const b=cz(blockHitBufs[blockHitBag.pop()]), src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=b; g.gain.value=BLOCK_HIT_GAIN; src.connect(g); g.connect(sfx.destination); src.start(sfx.currentTime+0.02);   // ONE sound per hit
 }
 let blockBufs=null, blockLoading=null;
 function loadBlockSfx(){
