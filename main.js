@@ -1044,9 +1044,9 @@ function initAxe(parent){
       grp.add(m);
     });
     grp.visible=(weapon==='axe'); fore.add(grp); axeGrp=grp; initShovel(grp);
-    { const arm=parent.getObjectByName((AXE_HEAD_RIGHT?'Right':'Left')+'_Arm')||fore, o={width:AXE_SWOOSH.width,start:AXE_SWOOSH.start,stop:AXE_SWOOSH.stop,straight:2.2};
+    { const arm=parent.getObjectByName((AXE_HEAD_RIGHT?'Right':'Left')+'_Arm')||fore, o={width:AXE_SWOOSH.width,start:AXE_SWOOSH.start,stop:AXE_SWOOSH.stop,straight:1.6};
       // the two-handed weapons: ONE point at the very top of the weapon (the end of the shaft) for the trail to follow - no alternating between the axe's two bits. Axe top y=2.25, shovel top y=2.138 (weapon units, along the shaft).
-      swooshAddRig('axe',grp,arm,[0,2.25,0],[0,AXE_SWOOSH.hilt,0],o); swooshAddRig('shovel',grp,arm,[0,2.138,0],[0,AXE_SWOOSH.hilt,0],o); }
+      swooshAddRig('axe',grp,arm,[0,2.25,0],[0,1.222,0],o); swooshAddRig('shovel',grp,arm,[0,2.138,0],[0,1.11,0],o); }   // (hilt = 1.028 below the top, the same tip-to-hilt length the old axe rig had, so the speeds below keep their meaning)
     swooshUse();
     const mkHand=side=>{ const A=parent.getObjectByName(side+'_Arm'), F=parent.getObjectByName(side+'_Forearm'), Hd=parent.getObjectByName('Adventurer_'+side+'_Hand'); if(!A||!F||!Hd) return null;
       parent.updateMatrixWorld(true); const hc=new THREE.Box3().setFromObject(Hd).getCenter(new THREE.Vector3()); F.worldToLocal(hc); return {arm:A,fore:F,hc}; };
@@ -1304,7 +1304,7 @@ const SWOOSH_PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAAlCAYAAADr
 let swooshOn=true, swTip=null, swHilt=null, swPivot=null;
 /* Each weapon has its own swoosh rig: two marker points on it (swTip = the leading end of the blade/head, swHilt = back toward the hand, which just gives the scale), the shoulder the trail
    is measured from, the ribbon's width, and the tip speeds (in weapon units per second) that start and stop a trail. Only the weapon in his hand is used. */
-let swLen=SWOOSH_TIP_Y-SWOOSH_HILT_Y, swWidth=SWOOSH_WIDTH, swStart=SWOOSH_START_SPEED, swStop=SWOOSH_STOP_SPEED, swAlt=null, swStraight=0, swDirOk=false; const swDir=new THREE.Vector3(), _swd=new THREE.Vector3();   // swStraight: the two-handed weapons only - a stiff, straight trail this long (weapon units) directly behind the point   // swAlt: the second bit of a double-bitted head
+let swLen=SWOOSH_TIP_Y-SWOOSH_HILT_Y, swWidth=SWOOSH_WIDTH, swStart=SWOOSH_START_SPEED, swStop=SWOOSH_STOP_SPEED, swAlt=null, swStraight=0, swDirOk=false; const swDir=new THREE.Vector3(), _swd=new THREE.Vector3(), _swp=new THREE.Vector3(), _swc=new THREE.Vector3();   // swStraight: the two-handed weapons only - a stiff, straight trail this long (weapon units) directly behind the point   // swAlt: the second bit of a double-bitted head
 const swRigs={};
 /* The Axe: its head has a cutting edge at each end (the two bits, at +/- bit along the blade axis, halfway up the head at mid). The trail follows whichever bit is leading the swing:
    both are watched, the faster one when a trail starts keeps it. hilt = the top grip, only for the scale. Speeds are in axe units per second and a bit moves faster than the middle
@@ -1429,6 +1429,10 @@ function swooshBuild(){
 function updateSwoosh(dt){
   const m=swsh.mesh; if(!m) return;
   if(!swsh.active||!swooshOn){ m.visible=false; return; }
+  if(swStraight>0&&swTip&&swPivot&&swDirOk&&swsh.active){
+    swTip.getWorldPosition(_swp); swPivot.getWorldPosition(_swc); const L=swStraight*swsh.k, P=swsh.pts; P.length=0;
+    for(let i=0;i<10;i++) P.push({p:_swp.clone().addScaledVector(swDir,-L*(1-i/9)),c:_swc.clone()});
+  }
   swsh.age+=dt; if(swStraight>0&&swsh.emit) swsh.age=Math.min(swsh.age,SWOOSH_FRAME_MS*0.9/1000);   // two-handed: stays fresh while the head is moving
   const f=Math.floor(swsh.age*1000/SWOOSH_FRAME_MS);
   if(f>=SWOOSH_FRAMES){ swooshHide(); return; }
