@@ -1272,13 +1272,17 @@ function sparkleStep(show){
    CHEST_YAW_DEG: 90 turns the chest's front (its clasp) toward him; its hinge is then at the far side.
    While the clip plays the sword / hatchet / hammer are put away, and the axe hangs on his back (see AXE_STOW_CLIPS). */
 const CHEST_SCALE=1.7, CHEST_POS=[0,0.09,1.6], CHEST_YAW_DEG=90;
-let chestGrp=null, chestMixer=null, chestAct=null, chestOn=false;
+let chestGrp=null, chestMixer=null, chestAct=null, chestOn=false; const chestShineMats=[];   // chestShineMats: the chest's metal, switched with the Shiny metal option like the armor
 function initChest(rig){
   try{
     const t=atob(CHEST_GLB), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i);   // a binary glb: a data: url buffer gets blocked
     new THREE.GLTFLoader().parse(u.buffer,'',g=>{
       const cache=new Map();
-      g.scene.traverse(o=>{ if(!o.isMesh) return; const om=o.material; if(!cache.has(om.uuid)) cache.set(om.uuid,ps1Mat(om.map,1)); o.material=cache.get(om.uuid); });
+      /* Parts the model labels 'apply ushine' (the bands, studs, hinge pins and clasp) get the armor's metal shine; the wood stays matte. A material shared with an unlabelled part is split in two. */
+      const isMetal=o=>{ for(let p=o;p;p=p.parent) if(p.userData&&p.userData.name==='apply ushine') return true; return false; };
+      g.scene.traverse(o=>{ if(!o.isMesh) return; const om=o.material, metal=isMetal(o), key=om.uuid+(metal?'m':'');
+        if(!cache.has(key)){ const nm=ps1Mat(om.map,1); if(metal){ shineMat(nm); chestShineMats.push(nm); } cache.set(key,nm); }
+        o.material=cache.get(key); });
       const grp=new THREE.Group(); grp.name='Chest'; grp.add(g.scene);
       grp.scale.setScalar(CHEST_SCALE); grp.position.set(CHEST_POS[0],CHEST_POS[1],CHEST_POS[2]); grp.rotation.y=CHEST_YAW_DEG*Math.PI/180; grp.visible=false;
       rig.add(grp); chestGrp=grp;
@@ -1656,7 +1660,7 @@ function buildPlumeUI(){
 
 (function buildShinyUI(){
   const b=document.getElementById('shiny');
-  b.onclick=()=>{ shiny=!shiny; armorMats.concat(swordMats).forEach(shineMat); b.setAttribute('aria-checked',shiny); b.blur(); };
+  b.onclick=()=>{ shiny=!shiny; armorMats.concat(swordMats,chestShineMats).forEach(shineMat); b.setAttribute('aria-checked',shiny); b.blur(); };
 })();
 (function buildSwordUI(){
   const box=document.getElementById('ssws'), chk=document.getElementById('smatch');
