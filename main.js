@@ -1667,11 +1667,10 @@ function loadBattle(){
 function setBattleMusic(on){ if(battleWant===on) return; battleWant=on; if(!on) battleResume=0; syncAudio(); }
 /* shop song (Sacrifice of Saint Dell, FM Skyline) plays in the shop; frost song (Ice, slowed, ZERTAL) plays once you travel to The Veiled Frost (on the map, from the transition between the areas) and stays while you are there.
    Priority: Flaunt song, battle song, shop song, frost song, main song. Same fades as every track, and they go through cz() so the BITCRUSH switch applies. */
-const xtra={xtal:{id:'xtal-song-data',buf:null,src:null,loading:null},shop:{id:'shop-song-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null},ignis:{id:'ignis-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false, ignisWant=false;
-/* Two songs for the shop: 'xtal' (Xtal, the default) and 'shop' (Sacrifice of Saint Dell). The little button at the bottom right of the shop view flips between them (the music crossfades like any other track change). */
-let shopSong='xtal', shopSongBtn=null; const SHOP_SONG_NAMES={xtal:'XTAL',shop:'SACRIFICE OF SAINT DELL'};
-function toggleShopSong(){ shopSong=(shopSong==='xtal')?'shop':'xtal'; if(shopSongBtn) shopSongBtn.textContent='\u266A '+SHOP_SONG_NAMES[shopSong]; if(shopWant) syncAudio(); }
-function loadX(k){ const x=xtra[k]; if(x.loading) return x.loading; const t=atob(document.getElementById(x.id).textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i); x.loading=new Promise((res,rej)=>ac.decodeAudioData(u.buffer,res,rej)).then(b=>{ x.buf=b; if(k==='xtal') crushParams.set(b,XTAL_CRUSH); }); return x.loading; }
+const xtra={shop:{id:'shop-song-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null},ignis:{id:'ignis-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false, ignisWant=false;
+/* The shop song's name tag (bottom right of the shop view): just a now-playing label, not a button. */
+let shopSong='shop', shopSongBtn=null; const SHOP_SONG_NAMES={shop:'SACRIFICE OF SAINT DELL'};
+function loadX(k){ const x=xtra[k]; if(x.loading) return x.loading; const t=atob(document.getElementById(x.id).textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i); x.loading=new Promise((res,rej)=>ac.decodeAudioData(u.buffer,res,rej)).then(b=>{ x.buf=b; }); return x.loading; }
 function setShopMusic(on){ if(shopWant===on) return; shopWant=on; syncAudio(); }
 function setFrostMusic(on){ if(frostWant===on) return; frostWant=on; syncAudio(); }
 function setIgnisMusic(on){ if(ignisWant===on) return; ignisWant=on; syncAudio(); }
@@ -1710,8 +1709,8 @@ async function syncAudio(){
    Does to every audio file what the defeat sound gets: mono, sample-and-hold down to DEFEAT_RATE Hz, quantised to DEFEAT_BITS bits, then the DEFEAT_LOWPASS Hz low-pass
    (the "inside a helmet" muffle). Music tracks and sound effects both go through cz(); copies are made once and kept. The defeat sound is always crushed, with or without the switch. */
 const crushCache=new WeakMap();
-/* per-song crush: everything is crushed with DEFEAT_BITS / DEFEAT_RATE / DEFEAT_LOWPASS (6 bits, 8000 Hz, 3200 Hz low-pass) unless a buffer has its own entry here. Xtal is a little gentler: 7 bits, 11025 Hz, 4500 Hz low-pass. */
-const crushParams=new WeakMap(), XTAL_CRUSH={bits:7,rate:11025,lp:4500};
+/* per-song crush: everything is crushed with DEFEAT_BITS / DEFEAT_RATE / DEFEAT_LOWPASS (6 bits, 8000 Hz, 3200 Hz low-pass) unless a buffer has its own entry here. */
+const crushParams=new WeakMap();   // (a song can be given its own crush settings here: crushParams.set(buffer,{bits,rate,lp}))
 function crushCopy(b){
   let c=crushCache.get(b); if(c) return c;
   const n=b.length, sr=b.sampleRate;
@@ -3634,8 +3633,8 @@ function enterShop(){
       };
       shopKeeper.mixer.addEventListener('finished',onFin);
     };
-    const stb=document.createElement('style'); stb.textContent='#shopsong{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:16;font:inherit;font-size:22px;letter-spacing:.08em;color:#d4ecff;background:rgba(40,100,230,.30);border:2px solid #7fc4ff;box-shadow:0 0 0 2px #000;padding:4px 12px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .6s;text-shadow:2px 2px 0 #000}#shopsong.on{opacity:1;pointer-events:auto}#shopsong:hover{background:rgba(70,140,255,.45)}'; document.head.appendChild(stb);
-    shopSongBtn=document.createElement('button'); shopSongBtn.id='shopsong'; shopSongBtn.type='button'; shopSongBtn.title='switch the shop music'; shopSongBtn.textContent='\u266A '+SHOP_SONG_NAMES[shopSong]; shopSongBtn.onclick=()=>{ blip(700,0.06); toggleShopSong(); }; document.body.appendChild(shopSongBtn);
+    const stb=document.createElement('style'); stb.textContent='#shopsong{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:16;font:inherit;font-size:22px;letter-spacing:.08em;color:#d4ecff;background:rgba(40,100,230,.30);border:2px solid #7fc4ff;box-shadow:0 0 0 2px #000;padding:4px 12px;opacity:0;pointer-events:none;transition:opacity .6s;text-shadow:2px 2px 0 #000}#shopsong.on{opacity:1}'; document.head.appendChild(stb);
+    shopSongBtn=document.createElement('div'); shopSongBtn.id='shopsong'; shopSongBtn.textContent='\u266A '+SHOP_SONG_NAMES[shopSong]; document.body.appendChild(shopSongBtn);
     shopLbl=document.createElement('div'); shopLbl.id='shoplbl'; shopLbl.innerHTML='SHOP<small>ESC: LEAVE</small>'; document.body.appendChild(shopLbl);
   }
   shopSetView('main');   // every visit starts on the main panel
