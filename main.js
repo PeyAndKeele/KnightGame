@@ -3409,7 +3409,7 @@ function setShopUShine(on){
   if(btn) btn.innerHTML='<span>USHINE</span><span class="v">'+(shopShineOn?'ON':'OFF')+'</span>';
 }
 function placeShopGoods(root,markers){
-  const D=Math.PI/180, itemScale=0.42;
+  const D=Math.PI/180, itemScale=0.42, HAMMER_RING_TOP=0.625;
   const buildParts=(id,cb)=>{
     const el=document.getElementById(id); if(!el) return;
     const PD=JSON.parse(el.textContent);
@@ -3432,7 +3432,7 @@ function placeShopGoods(root,markers){
       cb(grp);
     });
   };
-  markers.concat([{name:'HAMMER HERE. HEAD UP.',center:new THREE.Vector3(0.36,0.281,-0.3)},{name:'SHOVEL HERE. HEAD UP.',center:new THREE.Vector3(0.36,0.281,0.02)}]).forEach(mk=>{   // + the hammer: stood on the counter shelf (the stall model has no marker for it)
+  markers.forEach(mk=>{   // + the hammer: stood on the counter shelf (the stall model has no marker for it)
     const name=mk.name.toUpperCase(), c=mk.center;
     const it={label:shopLabel(mk.name),holder:null}; shopItems.push(it);   // one entry in the shop list per labelled cylinder
     if(name.indexOf('SWORD')>=0){
@@ -3449,12 +3449,16 @@ function placeShopGoods(root,markers){
         root.add(holder); it.holder=holder;
       });
     } else if(name.indexOf('SHOVEL')>=0){
-      buildParts('shovel-data',grp=>{ const holder=new THREE.Group(); holder.add(grp); holder.scale.setScalar(itemScale*0.6); holder.position.copy(c); root.add(holder); it.holder=holder; });   // stood on the shelf at the axe's display scale
+      buildParts('shovel-data',grp=>{   // SHOVEL HERE. VERTICAL.: the model is 2.14 long and stands on the foot of its marker cylinder, scaled to that cylinder's length and leaning the way the cylinder does
+        const holder=new THREE.Group(); holder.add(grp); holder.scale.setScalar((mk.len||0.4375)/2.141);
+        if(mk.quat) holder.quaternion.copy(mk.quat); holder.position.copy(mk.bottom||c); root.add(holder); it.holder=holder; });
     } else if(name.indexOf('HAMMER')>=0){
       buildParts('hammer-data',grp=>{
         const holder=new THREE.Group();
-        grp.position.set(-HAMMER_GRIP[0],-0.25,-HAMMER_GRIP[2]);   // handle's foot on the shelf, handle centred over the spot
-        holder.add(grp); holder.scale.setScalar(itemScale); holder.position.copy(c);
+        /* HAMMER HANDLE HERE. HAMMERHEAD POINT UP. ... ("RESTING" HAMMER HEAD ON TAURUS): the handle goes down through the ring (torus) around the marker and the underside of the
+           head (y 1.031 in the model) rests on top of that ring, so the head never passes through it. The ring's top is HAMMER_RING_TOP in the stall's units; with the usual item scale the handle's foot then lands just above the counter. */
+        grp.position.set(-HAMMER_GRIP[0],-1.031,-HAMMER_GRIP[2]);
+        holder.add(grp); holder.scale.setScalar(itemScale); holder.position.set(c.x,HAMMER_RING_TOP,c.z);
         root.add(holder); it.holder=holder;
       });
     } else if(name.indexOf('HATCHED')>=0||name.indexOf('HATCHET')>=0){
@@ -3522,7 +3526,10 @@ function placeShopGoods(root,markers){
         const rawName=(o.userData&&o.userData.name)||o.name;
         if(/(^|[\s_])HERE([\s_.]|$)/i.test(rawName)||/(^|[\s_])HERE([\s_.]|$)/i.test(o.name)){
           const mb=new THREE.Box3().setFromObject(o);
-          markers.push({name:rawName, center:mb.getCenter(new THREE.Vector3()), min:mb.min.clone(), max:mb.max.clone()});
+          const mk={name:rawName, center:mb.getCenter(new THREE.Vector3()), min:mb.min.clone(), max:mb.max.clone()};
+          if(o.isMesh&&o.geometry){ const bb=o.geometry.boundingBox||(o.geometry.computeBoundingBox(),o.geometry.boundingBox);   // the cylinder's foot, its length and its lean (the shovel's marker leans a little)
+            mk.bottom=o.localToWorld(new THREE.Vector3((bb.min.x+bb.max.x)/2,bb.min.y,(bb.min.z+bb.max.z)/2)); mk.len=bb.max.y-bb.min.y; mk.quat=o.getWorldQuaternion(new THREE.Quaternion()); }
+          markers.push(mk);
           o.visible=false; toRemove.push(o);
           return;
         }
