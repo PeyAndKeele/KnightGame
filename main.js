@@ -1666,13 +1666,16 @@ function loadBattle(){
 function setBattleMusic(on){ if(battleWant===on) return; battleWant=on; if(!on) battleResume=0; syncAudio(); }
 /* shop song (Sacrifice of Saint Dell, FM Skyline) plays in the shop; frost song (Ice, slowed, ZERTAL) plays once you travel to The Veiled Frost (on the map, from the transition between the areas) and stays while you are there.
    Priority: Flaunt song, battle song, shop song, frost song, main song. Same fades as every track, and they go through cz() so the BITCRUSH switch applies. */
-const xtra={shop:{id:'shop-song-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null},ignis:{id:'ignis-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false, ignisWant=false;
+const xtra={xtal:{id:'xtal-song-data',buf:null,src:null,loading:null},shop:{id:'shop-song-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null},ignis:{id:'ignis-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false, ignisWant=false;
+/* Two songs for the shop: 'xtal' (Xtal, the default) and 'shop' (Sacrifice of Saint Dell). The little button at the bottom right of the shop view flips between them (the music crossfades like any other track change). */
+let shopSong='xtal', shopSongBtn=null; const SHOP_SONG_NAMES={xtal:'XTAL',shop:'SACRIFICE OF SAINT DELL'};
+function toggleShopSong(){ shopSong=(shopSong==='xtal')?'shop':'xtal'; if(shopSongBtn) shopSongBtn.textContent='\u266A '+SHOP_SONG_NAMES[shopSong]; if(shopWant) syncAudio(); }
 function loadX(k){ const x=xtra[k]; if(x.loading) return x.loading; const t=atob(document.getElementById(x.id).textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i); x.loading=new Promise((res,rej)=>ac.decodeAudioData(u.buffer,res,rej)).then(b=>{x.buf=b;}); return x.loading; }
 function setShopMusic(on){ if(shopWant===on) return; shopWant=on; syncAudio(); }
 function setFrostMusic(on){ if(frostWant===on) return; frostWant=on; syncAudio(); }
 function setIgnisMusic(on){ if(ignisWant===on) return; ignisWant=on; syncAudio(); }
 async function syncAudio(){
-  const pick=()=>!musicOn?null:(flauntWant?'flaunt':(battleWant?'battle':(shopWant?'shop':(ignisWant?'ignis':(frostWant?'frost':'main')))));
+  const pick=()=>!musicOn?null:(flauntWant?'flaunt':(battleWant?'battle':(shopWant?shopSong:(ignisWant?'ignis':(frostWant?'frost':'main')))));
   const stopX=keep=>{ for(const k in xtra){ if(k!==keep&&xtra[k].src){ stopTrack(xtra[k].src); xtra[k].src=null; } } };
   try{
     const want=pick();
@@ -3625,6 +3628,8 @@ function enterShop(){
       };
       shopKeeper.mixer.addEventListener('finished',onFin);
     };
+    const stb=document.createElement('style'); stb.textContent='#shopsong{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:16;font:inherit;font-size:22px;letter-spacing:.08em;color:#d4ecff;background:rgba(40,100,230,.30);border:2px solid #7fc4ff;box-shadow:0 0 0 2px #000;padding:4px 12px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .6s;text-shadow:2px 2px 0 #000}#shopsong.on{opacity:1;pointer-events:auto}#shopsong:hover{background:rgba(70,140,255,.45)}'; document.head.appendChild(stb);
+    shopSongBtn=document.createElement('button'); shopSongBtn.id='shopsong'; shopSongBtn.type='button'; shopSongBtn.title='switch the shop music'; shopSongBtn.textContent='\u266A '+SHOP_SONG_NAMES[shopSong]; shopSongBtn.onclick=()=>{ blip(700,0.06); toggleShopSong(); }; document.body.appendChild(shopSongBtn);
     shopLbl=document.createElement('div'); shopLbl.id='shoplbl'; shopLbl.innerHTML='SHOP<small>ESC: LEAVE</small>'; document.body.appendChild(shopLbl);
   }
   shopSetView('main');   // every visit starts on the main panel
@@ -3648,11 +3653,11 @@ function shopStep(dt){
   U.uFogNear.value=mapLerp(shopFog[0],SHOP_FOG[0]*H,kx); U.uFogFar.value=mapLerp(shopFog[1],SHOP_FOG[1]*H,kx);   // thin haze instead of the menu's thick fog
   const tk=shopTalkK*shopTalkK*(3-2*shopTalkK), vk=mapLerp(shopFrom.view,SHOP_VIEW,kx)*(1-tk); if(Math.abs(vk-mapViewK)>1e-4){ mapViewK=vk; applyView(); }   // the stall slides a little right of center
   if(shopUi) shopUi.classList.toggle('on',u>=1&&!shopOut);
-  if(shopLbl) shopLbl.classList.toggle('on',u>=1&&!shopOut);
+  if(shopLbl) shopLbl.classList.toggle('on',u>=1&&!shopOut); if(shopSongBtn) shopSongBtn.classList.toggle('on',u>=1&&!shopOut);
   shopSpin(dt);
 }
 function exitShop(){
-  if(shopOut||shopT<0) return; shopTalkOn=false; helmet6Face('normal'); shopOut=true; setShopMusic(false); blip(300,0.08); if(shopLbl) shopLbl.classList.remove('on'); if(shopUi) shopUi.classList.remove('on');
+  if(shopOut||shopT<0) return; shopTalkOn=false; helmet6Face('normal'); shopOut=true; setShopMusic(false); blip(300,0.08); if(shopLbl) shopLbl.classList.remove('on'); if(shopSongBtn) shopSongBtn.classList.remove('on'); if(shopUi) shopUi.classList.remove('on');
   shopSetView('main');
   fadeThen(()=>{ shopT=-1; shopOut=false; mapSnap(); });   // under the black: back to the menu camera
 }
