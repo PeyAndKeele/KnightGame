@@ -3207,8 +3207,9 @@ function inspectBegin(it){
   const sp=new THREE.Vector3(), sq=new THREE.Quaternion(), ss=new THREE.Vector3(); h.matrixWorld.decompose(sp,sq,ss);   // where it hangs now, in the world
   inspect.saved={parent:h.parent,pos:h.position.clone(),quat:h.quaternion.clone(),scl:h.scale.clone()}; inspect.shelf={p:sp,q:sq,s:ss.x};
   const scratch=new THREE.Group(); scratch.add(h); h.position.set(0,0,0); h.quaternion.identity(); h.scale.set(1,1,1); scratch.updateMatrixWorld(true);   // measure it on its own
-  const box=new THREE.Box3().setFromObject(h), sz=box.getSize(new THREE.Vector3()); inspect.center.set(0,0,0); inspect.maxDim=Math.max(sz.x,sz.y,sz.z)||1;   // the item turns about its holder's origin = the labelled cylinder on the stall, not the middle of its bounding box (maxDim still sizes it)
-  const grp=new THREE.Group(), pivot=new THREE.Group(); pivot.position.copy(inspect.center).negate(); pivot.add(h); grp.add(pivot); scene.add(grp);   // turns about the cylinder (the holder's origin)
+  const box=new THREE.Box3().setFromObject(h), sz=box.getSize(new THREE.Vector3()); box.getCenter(inspect.center); inspect.maxDim=Math.max(sz.x,sz.y,sz.z)||1;
+  if(it.pivotCylinder) inspect.center.set(0,inspect.center.y,0);   // the hatchet only: it turns about its handle (the cylinder), not the middle of its box, which the head drags to one side; same height as before
+  const grp=new THREE.Group(), pivot=new THREE.Group(); pivot.position.copy(inspect.center).negate(); pivot.add(h); grp.add(pivot); scene.add(grp);   // turns about its own middle (the hatchet: about its handle)
   h.traverse(o=>o.layers.set(1));
   inspect.grp=grp; inspect.it=it; inspect.fly=0;
 }
@@ -3384,6 +3385,7 @@ function placeShopGoods(root,markers){
       });
     } else if(name.indexOf('HATCHED')>=0||name.indexOf('HATCHET')>=0){
       // HATCHED HERE. POINT UP.
+      it.pivotCylinder=true;   // spins about its handle in the inspect view (see inspectBegin)
       buildParts('hatchet-data',grp=>{
         const holder=new THREE.Group();
         grp.position.set(0,-1.25,0);
