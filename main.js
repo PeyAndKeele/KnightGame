@@ -3409,7 +3409,7 @@ function setShopUShine(on){
   if(btn) btn.innerHTML='<span>USHINE</span><span class="v">'+(shopShineOn?'ON':'OFF')+'</span>';
 }
 function placeShopGoods(root,markers){
-  const D=Math.PI/180, itemScale=0.42, HAMMER_RING_TOP=0.625;
+  const D=Math.PI/180, itemScale=0.42, HAMMER_RING_TOP=0.625, HAMMER_TURN_DEG=90;
   const buildParts=(id,cb)=>{
     const el=document.getElementById(id); if(!el) return;
     const PD=JSON.parse(el.textContent);
@@ -3458,7 +3458,8 @@ function placeShopGoods(root,markers){
         /* HAMMER HANDLE HERE. HAMMERHEAD POINT UP. ... ("RESTING" HAMMER HEAD ON TAURUS): the handle goes down through the ring (torus) around the marker and the underside of the
            head (y 1.031 in the model) rests on top of that ring, so the head never passes through it. The ring's top is HAMMER_RING_TOP in the stall's units; with the usual item scale the handle's foot then lands just above the counter. */
         grp.position.set(-HAMMER_GRIP[0],-1.031,-HAMMER_GRIP[2]);
-        holder.add(grp); holder.scale.setScalar(itemScale); holder.position.set(c.x,HAMMER_RING_TOP,c.z);
+        const turn=new THREE.Group(); turn.rotation.y=HAMMER_TURN_DEG*D; turn.add(grp);   // turned about the vertical line through the handle (the shop's spin turns the holder, so this is a layer of its own); flip the sign if it turned the wrong way
+        holder.add(turn); holder.scale.setScalar(itemScale); holder.position.set(c.x,HAMMER_RING_TOP,c.z);
         root.add(holder); it.holder=holder;
       });
     } else if(name.indexOf('HATCHED')>=0||name.indexOf('HATCHET')>=0){
@@ -3513,6 +3514,50 @@ function placeShopGoods(root,markers){
     }
   });
 }
+
+/* ---------- crates beside the stall (crate-data = crate.gltf) ----------
+   Stacked on both sides of the stall, deliberately lopsided: different sizes, turned every which way, a few leaning, and the two piles are not alike. x / z = where a crate stands in the stall's
+   own units (+x is the open front, +z is the camera's left, -z its right), up = the height of what it sits on in crate-heights of its OWN pile (so 1 = on one crate of scale 1),
+   y = height above the ground, s = scale (the crate model is about 0.34 across), rot = turn about the vertical in degrees, lean = [about x, about z] in degrees. */
+const SHOP_CRATES=[
+  // the left pile (+z): a big one, a smaller one beside it, two on top at odd angles, and a lone one out front
+  {x: 0.05,z: 1.06,y:0.000,s:1.75,rot: 12,lean:[0,0]},
+  {x:-0.60,z: 1.14,y:0.000,s:1.40,rot:-24,lean:[0,2]},
+  {x: 0.12,z: 1.02,y:0.569,s:1.35,rot: 38,lean:[0,0]},
+  {x:-0.58,z: 1.16,y:0.455,s:1.00,rot: -9,lean:[3,-4]},
+  {x: 0.52,z: 1.38,y:0.000,s:1.20,rot: 57,lean:[0,0]},
+  // the right pile (-z): taller and tighter, three high on one side, a small stray at the end
+  {x:-0.12,z:-1.24,y:0.000,s:1.95,rot: -8,lean:[0,0]},
+  {x: 0.38,z:-1.30,y:0.000,s:1.50,rot: 21,lean:[0,0]},
+  {x:-0.06,z:-1.30,y:0.634,s:1.55,rot: 27,lean:[0,0]},
+  {x:-0.02,z:-1.26,y:1.138,s:1.15,rot:-41,lean:[-4,3]},
+  {x:-0.62,z:-1.10,y:0.000,s:1.00,rot:  6,lean:[0,0]}
+];
+function placeShopCrates(root,groundY){
+  const el=document.getElementById('crate-data'); if(!el) return;
+  try{
+    const t=atob(el.textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i);
+    new THREE.GLTFLoader().parse(u.buffer,'',g=>{
+      const cache=new Map();
+      g.scene.traverse(o=>{
+        if(!o.isMesh) return; const om=o.material;
+        if(!cache.has(om.uuid)){
+          let tex=om.map; if(!tex){ const c=document.createElement('canvas'); c.width=c.height=2; const x=c.getContext('2d'); x.fillStyle='#'+om.color.getHexString(); x.fillRect(0,0,2,2); tex=new THREE.CanvasTexture(c); tex.flipY=false; }
+          const m=ps1Mat(tex,1); registerShopMat(m,0.3); cache.set(om.uuid,m);   // wood, like the stall: a little shiny, so the lantern and the sign light catch it
+        }
+        o.material=cache.get(om.uuid); o.frustumCulled=false;
+      });
+      g.scene.updateMatrixWorld(true);
+      const cb=new THREE.Box3().setFromObject(g.scene);   // so every crate can stand on its own foot, centred
+      SHOP_CRATES.forEach(c=>{
+        const inner=g.scene.clone(true); inner.position.set(-(cb.min.x+cb.max.x)/2,-cb.min.y,-(cb.min.z+cb.max.z)/2);
+        const holder=new THREE.Group(); holder.add(inner); holder.scale.setScalar(c.s);
+        holder.rotation.set(c.lean[0]*Math.PI/180,c.rot*Math.PI/180,c.lean[1]*Math.PI/180);
+        holder.position.set(c.x,groundY+c.y,c.z); root.add(holder);
+      });
+    },e=>console.error('crate load failed',e));
+  }catch(e){ console.error('crates failed',e); }
+}
 (function(){
   const el=document.getElementById('shop-data'); if(!el) return;
   try{
@@ -3553,6 +3598,7 @@ function placeShopGoods(root,markers){
       const box=new THREE.Box3().setFromObject(root), sc=SHOP_HEIGHT*playerH/(box.max.y-box.min.y);
       root.scale.setScalar(sc); shopScale=sc; shopRoot=root; root.position.set(-(box.min.x+box.max.x)/2*sc,-box.min.y*sc,-(box.min.z+box.max.z)/2*sc);
       const grp=new THREE.Group(); grp.add(root); grp.visible=false; scene.add(grp); shopGroup=grp;
+      placeShopCrates(root,box.min.y);   // after the stall was measured, so they don't change its size or where it stands
     },e=>console.error('shop load failed',e));
   }catch(e){ console.error('shop failed',e); }
 })();
