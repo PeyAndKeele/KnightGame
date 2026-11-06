@@ -2628,7 +2628,7 @@ function playerStruck(e){
   const g=pl.guard, dmg=g?Math.max(1,Math.round(ENEMY_DAMAGE*GUARD_FACTOR)):ENEMY_DAMAGE;
   pl.hp=Math.max(0,pl.hp-dmg); popup('-'+dmg,headPos({isPl:true},new THREE.Vector3()),g?'pl blk':'pl');
   if(pl.hp<=0){ pl.dead=true; play('Death'); }
-  else if(g){ if(!(current&&current.getClip().name==='BlockIdle')) playBlockIdle(); playBlockSfx(); }   // guarding: he stays in BlockIdle, the hit is just the sound
+  else if(g){ if(!(current&&current.getClip().name==='BlockIdle')) playBlockIdle(); playBlockHitSeq(); }   // guarding: he stays in BlockIdle, the hit is just the sound
   else { const h=actions.Hit; if(h){ if(current&&current!==h) current.fadeOut(0.06); h.reset().setLoop(THREE.LoopOnce,1); h.clampWhenFinished=true; h.timeScale=1; h.fadeIn(0.06).play(); current=h; } blip(130,0.14); playGrunt(); }
 }
 function updateEnemyPhase(dt){
@@ -2901,6 +2901,27 @@ function playGrunt(i){
    They are embedded in block-sfx-data and decoded on the first menu sound, like the grunts. Gains level out the very different recording volumes. */
 const BLOCK_GAIN=[0.92,0.83,1.0];
 const BLOCK_BURST=[0,0.22,0.24];   // where the loud "haah" starts inside each file (after a quiet lead-in), so it can be timed to land just as the whirr (SS_00009) finishes
+/* ---------- guarding: a hit taken in BlockIdle plays the three block sounds (wpn_block_blunt_01..03) one after another, in a random order, none twice ----------
+   A new hit while the sequence is still playing cuts it off and starts a fresh one. BLOCK_HIT_GAIN = volume. */
+const BLOCK_HIT_GAIN=0.9;
+let blockHitBufs=null, blockHitLoading=null, blockHitSrcs=[];
+function playBlockHitSeq(){
+  if(!sfx) return;
+  if(!blockHitBufs){
+    if(!blockHitLoading){ try{
+      const list=JSON.parse(document.getElementById('block-hit-data').textContent);
+      blockHitLoading=Promise.all(list.map(b=>{ const t=atob(b), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i); return sfx.decodeAudioData(u.buffer); }))
+        .then(a=>{ blockHitBufs=a; }).catch(e=>{ blockHitLoading=null; console.error('block hit sfx failed',e); });
+    }catch(e){ console.error(e); } }
+    if(blockHitLoading) blockHitLoading.then(()=>{ if(blockHitBufs) playBlockHitSeq(); });
+    return;
+  }
+  if(sfx.state==='suspended') sfx.resume();
+  blockHitSrcs.forEach(s=>{ try{ s.stop(); }catch(_){} }); blockHitSrcs=[];
+  const order=[0,1,2]; for(let i=2;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [order[i],order[j]]=[order[j],order[i]]; }   // shuffle: each sound exactly once
+  let t=sfx.currentTime+0.02;
+  order.forEach(i=>{ const b=cz(blockHitBufs[i]), src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=b; g.gain.value=BLOCK_HIT_GAIN; src.connect(g); g.connect(sfx.destination); src.start(t); blockHitSrcs.push(src); t+=b.duration; });
+}
 let blockBufs=null, blockLoading=null;
 function loadBlockSfx(){
   if(blockLoading||!sfx) return blockLoading;
@@ -3757,7 +3778,7 @@ function initMainMenu(){
       {t:'SWOOSH',v:()=>swooshOn?'ON':'OFF',run:toggleSwoosh},
       {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},BACK_OPT]},
     /* Attribution: This work is based on "Low Poly Campfire" (https://sketchfab.com/3d-models/low-poly-campfire-695c62069ac44614acbfc6effcf7499d) by MrE_Sauce (https://sketchfab.com/MrE_Sauce) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Glint and falling-leaf sprites by Kaessis. */
-    credits:{name:'CREDITS',text:['KNIGHT MODEL AND ART','BUILT BY YOU, BLOCKBENCH','AND A LOT OF PATIENCE','','ADVENTURER BASE MESH','FROM A FREE LOW-POLY PACK','','LOW POLY CAMPFIRE','BY MRE_SAUCE (SKETCHFAB)','LICENSED CC BY 4.0','','GLINT AND FALLING LEAF','SPRITES BY KAESSIS','','DARIEN GAP','BY LT','','LIVIN LOOSE','BY GEORGE CLANTON','','HIT GRUNTS','HARRY MASON','FROM SILENT HILL (KONAMI)','','SWORD SOUNDS','FROM CASTLEVANIA (KONAMI)','','WALKING SOUND','FROM DIGIMON WORLD (BANDAI)'],items:[BACK,'','SACRIFICE OF SAINT DELL','BY FM SKYLINE','','ICE (SLOWED)','BY ZERTAL']}
+    credits:{name:'CREDITS',text:['KNIGHT MODEL AND ART','BUILT BY YOU, BLOCKBENCH','AND A LOT OF PATIENCE','','ADVENTURER BASE MESH','FROM A FREE LOW-POLY PACK','','LOW POLY CAMPFIRE','BY MRE_SAUCE (SKETCHFAB)','LICENSED CC BY 4.0','','GLINT AND FALLING LEAF','SPRITES BY KAESSIS','','DARIEN GAP','BY LT','','LIVIN LOOSE','BY GEORGE CLANTON','','HIT GRUNTS','HARRY MASON','FROM SILENT HILL (KONAMI)','','SWORD SOUNDS','FROM CASTLEVANIA (KONAMI)','','WALKING SOUND','FROM DIGIMON WORLD (BANDAI)','','BLOCK HIT SOUNDS','FROM THE ELDER SCROLLS IV: OBLIVION','BY BETHESDA GAME STUDIOS'],items:[BACK,'','SACRIFICE OF SAINT DELL','BY FM SKYLINE','','ICE (SLOWED)','BY ZERTAL']}
   };
   /* START: fade to black, then he gets up from Pose3 into the usual seated Pose2, the camera moves to the normal menu view, and the main menu opens */
   const fadeEl=document.getElementById('fade'); let startBusy=false;
