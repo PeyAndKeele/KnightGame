@@ -1044,7 +1044,7 @@ function initAxe(parent){
       grp.add(m);
     });
     grp.visible=(weapon==='axe'); fore.add(grp); axeGrp=grp; initShovel(grp);
-    { const arm=parent.getObjectByName((AXE_HEAD_RIGHT?'Right':'Left')+'_Arm')||fore, o={width:AXE_SWOOSH.width,start:AXE_SWOOSH.start,stop:AXE_SWOOSH.stop};
+    { const arm=parent.getObjectByName((AXE_HEAD_RIGHT?'Right':'Left')+'_Arm')||fore, o={width:AXE_SWOOSH.width,start:AXE_SWOOSH.start,stop:AXE_SWOOSH.stop,straight:2.2};
       // the two-handed weapons: ONE point at the very top of the weapon (the end of the shaft) for the trail to follow - no alternating between the axe's two bits. Axe top y=2.25, shovel top y=2.138 (weapon units, along the shaft).
       swooshAddRig('axe',grp,arm,[0,2.25,0],[0,AXE_SWOOSH.hilt,0],o); swooshAddRig('shovel',grp,arm,[0,2.138,0],[0,AXE_SWOOSH.hilt,0],o); }
     swooshUse();
@@ -1304,7 +1304,7 @@ const SWOOSH_PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAAlCAYAAADr
 let swooshOn=true, swTip=null, swHilt=null, swPivot=null;
 /* Each weapon has its own swoosh rig: two marker points on it (swTip = the leading end of the blade/head, swHilt = back toward the hand, which just gives the scale), the shoulder the trail
    is measured from, the ribbon's width, and the tip speeds (in weapon units per second) that start and stop a trail. Only the weapon in his hand is used. */
-let swLen=SWOOSH_TIP_Y-SWOOSH_HILT_Y, swWidth=SWOOSH_WIDTH, swStart=SWOOSH_START_SPEED, swStop=SWOOSH_STOP_SPEED, swAlt=null;   // swAlt: the second bit of a double-bitted head
+let swLen=SWOOSH_TIP_Y-SWOOSH_HILT_Y, swWidth=SWOOSH_WIDTH, swStart=SWOOSH_START_SPEED, swStop=SWOOSH_STOP_SPEED, swAlt=null, swStraight=0, swDirOk=false; const swDir=new THREE.Vector3(), _swd=new THREE.Vector3();   // swStraight: the two-handed weapons only - a stiff, straight trail this long (weapon units) directly behind the point   // swAlt: the second bit of a double-bitted head
 const swRigs={};
 /* The Axe: its head has a cutting edge at each end (the two bits, at +/- bit along the blade axis, halfway up the head at mid). The trail follows whichever bit is leading the swing:
    both are watched, the faster one when a trail starts keeps it. hilt = the top grip, only for the scale. Speeds are in axe units per second and a bit moves faster than the middle
@@ -1317,11 +1317,11 @@ function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   const tip=new THREE.Object3D(), hilt=new THREE.Object3D();
   tip.position.set(tipPos[0],tipPos[1],tipPos[2]); hilt.position.set(hiltPos[0],hiltPos[1],hiltPos[2]); grp.add(tip); grp.add(hilt);
   let alt=null; if(o.alt){ alt=new THREE.Object3D(); alt.position.set(o.alt[0],o.alt[1],o.alt[2]); grp.add(alt); }
-  swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop};
+  swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop,straight:o.straight||0};
 }
 function swooshUse(){
   const key=weapon==='axe'?(axeStyle==='shovel'?'shovel':'axe'):(swordStyle==='hatchet'?'hatchet':swordStyle==='hammer'?'hammer':'sword'), r=swRigs[key]||swRigs.sword; if(!r) return;
-  swTip=r.tip; swAlt=r.alt||null; swHilt=r.hilt; swPivot=r.pivot; swLen=r.len; swWidth=r.width; swStart=r.start; swStop=r.stop; swsh.hasPrev=false; swsh.emit=false;
+  swTip=r.tip; swAlt=r.alt||null; swHilt=r.hilt; swPivot=r.pivot; swLen=r.len; swWidth=r.width; swStart=r.start; swStop=r.stop; swStraight=r.straight||0; swsh.hasPrev=false; swsh.emit=false;
 }
 const swsh={mesh:null,geo:null,mat:null,pts:[],emit:false,active:false,age:0,hasPrev:false,k:1,
   prevP:new THREE.Vector3(),prevP2:new THREE.Vector3(),alt:false,a2:new THREE.Vector3(),prevC:new THREE.Vector3(),a:new THREE.Vector3(),b:new THREE.Vector3(),c:new THREE.Vector3(),
@@ -1373,11 +1373,16 @@ function swooshSample(h){
   if(!swsh.emit) swsh.alt=!!swAlt&&sp2>sp1;                    // a double-bitted head: the bit that is moving faster leads, and keeps the trail for this swing
   const cur=swsh.alt?a2:a, speed=swsh.alt?sp2:sp1, prev=swsh.alt?swsh.prevP2:swsh.prevP;
   if(!swsh.emit&&current&&current.time>=SWOOSH_MIN_CLIP_T&&speed>=swStart){
-    swsh.emit=true; swsh.active=true; swsh.age=0; swsh.pts.length=0;
+    swsh.emit=true; swsh.active=true; swsh.age=0; swsh.pts.length=0; swDirOk=false;
     swsh.pts.push({p:prev.clone(),c:swsh.prevC.clone()});                             // start from where the blade just was
   }
   if(swsh.emit){
     if(speed<swStop||swsh.pts.length>=SWOOSH_MAXPTS) swsh.emit=false;
+    else if(swStraight>0){   // a stiff straight strip, always directly behind the point, along the way it is moving (a little smoothed)
+      _swd.subVectors(cur,prev); if(_swd.lengthSq()>1e-12){ _swd.normalize(); if(swDirOk) swDir.lerp(_swd,0.4).normalize(); else { swDir.copy(_swd); swDirOk=true; } }
+      const L=swStraight*k, P=swsh.pts; P.length=0; for(let i=0;i<10;i++) P.push({p:cur.clone().addScaledVector(swDir,-L*(1-i/9)),c:c.clone()});
+      swsh.k=k;
+    }
     else { swsh.pts.push({p:cur.clone(),c:c.clone()}); swsh.k=k; }
   }
   swsh.prevP.copy(a); swsh.prevP2.copy(a2); swsh.prevC.copy(c); swsh.hasPrev=true;
@@ -1424,7 +1429,7 @@ function swooshBuild(){
 function updateSwoosh(dt){
   const m=swsh.mesh; if(!m) return;
   if(!swsh.active||!swooshOn){ m.visible=false; return; }
-  swsh.age+=dt;
+  swsh.age+=dt; if(swStraight>0&&swsh.emit) swsh.age=Math.min(swsh.age,SWOOSH_FRAME_MS*0.9/1000);   // two-handed: stays fresh while the head is moving
   const f=Math.floor(swsh.age*1000/SWOOSH_FRAME_MS);
   if(f>=SWOOSH_FRAMES){ swooshHide(); return; }
   swsh.mat.uniforms.uFrame.value=f;
