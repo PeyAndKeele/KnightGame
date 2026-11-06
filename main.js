@@ -1100,7 +1100,7 @@ function axePose(nm){
   const g=axeGrp, q0=g.userData.baseQ, p0=g.userData.basePos; if(!q0||!p0||!knightScene) return;
   const now=performance.now(), dt=Math.min(0.1,Math.max(0,(now-axeT)/1000)); axeT=now;
   const clamp=(v,s)=>Math.max(-s,Math.min(s,v));
-  const wantF=(AXE_FOLLOW_ARMS&&(nm==='AxeIdle'||nm==='AxeSwing'||nm==='Walk'))?1:0;
+  const wantF=(AXE_FOLLOW_ARMS&&(nm==='AxeIdle'||nm==='AxeSwing'||nm==='Walk'||/^SwingHeavy/.test(nm)))?1:0;   // (the SwingHeavy clips of RENDER too: the lower hand stays on the handle)
   axeFollowK+=clamp(wantF-axeFollowK,dt/AXE_FOLLOW_EASE);
   const hand=g.userData.hand, back=g.userData.back;
   if(blockFlipped&&/^Block(Idle)?$/.test(nm)&&axeOff&&axeOff.fore){   // the flipped Block turns the model round, so the axe moves to the other forearm to stay in the hand it is normally in on screen: the mount is mirrored across the forearm's length and its grip is put on that hand
@@ -1141,7 +1141,7 @@ function axePose(nm){
       g.position.copy(G).sub(_aV[3].set(0,AXE_TOP_GRIP,0).applyQuaternion(g.quaternion));   // keep the top grip where it was
     }
   }
-  const want=(AXE_BLADES_FRONT_BACK&&nm!=='AxeSwing')?1:0;
+  const want=(AXE_BLADES_FRONT_BACK&&nm!=='AxeSwing'&&nm!=='SwingHeavyRelease')?1:0;
   axeRollK+=clamp(want-axeRollK,dt/AXE_BLADES_EASE);
   if(axeRollK<=0.001) return;
   hand.updateWorldMatrix(true,false);
@@ -2515,7 +2515,7 @@ const RENDER_GUARD=0.10, RENDER_DAMAGE=25;   // RENDER: the share of each enemy 
 function startRender(){
   if(!actions.SwingHeavyWindUp||!actions.SwingHeavyTurnHold||!actions.SwingHeavyRelease){ bmToast('NO RENDER ANIMATION'); return; }
   btBegin('render'); bt.heading=-Math.PI/2; bt.stage=0;
-  pl.render=true; bmToast('RENDER');
+  pl.render=true; pl.buf=true; bmToast('RENDER');   // pl.render: holding the pose (first enemy turn). pl.buf: the 10% buffer, lasts through BOTH enemy turns
   playHeavy('SwingHeavyWindUp',1,false);
 }
 function playHeavy(n,ts,loop){   // one of the SwingHeavy clips: WindUp / Release play once and clamp, TurnHold loops
@@ -2525,7 +2525,7 @@ function playHeavy(n,ts,loop){   // one of the SwingHeavy clips: WindUp / Releas
 }
 function startRenderRelease(){   // the enemies are done: no new turn for the player, he swings the heavy release instead
   turn='player'; ep=null; blockHitBag=[]; enemies.forEach(e=>setEnemyYaw(e,Math.PI/2));
-  setTurnLabel('RENDER'); btBegin('renderswing'); bt.heading=-Math.PI/2; bt.stage=0;
+  setTurnLabel('RENDER SWING'); btBegin('renderswing'); bt.heading=-Math.PI/2; bt.stage=0;
   playHeavy('SwingHeavyRelease',1,false); playSword(1);
 }
 function playBlockIdle(){ if(actions.BlockIdle) play('BlockIdle'); else play(idleName()); }   // the guard held while the enemies attack; endEnemyPhase puts him back in Idle
@@ -2625,7 +2625,7 @@ function barsUpdate(dt){
 function popup(text,pos,cls){ const el=document.createElement('div'); el.className='dmg '+(cls||''); el.textContent=text; hpLayer.appendChild(el); popups.push({el,pos:pos.clone(),t:0}); }
 function setTurnLabel(txt,cls){ turnEl.textContent=txt||''; turnEl.className=cls||''; }
 function battleReset(){
-  pl.hp=pl.max=PLAYER_HP; pl.guard=false; pl.render=false; pl.dead=false; potions=POTION_COUNT; turn='player'; ep=null; endDone=false; endKind=null;
+  pl.hp=pl.max=PLAYER_HP; pl.guard=false; pl.render=false; pl.buf=false; pl.dead=false; potions=POTION_COUNT; turn='player'; ep=null; endDone=false; endKind=null;
   barsBuild(); setTurnLabel('YOUR TURN');
 }
 function hurtEnemy(e,dmg){
@@ -2684,16 +2684,16 @@ function setEnemyYaw(e,th){
 }
 function endEnemyPhase(){ if(pl.render&&!pl.dead){ pl.render=false; pl.guard=false; startRenderRelease(); return; } blockHitBag=[];   // a new turn starts with all three block-hit sounds available again
   enemies.forEach(e=>setEnemyYaw(e,Math.PI/2));
-  pl.guard=false; ep=null; turn='player';
+  pl.guard=false; pl.buf=false; ep=null; turn='player';
   if(!pl.dead) play(idleName());
   btEnd(true); setTurnLabel('YOUR TURN');
 }
 function playerStruck(e){
-  const g=pl.guard||pl.render, dmg=pl.render?Math.max(1,Math.round(ENEMY_DAMAGE*(1-RENDER_GUARD))):(pl.guard?Math.max(1,Math.round(ENEMY_DAMAGE*GUARD_FACTOR)):ENEMY_DAMAGE);
+  const g=pl.guard||pl.buf, dmg=pl.guard?Math.max(1,Math.round(ENEMY_DAMAGE*GUARD_FACTOR)):(pl.buf?Math.max(1,Math.round(ENEMY_DAMAGE*(1-RENDER_GUARD))):ENEMY_DAMAGE);
   pl.hp=Math.max(0,pl.hp-dmg); popup('-'+dmg,headPos({isPl:true},new THREE.Vector3()),g?'pl blk':'pl');
   if(pl.hp<=0){ pl.dead=true; play('Death'); }
   else if(pl.render){ if(!(current&&current.getClip().name==='SwingHeavyTurnHold')) playHeavy('SwingHeavyTurnHold',1,true); playBlockHitSeq(); }   // RENDER: he keeps holding the swing, the hit is just the sound
-  else if(g){ if(!(current&&current.getClip().name==='BlockIdle')) playBlockIdle(); playBlockHitSeq(); }   // guarding: he stays in BlockIdle, the hit is just the sound
+  else if(pl.guard){ if(!(current&&current.getClip().name==='BlockIdle')) playBlockIdle(); playBlockHitSeq(); }   // guarding: he stays in BlockIdle, the hit is just the sound
   else { const h=actions.Hit; if(h){ if(current&&current!==h) current.fadeOut(0.06); h.reset().setLoop(THREE.LoopOnce,1); h.clampWhenFinished=true; h.timeScale=1; h.fadeIn(0.06).play(); current=h; } blip(130,0.14); playGrunt(); }
 }
 function updateEnemyPhase(dt){
@@ -2744,7 +2744,7 @@ function updateBattle(dt){
   } else if(bt.act==='renderswing'){
     const rd=actions.SwingHeavyRelease.getClip().duration;
     if(bt.stage===0&&bt.t>=rd*0.45){ bt.stage=1; bt.hold=0; enemies.forEach(e=>{ if(!e.dead) hurtEnemy(e,RENDER_DAMAGE); }); }   // the blade connects: all targets
-    else if(bt.stage===1){ bt.hold+=dt; if(bt.t>=rd&&bt.hold>=HIT_HOLD){ bt.stage=2; enemies.forEach(e=>{ if(!e.dead&&e.hit){ e.idle.reset().fadeIn(0.12).play(); e.hit.fadeOut(0.12); } }); if(enemies.length&&enemies.every(e=>e.dead)){ btEnd(true); battleEnd('win'); } else { play(idleName()); btEnd(true); setTurnLabel('YOUR TURN'); } } }   // no extra enemy turn after the swing
+    else if(bt.stage===1){ bt.hold+=dt; if(bt.t>=rd&&bt.hold>=HIT_HOLD){ bt.stage=2; enemies.forEach(e=>{ if(!e.dead&&e.hit){ e.idle.reset().fadeIn(0.12).play(); e.hit.fadeOut(0.12); } }); play(idleName()); btEnd(); } }   // btEnd -> victory, or the enemies go again; then he gets to pick
   } else if(bt.act==='potion'){
     const c=current&&current.getClip().name==='Drinking_Potion';
     if(!bt.healed&&c&&current.time>=POTION_HEAL_AT){
