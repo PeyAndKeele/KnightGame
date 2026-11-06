@@ -1046,7 +1046,7 @@ function initAxe(parent){
     grp.visible=(weapon==='axe'); fore.add(grp); axeGrp=grp; initShovel(grp);
     // The two-handed weapons use the SWORD's swoosh as it is (same path-following trail, same width and speeds, no alternating bits), with the markers taken from the shovel's model:
     // the tip is the top of the shovel, the hilt is one sword-blade length (SWOOSH_TIP_Y-SWOOSH_HILT_Y) below it, so the trail has the sword's proportions. The axe shares these markers.
-    swooshAddRig('axe',grp,parent.getObjectByName((AXE_HEAD_RIGHT?'Right':'Left')+'_Arm')||fore,[0,SHOVEL_TOP_Y,0],[0,SHOVEL_TOP_Y-(SWOOSH_TIP_Y-SWOOSH_HILT_Y),0],{width:SWOOSH_WIDTH,start:SWOOSH_START_SPEED,stop:SWOOSH_STOP_SPEED}); swooshUse();
+    swooshAddRig('axe',grp,parent.getObjectByName((AXE_HEAD_RIGHT?'Right':'Left')+'_Arm')||fore,[0,SHOVEL_TOP_Y,0],[0,SHOVEL_TOP_Y-(SWOOSH_TIP_Y-SWOOSH_HILT_Y),0],{width:SWOOSH_WIDTH,start:SWOOSH_START_SPEED,stop:SWOOSH_STOP_SPEED,flag:1.3}); swooshUse();
     const mkHand=side=>{ const A=parent.getObjectByName(side+'_Arm'), F=parent.getObjectByName(side+'_Forearm'), Hd=parent.getObjectByName('Adventurer_'+side+'_Hand'); if(!A||!F||!Hd) return null;
       parent.updateMatrixWorld(true); const hc=new THREE.Box3().setFromObject(Hd).getCenter(new THREE.Vector3()); F.worldToLocal(hc); return {arm:A,fore:F,hc}; };
     axeOff=mkHand(AXE_OFF_HAND);
@@ -1303,7 +1303,7 @@ const SWOOSH_PNG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAAlCAYAAADr
 let swooshOn=true, swTip=null, swHilt=null, swPivot=null;
 /* Each weapon has its own swoosh rig: two marker points on it (swTip = the leading end of the blade/head, swHilt = back toward the hand, which just gives the scale), the shoulder the trail
    is measured from, the ribbon's width, and the tip speeds (in weapon units per second) that start and stop a trail. Only the weapon in his hand is used. */
-let swLen=SWOOSH_TIP_Y-SWOOSH_HILT_Y, swWidth=SWOOSH_WIDTH, swStart=SWOOSH_START_SPEED, swStop=SWOOSH_STOP_SPEED, swAlt=null;   // swAlt: the second bit of a double-bitted head
+let swLen=SWOOSH_TIP_Y-SWOOSH_HILT_Y, swWidth=SWOOSH_WIDTH, swStart=SWOOSH_START_SPEED, swStop=SWOOSH_STOP_SPEED, swAlt=null, swFlag=0, swFlagOn=false;   // swFlag: the two-handed weapons - the trail is a flag on the weapon's top, this long (weapon units)   // swAlt: the second bit of a double-bitted head
 const swRigs={};
 /* The Axe: its head has a cutting edge at each end (the two bits, at +/- bit along the blade axis, halfway up the head at mid). The trail follows whichever bit is leading the swing:
    both are watched, the faster one when a trail starts keeps it. hilt = the top grip, only for the scale. Speeds are in axe units per second and a bit moves faster than the middle
@@ -1317,11 +1317,11 @@ function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   const tip=new THREE.Object3D(), hilt=new THREE.Object3D();
   tip.position.set(tipPos[0],tipPos[1],tipPos[2]); hilt.position.set(hiltPos[0],hiltPos[1],hiltPos[2]); grp.add(tip); grp.add(hilt);
   let alt=null; if(o.alt){ alt=new THREE.Object3D(); alt.position.set(o.alt[0],o.alt[1],o.alt[2]); grp.add(alt); }
-  swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop};
+  swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop,flag:o.flag||0};
 }
 function swooshUse(){
   const key=weapon==='axe'?'axe':(swordStyle==='hatchet'?'hatchet':swordStyle==='hammer'?'hammer':'sword'), r=swRigs[key]||swRigs.sword; if(!r) return;
-  swTip=r.tip; swAlt=r.alt||null; swHilt=r.hilt; swPivot=r.pivot; swLen=r.len; swWidth=r.width; swStart=r.start; swStop=r.stop; swsh.hasPrev=false; swsh.emit=false;
+  swTip=r.tip; swAlt=r.alt||null; swHilt=r.hilt; swPivot=r.pivot; swLen=r.len; swWidth=r.width; swStart=r.start; swStop=r.stop; swFlag=r.flag||0; swFlagOn=false; swsh.hasPrev=false; swsh.emit=false;
 }
 const swsh={mesh:null,geo:null,mat:null,pts:[],emit:false,active:false,age:0,hasPrev:false,k:1,
   prevP:new THREE.Vector3(),prevP2:new THREE.Vector3(),alt:false,a2:new THREE.Vector3(),prevC:new THREE.Vector3(),a:new THREE.Vector3(),b:new THREE.Vector3(),c:new THREE.Vector3(),
@@ -1335,8 +1335,9 @@ void main(){
   gl_Position=cp; vUv=uv;
 }`;
 const SWOOSH_FS=`
-uniform sampler2D map; uniform float uFrame; uniform float uFrames; varying vec2 vUv;
+uniform sampler2D map; uniform float uFrame; uniform float uFrames; uniform float uFade; varying vec2 vUv;
 void main(){
+  if(uFade<0.999 && fract(dot(floor(gl_FragCoord.xy),vec2(0.7548776662,0.5698402910)))>=uFade) discard;   // fade in/out as a dither, to match the picture
   vec4 tx=texture2D(map,vec2((uFrame+clamp(vUv.x,0.002,0.998))/uFrames,clamp(vUv.y,0.002,0.998)));
   if(tx.a<0.5) discard;
   gl_FragColor=vec4(tx.rgb,1.0);
@@ -1351,7 +1352,7 @@ function initSwoosh(grp,parent){
     const tex=new THREE.Texture(img); tex.flipY=false; tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
     tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
     swsh.mat=new THREE.ShaderMaterial({vertexShader:SWOOSH_VS,fragmentShader:SWOOSH_FS,side:THREE.DoubleSide,
-      uniforms:{map:{value:tex},uFrame:{value:0},uFrames:{value:SWOOSH_FRAMES},uRes:U.uRes,uSnap:U.uSnap}});
+      uniforms:{map:{value:tex},uFrame:{value:0},uFrames:{value:SWOOSH_FRAMES},uFade:{value:1},uRes:U.uRes,uSnap:U.uSnap}});
     const M=SWOOSH_MAXPTS, geo=new THREE.BufferGeometry();
     const pa=new THREE.BufferAttribute(new Float32Array(M*2*3),3), ua=new THREE.BufferAttribute(new Float32Array(M*2*2),2);
     pa.setUsage(THREE.DynamicDrawUsage); ua.setUsage(THREE.DynamicDrawUsage);
@@ -1361,10 +1362,11 @@ function initSwoosh(grp,parent){
     scene.add(mesh); swsh.mesh=mesh; swsh.geo=geo;
   }).catch(e=>console.error('swoosh load failed',e));
 }
-function swooshHide(){ swsh.active=false; swsh.emit=false; swsh.pts.length=0; if(swsh.mesh) swsh.mesh.visible=false; }
+function swooshHide(){ swFlagOn=false; swsh.active=false; swsh.emit=false; swsh.pts.length=0; if(swsh.mesh) swsh.mesh.visible=false; }
 function toggleSwoosh(){ swooshOn=!swooshOn; if(!swooshOn) swooshHide(); }
 /* one sample of the blade, taken between mixer sub-steps; h = seconds since the previous sample */
 function swooshSample(h){
+  if(swFlag>0) return;   // the flag is handled in updateFlag
   if(!swTip||!swHilt||!swPivot||!swsh.mesh) return;
   const a=swsh.a,a2=swsh.a2,b=swsh.b,c=swsh.c;
   swTip.getWorldPosition(a); if(swAlt) swAlt.getWorldPosition(a2); swHilt.getWorldPosition(b); swPivot.getWorldPosition(c);
@@ -1421,8 +1423,32 @@ function swooshBuild(){
   }
   pa.needsUpdate=true; ua.needsUpdate=true; swsh.geo.setDrawRange(0,(n-1)*6); m.visible=true;
 }
+/* The two-handed weapons' swoosh is a FLAG nailed to the top of the weapon: the last point is the top, and every point before it just follows the one in front of it at a fixed distance,
+   so when the weapon is waved the flag trails behind it. It shows for the first half of the swing animation (FLAG_START..FLAG_END of the clip) and fades in/out over FLAG_IN / FLAG_OUT seconds. */
+const FLAG_N=10, FLAG_START=0.08, FLAG_END=0.5, FLAG_IN=0.06, FLAG_OUT=0.1; const _fd=new THREE.Vector3();
+function updateFlag(){
+  const m=swsh.mesh, act=current, cn=act&&act.getClip().name, dur=act?act.getClip().duration:0, t=act?act.time:0, tEnd=dur*FLAG_END;
+  if(!(swooshOn&&swTip&&swPivot&&cn==='AxeSwing'&&t>=FLAG_START&&t<tEnd)){ if(swFlagOn||m.visible){ swFlagOn=false; swsh.active=false; m.visible=false; } return; }
+  swTip.getWorldPosition(swsh.a); swHilt.getWorldPosition(swsh.b); swPivot.getWorldPosition(swsh.c);
+  const k=swsh.a.distanceTo(swsh.b)/swLen; if(!(k>1e-5)) return;
+  const seg=swFlag*k/(FLAG_N-1), P=swsh.pts;
+  if(!swFlagOn){   // starts hanging down along the pole
+    swFlagOn=true; P.length=0; _fd.subVectors(swsh.b,swsh.a).normalize();
+    for(let i=0;i<FLAG_N;i++) P.push({p:swsh.a.clone().addScaledVector(_fd,seg*(FLAG_N-1-i)),c:swsh.c.clone()});
+  }
+  P[FLAG_N-1].p.copy(swsh.a); P[FLAG_N-1].c.copy(swsh.c);
+  for(let i=FLAG_N-2;i>=0;i--){   // each point keeps its distance from the one in front of it, and swings in behind it
+    _fd.subVectors(P[i].p,P[i+1].p); const d=_fd.length(); if(d<1e-6) _fd.set(0,-1,0); else _fd.multiplyScalar(1/d);
+    P[i].p.copy(P[i+1].p).addScaledVector(_fd,seg); P[i].c.copy(swsh.c);
+  }
+  const f=Math.max(0,Math.min(1,Math.min((t-FLAG_START)/FLAG_IN,(tEnd-t)/FLAG_OUT)));
+  swsh.k=k; swsh.active=true; swsh.mat.uniforms.uFrame.value=0; swsh.mat.uniforms.uFade.value=f*f*(3-2*f);
+  swooshBuild();
+}
 function updateSwoosh(dt){
   const m=swsh.mesh; if(!m) return;
+  if(swFlag>0){ updateFlag(); return; }
+  swsh.mat.uniforms.uFade.value=1;
   if(!swsh.active||!swooshOn){ m.visible=false; return; }
   swsh.age+=dt;
   const f=Math.floor(swsh.age*1000/SWOOSH_FRAME_MS);
