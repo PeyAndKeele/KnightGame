@@ -327,7 +327,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   })();
   /* AxeIdle (the axe's idle) and AxeSwing (its swing, the rig's Swing3): embedded as axeidle-data / axeswing-data and added exactly like Death above.
      They are used whenever the Axe is the chosen weapon; the sword keeps Idle and Swing. */
-  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data'].forEach(function(id){
+  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data','swingheavywindup-data','swingheavyturnhold-data','swingheavyrelease-data'].forEach(function(id){
     const el=document.getElementById(id); if(!el) return;
     const D=JSON.parse(el.textContent), base={};
     if((id==='axeswing-data'&&AXE_SWING_REVERSE)||D.rev){   // play the swing backwards: keyframes in reverse order, times counted from the end
@@ -2431,7 +2431,8 @@ addEventListener('keydown',e=>{
 const BM_MENUS={
   root:{title:'BATTLE',items:['ATTACK','ITEMS','ACTIONS','FLEE']},
   attack:{title:'ATTACK',items:['CARVE','BACK']},
-  actions:{title:'ACTIONS',items:['FLAUNT','BLOCK','BACK']},
+  actions:{title:'ACTIONS',get items(){ return weapon==='axe'?['FLAUNT','BLOCK','RENDER','BACK']:['FLAUNT','BLOCK','BACK']; }},   // RENDER only while a heavy weapon (axe / shovel) is held
+
   items:{title:'ITEMS',get items(){ return ['POTION x'+potions,'BACK']; }}   // the label shows how many are left
 };
 const SWING_SPEED=1.25;        // same swing speed as in Walk Around
@@ -2482,6 +2483,7 @@ function bmChoose(){
   else if(it==='CARVE') startCarve();
   else if(it==='FLAUNT') startFlaunt();
   else if(it==='BLOCK') startBlock();
+  else if(it==='RENDER') startRender();
 }
 function btBegin(act){ bmClose(true); bt.act=act; bt.t=0; bt.stage=0; hudSet(HINT_BUSY); }
 function btEnd(noTurn){
@@ -2508,6 +2510,23 @@ function startBlock(){
   btBegin('block'); bt.heading=-Math.PI/2;
   pl.guard=true; bmToast('GUARDING');   // the enemies' attacks this round do much less damage
   playBlockAnim(); playBlockSfx();
+}
+const RENDER_GUARD=0.10, RENDER_DAMAGE=25;   // RENDER: the share of each enemy hit it blocks (10%), and what the heavy swing does to EVERY enemy
+function startRender(){
+  if(!actions.SwingHeavyWindUp||!actions.SwingHeavyTurnHold||!actions.SwingHeavyRelease){ bmToast('NO RENDER ANIMATION'); return; }
+  btBegin('render'); bt.heading=-Math.PI/2; bt.stage=0;
+  pl.render=true; bmToast('RENDER');
+  playHeavy('SwingHeavyWindUp',1,false);
+}
+function playHeavy(n,ts,loop){   // one of the SwingHeavy clips: WindUp / Release play once and clamp, TurnHold loops
+  const a=actions[n]; if(!a) return;
+  if(current&&current!==a) current.fadeOut(0.08);
+  a.reset().setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1); a.clampWhenFinished=!loop; a.timeScale=ts; a.fadeIn(0.08).play(); current=a;
+}
+function startRenderRelease(){   // the enemies are done: no new turn for the player, he swings the heavy release instead
+  turn='player'; ep=null; blockHitBag=[]; enemies.forEach(e=>setEnemyYaw(e,Math.PI/2));
+  setTurnLabel('RENDER'); btBegin('renderswing'); bt.heading=-Math.PI/2; bt.stage=0;
+  playHeavy('SwingHeavyRelease',1,false); playSword(1);
 }
 function playBlockIdle(){ if(actions.BlockIdle) play('BlockIdle'); else play(idleName()); }   // the guard held while the enemies attack; endEnemyPhase puts him back in Idle
 function playBlockAnim(){
@@ -2606,7 +2625,7 @@ function barsUpdate(dt){
 function popup(text,pos,cls){ const el=document.createElement('div'); el.className='dmg '+(cls||''); el.textContent=text; hpLayer.appendChild(el); popups.push({el,pos:pos.clone(),t:0}); }
 function setTurnLabel(txt,cls){ turnEl.textContent=txt||''; turnEl.className=cls||''; }
 function battleReset(){
-  pl.hp=pl.max=PLAYER_HP; pl.guard=false; pl.dead=false; potions=POTION_COUNT; turn='player'; ep=null; endDone=false; endKind=null;
+  pl.hp=pl.max=PLAYER_HP; pl.guard=false; pl.render=false; pl.dead=false; potions=POTION_COUNT; turn='player'; ep=null; endDone=false; endKind=null;
   barsBuild(); setTurnLabel('YOUR TURN');
 }
 function hurtEnemy(e,dmg){
@@ -2663,16 +2682,17 @@ function setEnemyYaw(e,th){
     e.rig.position.set(e.x-(ox*Math.cos(th)+oz*Math.sin(th)),0,e.z-(-ox*Math.sin(th)+oz*Math.cos(th)));
   }
 }
-function endEnemyPhase(){ blockHitBag=[];   // a new turn starts with all three block-hit sounds available again
+function endEnemyPhase(){ if(pl.render&&!pl.dead){ pl.render=false; pl.guard=false; startRenderRelease(); return; } blockHitBag=[];   // a new turn starts with all three block-hit sounds available again
   enemies.forEach(e=>setEnemyYaw(e,Math.PI/2));
   pl.guard=false; ep=null; turn='player';
   if(!pl.dead) play(idleName());
   btEnd(true); setTurnLabel('YOUR TURN');
 }
 function playerStruck(e){
-  const g=pl.guard, dmg=g?Math.max(1,Math.round(ENEMY_DAMAGE*GUARD_FACTOR)):ENEMY_DAMAGE;
+  const g=pl.guard||pl.render, dmg=pl.render?Math.max(1,Math.round(ENEMY_DAMAGE*(1-RENDER_GUARD))):(pl.guard?Math.max(1,Math.round(ENEMY_DAMAGE*GUARD_FACTOR)):ENEMY_DAMAGE);
   pl.hp=Math.max(0,pl.hp-dmg); popup('-'+dmg,headPos({isPl:true},new THREE.Vector3()),g?'pl blk':'pl');
   if(pl.hp<=0){ pl.dead=true; play('Death'); }
+  else if(pl.render){ if(!(current&&current.getClip().name==='SwingHeavyTurnHold')) playHeavy('SwingHeavyTurnHold',1,true); playBlockHitSeq(); }   // RENDER: he keeps holding the swing, the hit is just the sound
   else if(g){ if(!(current&&current.getClip().name==='BlockIdle')) playBlockIdle(); playBlockHitSeq(); }   // guarding: he stays in BlockIdle, the hit is just the sound
   else { const h=actions.Hit; if(h){ if(current&&current!==h) current.fadeOut(0.06); h.reset().setLoop(THREE.LoopOnce,1); h.clampWhenFinished=true; h.timeScale=1; h.fadeIn(0.06).play(); current=h; } blip(130,0.14); playGrunt(); }
 }
@@ -2692,7 +2712,7 @@ function updateEnemyPhase(dt){
     setEnemyYaw(e,Math.PI/2);
     e.idle.reset().fadeIn(0.12).play(); e.atk.fadeOut(0.12);
     if(pl.dead){ battleEnd('lose'); return; }
-    if(!pl.guard) play(idleName());   // a raised guard stays up between the enemies' attacks
+    if(!pl.guard&&!pl.render) play(idleName());   // a raised guard stays up between the enemies' attacks
     epNext();
   }
 }
@@ -2719,6 +2739,12 @@ function updateBattle(dt){
     if(bt.t>=FLAUNT_TIME){ play(idleName()); btEnd(); }
   } else if(bt.act==='block'){
     if(bt.t>=actions.Block.getClip().duration+BLOCK_HOLD){ playBlockIdle(); btEnd(); }   // Block has played: he stays in BlockIdle (a loop) through the enemies' whole turn
+  } else if(bt.act==='render'){
+    if(bt.stage===0&&bt.t>=actions.SwingHeavyWindUp.getClip().duration){ bt.stage=1; playHeavy('SwingHeavyTurnHold',1,true); afterPlayerAction(); }   // windup done: he holds while the enemies take their turn
+  } else if(bt.act==='renderswing'){
+    const rd=actions.SwingHeavyRelease.getClip().duration;
+    if(bt.stage===0&&bt.t>=rd*0.45){ bt.stage=1; bt.hold=0; enemies.forEach(e=>{ if(!e.dead) hurtEnemy(e,RENDER_DAMAGE); }); }   // the blade connects: all targets
+    else if(bt.stage===1){ bt.hold+=dt; if(bt.t>=rd&&bt.hold>=HIT_HOLD){ bt.stage=2; enemies.forEach(e=>{ if(!e.dead&&e.hit){ e.idle.reset().fadeIn(0.12).play(); e.hit.fadeOut(0.12); } }); if(enemies.length&&enemies.every(e=>e.dead)){ btEnd(true); battleEnd('win'); } else { play(idleName()); btEnd(true); setTurnLabel('YOUR TURN'); } } }   // no extra enemy turn after the swing
   } else if(bt.act==='potion'){
     const c=current&&current.getClip().name==='Drinking_Potion';
     if(!bt.healed&&c&&current.time>=POTION_HEAL_AT){

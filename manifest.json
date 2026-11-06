@@ -318,5 +318,20 @@
     "id": "shovel-data",
     "type": "application/json",
     "url": "shovel-data.json"
+  },
+  {
+    "id": "swingheavywindup-data",
+    "type": "application/json",
+    "url": "swingheavywindup-data.json"
+  },
+  {
+    "id": "swingheavyturnhold-data",
+    "type": "application/json",
+    "url": "swingheavyturnhold-data.json"
+  },
+  {
+    "id": "swingheavyrelease-data",
+    "type": "application/json",
+    "url": "swingheavyrelease-data.json"
   }
 ]
