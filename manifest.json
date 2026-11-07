@@ -348,5 +348,15 @@
     "id": "render-charge-sfx-data",
     "type": "application/json",
     "url": "render-charge-sfx-data.json"
+  },
+  {
+    "id": "golem-data",
+    "type": "text/plain",
+    "url": "golem-data.txt"
+  },
+  {
+    "id": "golem-attack-data",
+    "type": "application/json",
+    "url": "golem-attack-data.json"
   }
 ]

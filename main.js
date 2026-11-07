@@ -348,6 +348,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   const order=['Idle','AxeIdle','Walk','Swing','AxeSwing','AxeFlaunt','Hit','Death'];
   names=order.filter(n=>gltf.animations.some(a=>a.name===n)).concat(gltf.animations.map(a=>a.name).filter(n=>!order.includes(n)&&n!==EVT_CLIP));
   menuNames=names.filter(n=>!AXE_BASE[n]);   // what the menus list: the axe variants are folded into Idle / Swing / Flaunt
+  menuNames.push('GolemAttack');   // the golem's clip (see GOLEM below): not one of the knight's own, it swaps the golem in
   gltf.animations.forEach(a=>{actions[a.name]=mixer.clipAction(a);});
   mixer.addEventListener('finished',e=>{ if(e.action===actions[EVT_CLIP]) evtDone=true; else if(e.action===actions.Swing||e.action===actions.AxeSwing) swingDone=true; else if(e.action===actions.AxeFlaunt&&e.action===current) flauntDone=true; else if(e.action===actions.Chestopen&&chestScene) chestDone=true; });
   mixer.addEventListener('loop',e=>{ if(evtDue&&e.action===current&&e.action.getClip().name===SEAT_CLIP) evtGo=true; });
@@ -1541,6 +1542,7 @@ function swooshSample(h){
 }
 /* advance the mixer; while the sword swings, do it in small steps and sample the blade after each one */
 function stepMixer(dt){
+  if(golemOn&&golemMixer){ golemPlace(); golemMixer.update(dt); }
   const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease');
   if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); return; }
   const n=Math.max(1,Math.ceil(dt/SWOOSH_STEP-1e-6)), h=dt/n;
@@ -1938,7 +1940,44 @@ function firstGesture(e){
 ['pointerdown','keydown'].forEach(n=>addEventListener(n,firstGesture,{once:true}));
 
 /* ---------- animation control ---------- */
+/* ---------- GOLEM (ANIMATIONS screen): golem-data is his Blockbench model, golem-attack-data the GolemAttack clip (same track format as the other clips).
+   Picking GolemAttack hides the knight and shows the golem in his place; picking anything else, or leaving the screen, brings the knight back. ---------- */
+const GOLEM_SCALE=0.9;   // golem height as a fraction of the knight's (his raised fists reach well above his head)
+let golemRig=null, golemScene=null, golemMixer=null, golemAct=null, golemOn=false, golemH0=1, golemMinY=0;
+(function(){
+  const el=document.getElementById('golem-data'), ad=document.getElementById('golem-attack-data'); if(!el||!ad) return;
+  try{
+    const t=atob(el.textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i);
+    new THREE.GLTFLoader().parse(u.buffer,'',g=>{
+      const cache=new Map();
+      g.scene.traverse(o=>{ if(!o.isMesh) return; const om=o.material; if(!cache.has(om.uuid)) cache.set(om.uuid,ps1Mat(om.map,1)); o.material=cache.get(om.uuid); o.frustumCulled=false; });
+      g.scene.updateMatrixWorld(true);
+      const bx=new THREE.Box3().setFromObject(g.scene); golemH0=bx.max.y-bx.min.y; golemMinY=bx.min.y;
+      golemScene=g.scene; golemRig=new THREE.Group(); golemRig.add(g.scene); golemRig.visible=false; scene.add(golemRig);
+      const D=JSON.parse(ad.textContent);
+      const clip=new THREE.AnimationClip(D.name,-1,D.tracks.map(k=>k.p==='q'?new THREE.QuaternionKeyframeTrack(k.n+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(k.n+'.position',k.t,k.v)));
+      golemMixer=new THREE.AnimationMixer(g.scene); golemAct=golemMixer.clipAction(clip);
+    },e=>console.error('golem failed',e));
+  }catch(e){ console.error(e); }
+})();
+function golemPlace(){   // stand where the knight stands, facing the way he faces (the golem's model faces +Z, the knight's -Z)
+  const k=GOLEM_SCALE*playerH/golemH0;
+  golemRig.scale.setScalar(k); golemRig.position.set(playerRig.position.x,groundYNight-golemMinY*k,playerRig.position.z); golemRig.rotation.y=playerRig.rotation.y-Math.PI;
+}
+function golemShow(on){
+  if(!golemRig||on===golemOn) return;
+  golemOn=on; golemRig.visible=on; if(playerRig) playerRig.visible=!on;
+  if(on){ golemPlace(); golemAct.reset().setLoop(THREE.LoopRepeat,Infinity).play(); golemMixer.update(0); }
+  else golemAct.stop();
+}
+function playGolem(){
+  if(!golemRig||!playerRig){ return; }
+  golemShow(true); golemAct.reset().play();
+  document.querySelectorAll('#anims .item').forEach(b=>b.setAttribute('aria-checked',b.dataset.n==='GolemAttack'));
+}
 function play(n){
+  if(n==='GolemAttack'){ playGolem(); return; }
+  if(golemOn) golemShow(false);
   if(n==='Flaunt'&&weapon==='axe'&&actions.AxeFlaunt) n='AxeFlaunt';   // the axe has its own flaunt (heavy weapons class)
   if(!actions[n]) return;
   if((n==='AxeIdle'||n==='AxeSwing'||n==='AxeFlaunt'||n===FLAUNT_IDLE)&&weapon!=='axe') setWeapon('axe');   // these are the axe's own clips, so choosing one brings the axe out
@@ -2000,7 +2039,7 @@ function buildMenu(){
     b.addEventListener('click',()=>menuPlay(n)); box.appendChild(b);
   });
 }
-function cycle(d){ const c=current&&current.getClip().name, i=menuNames.indexOf(AXE_BASE[c]||c); menuPlay(menuNames[(i+d+menuNames.length)%menuNames.length]); }
+function cycle(d){ const c=golemOn?'GolemAttack':(current&&current.getClip().name), i=menuNames.indexOf(AXE_BASE[c]||c); menuPlay(menuNames[(i+d+menuNames.length)%menuNames.length]); }
 
 /* ---------- toggles ---------- */
 function setSwitch(id,on,label){ const b=document.getElementById(id); b.setAttribute('aria-checked',on); b.querySelector('.v').textContent=label; }
@@ -4040,7 +4079,7 @@ function initMainMenu(){
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
-    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
+    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(n==='GolemAttack'?golemOn:(!golemOn&&current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n))?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
     options:{name:'OPTIONS',items:[{t:'GRAPHICS',go:'opt_gfx'},{t:'WORLD',go:'opt_world'},{t:'SOUND',go:'opt_sound'},{t:'KNIGHT',go:'opt_knight'},BACK]},
     opt_gfx:{name:'GRAPHICS',up:'options',items:[
       {t:'LOOK',v:()=>ps1?'PS1':'MODERN',run:toggleLook},
@@ -4103,7 +4142,7 @@ function initMainMenu(){
     if(scrolls) root.appendChild(moreRow(1,items.length-top-vis,vis));
   }
   function mark(){ btns.forEach(b=>b.classList.toggle('on',b._i===idx)); }
-  function go(n){ if(invOn&&invCust&&n==='main'){ invShowInv(); return; } cur=n; idx=0; top=0; render(); }   // CUSTOMIZE lives in the inventory now: its BACK returns there
+  function go(n){ if(invOn&&invCust&&n==='main'){ invShowInv(); return; } if(golemOn&&n!=='anims') golemShow(false); cur=n; idx=0; top=0; render(); }   // CUSTOMIZE lives in the inventory now: its BACK returns there
   invGoMenu=go;
   function act(){
     const it=SCREENS[cur].items[idx];
