@@ -1299,11 +1299,79 @@ function playChestSfx(){
   }catch(e){ console.error('chest sfx',e); }
 }
 function chestReady(){ return !!(chestGrp&&actions.Chestopen); }
+/* ---------- chest loot: three cards ----------
+   After the chest opens, three cards rise up, one each of COMMON, UNCOMMON and RARE (shuffled left to right). Pick one (click it, or arrows/A/D + Enter, or 1/2/3) and the screen fades back to the menu.
+   Nothing is stored yet: the pick is just remembered in loot.chosen. RARITY = the tier colours (all six; only the first three have items so far). LOOT = every item that can drop:
+   add one with a rarity key and it joins its tier's draw. LOOT_TIERS = which tiers the three cards come from. icon is a placeholder letter until the models exist. */
+const RARITY={
+  common:{name:'COMMON',alt:'STANDARD',color:'#E0E0E0'}, uncommon:{name:'UNCOMMON',alt:'FINE',color:'#2ECC71'}, rare:{name:'RARE',alt:'SUPERIOR',color:'#3498DB'},
+  epic:{name:'EPIC',alt:'HEROIC',color:'#9B59B6'}, legendary:{name:'LEGENDARY',alt:'MASTERWORK',color:'#F39C12'}, mythic:{name:'MYTHIC',alt:'ARTIFACT',color:'#E74C3C'}
+};
+const LOOT=[
+  {id:'scrap',name:'SCRAP',rarity:'common',icon:'S',blurb:'Bent metal. Somebody might want it.'},
+  {id:'rock',name:'ROCK',rarity:'common',icon:'R',blurb:'A rock. It is a good rock.'},
+  {id:'nail',name:'BENT NAIL',rarity:'common',icon:'N',blurb:'Seen better days.'},
+  {id:'hatchet',name:'HATCHET',rarity:'uncommon',icon:'H',blurb:'Light, quick, easy to carry.'},
+  {id:'axe',name:'AXE',rarity:'uncommon',icon:'A',blurb:'Two hands and a long swing.'},
+  {id:'hammer',name:'HAMMER',rarity:'rare',icon:'M',blurb:'Heavy. Makes a point.'},
+  {id:'shovel',name:'SHOVEL',rarity:'rare',icon:'V',blurb:'For digging. Or for hitting.'}
+];
+const LOOT_TIERS=['common','uncommon','rare'];
+const loot={on:false,picked:false,sel:1,cards:[],el:null,chosen:null};
+function showLoot(){
+  if(loot.on) return;
+  if(!document.getElementById('loot-css')){
+    const st=document.createElement('style'); st.id='loot-css';
+    st.textContent='#loot{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4vh;background:rgba(0,0,0,.62);font-family:inherit;color:#fff;text-shadow:2px 2px 0 #000;animation:lootbg .5s ease-out both}'
+    +'@keyframes lootbg{from{opacity:0}to{opacity:1}}@keyframes lootup{from{opacity:0;transform:translateY(60px) scale(.92)}to{opacity:1;transform:none}}'
+    +'#loot .lh{font-size:clamp(28px,4.2vw,56px);letter-spacing:.18em}#loot .lr{display:flex;gap:clamp(12px,2.4vw,36px);align-items:stretch}'
+    +'#loot .card{--c:#fff;width:clamp(150px,19vw,260px);padding:16px 14px 18px;background:linear-gradient(#26262c,#14141a);border:4px solid var(--c);border-radius:6px;color:#fff;font:inherit;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 0 0 2px #000,0 0 26px -4px var(--c);opacity:0;animation:lootup .55s cubic-bezier(.2,.9,.25,1.15) both;transition:transform .15s,box-shadow .15s,opacity .35s,filter .35s}'
+    +'#loot .card.on,#loot .card:hover{transform:translateY(-12px) scale(1.04);box-shadow:0 0 0 2px #000,0 0 46px 2px var(--c)}'
+    +'#loot .rar{font-size:clamp(16px,1.7vw,24px);letter-spacing:.2em;color:var(--c)}#loot .rar small{display:block;font-size:.62em;opacity:.7;letter-spacing:.3em}'
+    +'#loot .ico{width:100%;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px dashed var(--c);background:rgba(255,255,255,.04);color:var(--c);font-size:clamp(56px,7vw,110px);line-height:1}'
+    +'#loot .ico small{font-size:clamp(10px,1vw,14px);letter-spacing:.2em;opacity:.65;margin-top:6px}'
+    +'#loot .nm{font-size:clamp(22px,2.4vw,34px);letter-spacing:.1em}#loot .bl{font-size:clamp(13px,1.3vw,19px);opacity:.78;line-height:1.15}'
+    +'#loot .hint{font-size:clamp(14px,1.5vw,22px);opacity:.7;letter-spacing:.2em}'
+    +'#loot.done .card:not(.pick){opacity:0;filter:blur(2px);transform:scale(.9)}#loot.done .card.pick{transform:translateY(-16px) scale(1.12);box-shadow:0 0 0 2px #000,0 0 70px 6px var(--c)}';
+    document.head.appendChild(st);
+  }
+  const picks=LOOT_TIERS.map(t=>{ const pool=LOOT.filter(i=>i.rarity===t); return pool[Math.floor(Math.random()*pool.length)]; }).filter(Boolean);
+  for(let i=picks.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [picks[i],picks[j]]=[picks[j],picks[i]]; }
+  const el=document.createElement('div'); el.id='loot';
+  el.innerHTML='<div class="lh">CHOOSE YOUR REWARD</div><div class="lr"></div><div class="hint">CLICK A CARD, OR  &lt; &gt;  AND ENTER</div>';
+  const row=el.querySelector('.lr'); loot.cards=[];
+  picks.forEach((it,i)=>{
+    const r=RARITY[it.rarity], b=document.createElement('button'); b.className='card'; b.style.setProperty('--c',r.color); b.style.animationDelay=(0.25+i*0.18)+'s';
+    b.innerHTML='<div class="rar">'+r.name+'<small>'+r.alt+'</small></div><div class="ico">'+it.icon+'<small>MODEL TBD</small></div><div class="nm">'+it.name+'</div><div class="bl">'+it.blurb+'</div>';
+    b.onmouseenter=()=>lootSel(i); b.onclick=()=>lootPick(i); row.appendChild(b); loot.cards.push({it,b});
+  });
+  document.body.appendChild(el); loot.el=el; loot.on=true; loot.picked=false; loot.chosen=null; lootSel(1);
+}
+function lootSel(i){ if(loot.picked) return; if(i!==loot.sel&&loot.on) { try{ blip(520,0.05); }catch(_){} } loot.sel=i; loot.cards.forEach((c,k)=>c.b.classList.toggle('on',k===i)); }
+function lootPick(i){
+  if(!loot.on||loot.picked||!loot.cards[i]) return;
+  loot.picked=true; loot.chosen=loot.cards[i].it; try{ blip(880,0.12); }catch(_){}
+  loot.cards[i].b.classList.add('pick'); loot.el.classList.add('done');
+  setTimeout(()=>{ hideLoot(); leaveDungeon(); },1200);
+}
+function hideLoot(){ if(loot.el&&loot.el.parentNode) loot.el.parentNode.removeChild(loot.el); loot.el=null; loot.on=false; loot.cards=[]; }
+addEventListener('keydown',e=>{
+  if(!loot.on) return;
+  const k=e.key, n=loot.cards.length; let used=true;
+  if(loot.picked){ }
+  else if(k==='ArrowLeft'||k==='a'||k==='A') lootSel((loot.sel+n-1)%n);
+  else if(k==='ArrowRight'||k==='d'||k==='D') lootSel((loot.sel+1)%n);
+  else if(k==='Enter'||k===' ') lootPick(loot.sel);
+  else if(k>='1'&&k<='3'&&+k<=n){ lootSel(+k-1); lootPick(+k-1); }
+  else used=false;
+  if(used){ e.preventDefault(); e.stopImmediatePropagation(); }
+},true);
+
 function startChestScene(){
   if(dgBusy) return; dgBusy=true;
   fadeThen(()=>{   // everything below happens while the screen is black
     dgBusy=false; const H=playerH;
-    chestScene=true; chestDone=false; chestEndT=-1; dgState='chest'; moving=false;
+    chestScene=true; chestDone=false; chestEndT=-1; loot.picked=false; dgState='chest'; moving=false;
     swooshHide(); clearEnemies(); if(dgSlots) dgSlots.visible=false; setTurnLabel('');
     playerRig.position.set(-CHEST_SCENE_X*H,0,0); heading=-Math.PI/2; playerRig.rotation.y=heading;   // facing west, toward the chest
     play('Chestopen');
@@ -2326,7 +2394,7 @@ function leaveDungeon(){
   if(!dungeon||dgBusy) return;
   dgBusy=true; setBattleMusic(false);
   fadeThen(()=>{
-    dgBusy=false; dungeon=false; chestScene=false; chestDone=false; chestEndT=-1; document.body.classList.remove('dungeon');
+    dgBusy=false; dungeon=false; chestScene=false; chestDone=false; chestEndT=-1; hideLoot(); loot.picked=false; document.body.classList.remove('dungeon');
     clearEnemies(); if(ruinsGroup) ruinsGroup.visible=false; if(dgSlots) dgSlots.visible=false; if(dgForest) dgForest.visible=false; if(treeGroup) treeGroup.visible=forest;
     if(fogBak){ U.uFogNear.value=fogBak[0]; U.uFogFar.value=fogBak[1]; fogBak=null; }
     document.getElementById('hud').innerHTML=hudBak;
@@ -2871,7 +2939,7 @@ function dungeonStep(dt){
     if(p.x<=0){ p.x=0; dgState='idle'; moving=false; play(idleName()); dgDur=dgT+1.6; }   // arrived on the circle: Idle, then the camera starts roaming
   } else if(dgState==='chest'){
     if(!chestDone&&current&&current===actions.Chestopen&&current.time>=current.getClip().duration-0.03) chestDone=true;   // (safety net in case the 'finished' event is missed)
-    if(chestDone&&!dgBusy){ if(chestEndT<0) chestEndT=CHEST_END_HOLD; chestEndT-=dt; if(chestEndT<=0) leaveDungeon(); }   // the clip has ended: hold its last pose a moment, then fade to black and back to the menu
+    if(chestDone&&!dgBusy){ if(chestEndT<0) chestEndT=CHEST_END_HOLD; chestEndT-=dt; if(chestEndT<=0&&!loot.on&&!loot.picked) showLoot(); }   // the clip has ended: after a moment the three loot cards come up, and picking one is what leaves (see lootPick)   // the clip has ended: hold its last pose a moment, then fade to black and back to the menu
   }
   // camera director: slow pan inside a shot, smooth blend into the next one
   dgT+=dt; dgYaw+=dgShot.drift*Math.PI/180*dt;
