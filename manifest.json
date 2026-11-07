@@ -358,5 +358,20 @@
     "id": "golem-attack-data",
     "type": "application/json",
     "url": "golem-attack-data.json"
+  },
+  {
+    "id": "golem-atk-sfx-data",
+    "type": "application/json",
+    "url": "golem-atk-sfx-data.json"
+  },
+  {
+    "id": "golem-pain-sfx-data",
+    "type": "application/json",
+    "url": "golem-pain-sfx-data.json"
+  },
+  {
+    "id": "golem-spawn-sfx-data",
+    "type": "application/json",
+    "url": "golem-spawn-sfx-data.json"
   }
 ]

@@ -1542,7 +1542,7 @@ function swooshSample(h){
 }
 /* advance the mixer; while the sword swings, do it in small steps and sample the blade after each one */
 function stepMixer(dt){
-  if(golemOn&&golemMixer){ golemPlace(); golemMixer.update(dt); }
+  if(golemOn&&golemMixer){ golemPlace(); const p=golemAct.time; golemMixer.update(dt); if(p<GOLEM_HIT_AT&&golemAct.time>=GOLEM_HIT_AT) playGolemSfx('atk'); }
   const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease');
   if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); return; }
   const n=Math.max(1,Math.ceil(dt/SWOOSH_STEP-1e-6)), h=dt/n;
@@ -1943,7 +1943,10 @@ function firstGesture(e){
 /* ---------- GOLEM (ANIMATIONS screen): golem-data is his Blockbench model, golem-attack-data the GolemAttack clip (same track format as the other clips).
    Picking GolemAttack hides the knight and shows the golem in his place; picking anything else, or leaving the screen, brings the knight back. ---------- */
 const GOLEM_SCALE=0.9;   // golem height as a fraction of the knight's (his raised fists reach well above his head)
-let golemRig=null, golemScene=null, golemMixer=null, golemAct=null, golemOn=false, golemH0=1, golemMinY=0;
+let golemRig=null, golemScene=null, golemMixer=null, golemAct=null, golemOn=false, golemH0=1, golemMinY=0, golemClips=null, golemPrevT=0;
+const GOLEM_HIT_AT=0.5;   // seconds into GolemAttack where the fists land (the slam), for the damage and the hit sound
+function golemReady(){ return !!(golemScene&&golemClips&&golemClips.Idle&&golemClips.Hit); }
+function playGolemSfx(kind){ playSfxSet(kind==='atk'?'golem-atk-sfx-data':kind==='pain'?'golem-pain-sfx-data':'golem-spawn-sfx-data',0,0.9,1,0); }
 (function(){
   const el=document.getElementById('golem-data'), ad=document.getElementById('golem-attack-data'); if(!el||!ad) return;
   try{
@@ -1957,17 +1960,19 @@ let golemRig=null, golemScene=null, golemMixer=null, golemAct=null, golemOn=fals
       const D=JSON.parse(ad.textContent);
       const clip=new THREE.AnimationClip(D.name,-1,D.tracks.map(k=>k.p==='q'?new THREE.QuaternionKeyframeTrack(k.n+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(k.n+'.position',k.t,k.v)));
       golemMixer=new THREE.AnimationMixer(g.scene); golemAct=golemMixer.clipAction(clip);
+      golemClips={Idle:g.animations.find(a=>a.name==='Idle'),Hit:g.animations.find(a=>a.name==='Hit'),Attack:clip};   // the enemy golems use these (their own Idle and Hit from the model file, and GolemAttack)
     },e=>console.error('golem failed',e));
   }catch(e){ console.error(e); }
 })();
-function golemPlace(){   // stand where the knight stands, facing the way he faces (the golem's model faces +Z, the knight's -Z)
+function golemPlace(){   // stand where the knight stands, facing the way he faces (same rig, both models face +Z)
   const k=GOLEM_SCALE*playerH/golemH0;
-  golemRig.scale.setScalar(k); golemRig.position.set(playerRig.position.x,groundYNight-golemMinY*k,playerRig.position.z); golemRig.rotation.y=playerRig.rotation.y-Math.PI;
+  golemRig.scale.setScalar(k); golemRig.position.set(playerRig.position.x,groundYNight-golemMinY*k,playerRig.position.z); golemRig.rotation.y=playerRig.rotation.y;
 }
 function golemShow(on){
   if(!golemRig||on===golemOn) return;
   golemOn=on; golemRig.visible=on; if(playerRig) playerRig.visible=!on;
-  if(on){ golemPlace(); golemAct.reset().setLoop(THREE.LoopRepeat,Infinity).play(); golemMixer.update(0); }
+  if(current) current.paused=on;   // the hidden knight's clip must not keep running (Chestopen looped on behind the golem and replayed the chest creak)
+  if(on){ golemPlace(); golemAct.reset().setLoop(THREE.LoopRepeat,Infinity).play(); golemMixer.update(0); golemPrevT=0; playGolemSfx('spawn'); }
   else golemAct.stop();
 }
 function playGolem(){
@@ -2509,6 +2514,22 @@ function spawnEnemies(){
       enemies.push(en);
       continue;
     }
+    if(golemReady()){   // the ruins' knight is a golem now: same HP, same damage
+      const root=golemScene.clone(true), gk=GOLEM_SCALE*H/golemH0;
+      root.traverse(o=>{ if(!o.isMesh) return; const m=ps1Mat(o.material.uniforms.map.value,1);   // own materials, so this golem's death fade does not touch the others
+        m.uniforms.uFade={value:1}; m.fragmentShader=m.fragmentShader.replace('uniform sampler2D map;','uniform sampler2D map; uniform float uFade;').replace('gl_FragColor=vec4(c,1.0);','gl_FragColor=vec4(c,uFade);'); o.material=m; o.frustumCulled=false; });
+      root.scale.setScalar(gk); root.position.y=-golemMinY*gk;
+      const rig=new THREE.Group(); rig.add(root); rig.rotation.y=th; rig.position.set(sx,blobHome.y,sz); scene.add(rig);
+      const mx=new THREE.AnimationMixer(root), a=mx.clipAction(golemClips.Idle);
+      a.timeScale=0.92+Math.random()*0.16; a.play(); a.time=Math.random()*a.getClip().duration; mx.update(0);
+      const blob=new THREE.Mesh(new THREE.CircleGeometry(H*0.3,10),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.42,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+      blob.rotation.x=-Math.PI/2; blob.position.set(sx,blobHome.y,sz); scene.add(blob);
+      const fadeMats=[]; root.traverse(o=>{ if(o.isMesh&&o.material.uniforms&&o.material.uniforms.uFade) fadeMats.push(o.material); });
+      const en={isSlime:false,isGolem:true,fadeMats,fade:null,rig,mixer:mx,root,blob,tex:[],armor:'#9aa0a8',plume:'#c9a45a',sword:null,x:sx,z:sz,idle:a,hit:null,hitDone:false,hp:ENEMY_HP,max:ENEMY_HP,dead:false,atk:null,atkDone:false,death:null,deathDone:false};
+      mx.addEventListener('finished',ev=>{ if(ev.action===en.hit) en.hitDone=true; if(ev.action===en.atk) en.atkDone=true; if(ev.action===en.death) en.deathDone=true; });
+      enemies.push(en); playGolemSfx('spawn');
+      continue;
+    }
     const ah=A[k%A.length], ph=P[k%P.length], sh=W[k%W.length];
     const root=(()=>{ const st=[]; knightScene.traverse(o=>{ if(o.userData&&Object.keys(o.userData).length){ st.push([o,o.userData]); o.userData={}; } }); try{ return knightScene.clone(true); } finally{ st.forEach(([o,u])=>{ o.userData=u; }); } })(), cache=new Map(), pTex=[], rocks=[]; root.scale.x=MIRROR_MODEL?-1:1;   // enemies keep the normal handedness whatever the player's weapon
     root.traverse(o=>{ if(o.name==='Shortsword') o.visible=true; else if(o.name==='Axe'||o.name==='Hatchet'||o.name==='Hammer') o.visible=false; });   // enemies stay with swords + the normal Idle
@@ -2571,7 +2592,7 @@ function tgSync(){
   if(key===tgKey&&!tgEl.hidden) return; tgKey=key;
   let html='<div class="tg-h">TARGET</div><div class="tg-row">';
   for(let num=1;num<=n;num++){ const k=n-num, e=enemies[k]; html+='<div class="tg-s'+(k===enSel?' on':'')+(e.dead?' dead':'')+'">'+num+'<i style="background:'+(e.armor||'#9aa0aa')+'"></i><b style="background:'+(e.plume||'#d8d8d8')+'"></b></div>'; }
-  const s=enemies[enSel]; html+='</div><div class="tg-n">ENEMY '+(n-enSel)+' - '+(s.isSlime?'ELEMENTAL SLIME':((TG_NAMES[s.armor]||'STEEL')+' KNIGHT'))+'</div>';
+  const s=enemies[enSel]; html+='</div><div class="tg-n">ENEMY '+(n-enSel)+' - '+(s.isSlime?'ELEMENTAL SLIME':s.isGolem?'GOLEM':((TG_NAMES[s.armor]||'STEEL')+' KNIGHT'))+'</div>';
   tgEl.innerHTML=html; tgEl.hidden=false;
 }
 function initPointer(){
@@ -2730,9 +2751,9 @@ function playBlockAnim(){
   b.reset().setLoop(THREE.LoopOnce,1); b.clampWhenFinished=true; b.timeScale=1; b.fadeIn(0.08).play(); current=b;
 }
 function enemyHit(e){
-  const clip=e.isSlime?e.clips.death:actions.Hit.getClip(); e.hitDone=false;
+  const clip=e.isSlime?e.clips.death:(e.isGolem?golemClips.Hit:actions.Hit.getClip()); e.hitDone=false;
   e.hit=e.mixer.clipAction(clip); e.hit.reset().setLoop(THREE.LoopOnce,1); e.hit.clampWhenFinished=true; e.hit.timeScale=1;
-  e.idle.fadeOut(0.05); e.hit.fadeIn(0.05).play(); blip(130,0.14); if(e.isSlime) playSlimeSfx('hit'); else playGrunt();
+  e.idle.fadeOut(0.05); e.hit.fadeIn(0.05).play(); blip(130,0.14); if(e.isSlime) playSlimeSfx('hit'); else if(e.isGolem) playGolemSfx('pain'); else playGrunt();
 }
 /* ---------- turn-based battle: hit points, turn order, health bars ----------
    Each round: YOUR TURN (pick a command) -> the action plays -> ENEMY TURN (every living enemy swings at you, one after the other) -> back to you.
@@ -2802,7 +2823,7 @@ function barsClear(){ defeatScreen(false); bars.forEach(b=>b.el.remove()); bars=
 function barsBuild(){
   barsClear();
   const mk=(ent,name,isPl)=>{ const el=document.createElement('div'); el.className='hpb'+(isPl?' pl':''); el.innerHTML='<span></span><div class="bar"><i></i></div>'; hpLayer.appendChild(el); bars.push({ent,name,isPl,el,txt:el.firstChild,fill:el.lastChild.firstChild,shown:-1}); };
-  mk(pl,'KNIGHT',true); enemies.forEach(e=>mk(e,e.isSlime?'SLIME':(TG_NAMES[e.armor]||'STEEL'),false));
+  mk(pl,'KNIGHT',true); enemies.forEach(e=>mk(e,e.isSlime?'SLIME':e.isGolem?'GOLEM':(TG_NAMES[e.armor]||'STEEL'),false));
 }
 function headPos(b,out){ const H=playerH, y=(b.ent&&b.ent.isSlime?(blobHome.y+0.42*H):(homeTarget.y+H/2))+0.07*H; if(b.isPl){ const p=playerRig.position; return out.set(homeTarget.x+p.x,y,homeTarget.z+p.z); } return out.set(b.ent.x,y,b.ent.z); }
 function barsUpdate(dt){
@@ -2832,18 +2853,18 @@ function hurtEnemy(e,dmg){
 const SLIME_DEATH_CLIP=null, ENEMY_FADE_OUT=0.9;
 function enemyDie(e){
   e.deathDone=false;
-  const own=e.isSlime?(SLIME_DEATH_CLIP&&e.clips[SLIME_DEATH_CLIP]):actions.Death.getClip();
+  const own=e.isSlime?(SLIME_DEATH_CLIP&&e.clips[SLIME_DEATH_CLIP]):(e.isGolem?null:actions.Death.getClip());
   if(own){
     e.death=e.mixer.clipAction(own); e.death.reset().setLoop(THREE.LoopOnce,1); e.death.clampWhenFinished=true; e.death.timeScale=1;
     e.idle.fadeOut(0.05); e.death.fadeIn(0.05).play();
   } else {   // no death animation: the hit animation, fading out
-    const clip=e.isSlime?e.clips.death:actions.Hit.getClip();
+    const clip=e.isSlime?e.clips.death:(e.isGolem?golemClips.Hit:actions.Hit.getClip());
     e.hit=e.mixer.clipAction(clip); e.hit.reset().setLoop(THREE.LoopOnce,1); e.hit.clampWhenFinished=true; e.hit.timeScale=1;
     e.idle.fadeOut(0.05); e.hit.fadeIn(0.05).play();
     (e.fadeMats||[]).forEach(m=>{ m.transparent=true; m.depthWrite=false; });
     e.fade={t:0,dur:Math.max(ENEMY_FADE_OUT,clip.duration)};
   }
-  blip(130,0.14); if(e.isSlime) playSlimeSfx('die'); else playGrunt(DEATH_GRUNT); tgSync();
+  blip(130,0.14); if(e.isSlime) playSlimeSfx('die'); else if(e.isGolem) playGolemSfx('pain'); else playGrunt(DEATH_GRUNT); tgSync();
 }
 function fadeEnemies(dt){
   for(const e of enemies){ if(!e.fade) continue;
@@ -2872,7 +2893,7 @@ function epNext(){
 }
 function setEnemyYaw(e,th){
   e.rig.rotation.y=th;
-  if(!e.isSlime){
+  if(!e.isSlime&&!e.isGolem){
     const ox=-homeTarget.x, oz=-homeTarget.z;
     e.rig.position.set(e.x-(ox*Math.cos(th)+oz*Math.sin(th)),0,e.z-(-ox*Math.sin(th)+oz*Math.cos(th)));
   }
@@ -2895,13 +2916,13 @@ function updateEnemyPhase(dt){
   if(!ep||turn==='over') return;
   ep.t+=dt;
   if(ep.stage===9){ if(ep.t>=ENEMY_START_BEAT) epNext(); return; }
-  const e=ep.e, sw=e.isSlime?e.clips.action:actions.Swing.getClip(), spd=e.isSlime?1.0:SWING_SPEED, hitAt=e.isSlime?SLIME_HIT_AT:(CARVE_HIT_AT/SWING_SPEED);
+  const e=ep.e, sw=e.isSlime?e.clips.action:(e.isGolem?golemClips.Attack:actions.Swing.getClip()), spd=(e.isSlime||e.isGolem)?1.0:SWING_SPEED, hitAt=e.isSlime?SLIME_HIT_AT:(e.isGolem?GOLEM_HIT_AT:(CARVE_HIT_AT/SWING_SPEED));
   if(ep.stage===0){   // this enemy turns to face the player and attacks
     const px=homeTarget.x+playerRig.position.x, pz=homeTarget.z+playerRig.position.z;
     setEnemyYaw(e,Math.atan2(px-e.x,pz-e.z));
     e.atkDone=false; e.atk=e.mixer.clipAction(sw); e.atk.reset().setLoop(THREE.LoopOnce,1); e.atk.clampWhenFinished=true; e.atk.timeScale=spd;
-    e.idle.fadeOut(0.06); e.atk.fadeIn(0.06).play(); if(e.isSlime) playSlimeSfx('atk'); else playSword(SWING_SPEED); ep.stage=1; ep.t=0;
-  } else if(ep.stage===1&&ep.t>=hitAt){ ep.stage=2; playerStruck(e); }
+    e.idle.fadeOut(0.06); e.atk.fadeIn(0.06).play(); if(e.isSlime) playSlimeSfx('atk'); else if(!e.isGolem) playSword(SWING_SPEED); ep.stage=1; ep.t=0;
+  } else if(ep.stage===1&&ep.t>=hitAt){ ep.stage=2; if(e.isGolem) playGolemSfx('atk'); playerStruck(e); }
   else if(ep.stage===2&&(e.atkDone||ep.t>=sw.duration/spd+0.3)){ ep.stage=3; ep.t=0; }
   else if(ep.stage===3&&ep.t>=ENEMY_HOLD){
     setEnemyYaw(e,Math.PI/2);
@@ -3218,7 +3239,7 @@ function playBlockSfx(){
   }catch(_){}
 }
 function blip(f,len){
-  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['render-swish-sfx-data','render-hit-sfx-data','render-charge-sfx-data'].forEach(loadSfxSet);
+  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['render-swish-sfx-data','render-hit-sfx-data','render-charge-sfx-data','golem-atk-sfx-data','golem-pain-sfx-data','golem-spawn-sfx-data'].forEach(loadSfxSet);
     ['v2-sword-sfx-data','v2-block-sfx-data','v2-grunt-data','v2-die-data','v2-flaunt-sfx-data','slime-atk-sfx-data','slime-hit-sfx-data','slime-die-sfx-data','slime-win-sfx-data'].forEach(loadSfxSet);   // voice 2 and the slimes too, so their very first play is not lost
     const o=sfx.createOscillator(), g=sfx.createGain(); o.type='square'; o.frequency.value=f; g.gain.value=0.045;
     o.connect(g); g.connect(sfx.destination); const t=sfx.currentTime; g.gain.setValueAtTime(0.045,t); g.gain.exponentialRampToValueAtTime(0.001,t+len); o.start(t); o.stop(t+len+0.02);
