@@ -275,6 +275,38 @@ const LEFT_SHIN_DEG=40;
 let rockMesh=null, evtPlaying=false, evtClock=0, evtNext=6, evtDue=false, evtGo=false, evtDone=false;
 const SEAT_TAIL=0.583;   // seconds added to the Pose2 loop so it can ease back to its first pose instead of snapping
 
+/* ---------- SNAP: pose-to-pose snappiness for the action clips (the golem's attack feel) ----------
+   Keys stay exactly where they are, so every hit time, whoosh and sound that is tied to a key still lines up; only the motion BETWEEN keys changes. In each track the single fastest big move
+   is the strike: it eases IN (slow start, arrives hard on its key). Every other big move pops: it finishes in the first SNAP_SPAN of its time and holds. Small moves stay as they were, so
+   breathing and settling keep flowing. Loops (Idle, Walk, BlockIdle, the holds) and the shop / seated poses are left alone. Set SNAP_ON=false for the old motion. */
+const SNAP_ON=true, SNAP_CLIPS=['Hit','Swing','AxeSwing','Flaunt','AxeFlaunt','Block','Death','Drinking_Potion','SwingHeavyWindUp','SwingHeavyRelease'];
+const SNAP_ANGLE=0.45, SNAP_MOVE=0.08, SNAP_SPAN=0.6, SNAP_STEPS=6;   // what counts as a big move (radians / units), how much of a segment a pop takes, samples per snapped segment
+function snapClip(clip){
+  clip.tracks=clip.tracks.map(tr=>{
+    const T=Array.from(tr.times), V=Array.from(tr.values), vs=tr.getValueSize(), q=vs===4, n=T.length; if(n<2) return tr;
+    const qa=new THREE.Quaternion(), qb=new THREE.Quaternion(), mag=[], sp=[];
+    for(let i=0;i<n-1;i++){
+      let m; if(q){ qa.fromArray(V,i*4); qb.fromArray(V,(i+1)*4); m=2*Math.acos(Math.min(1,Math.abs(qa.dot(qb)))); }
+      else { let d=0; for(let k=0;k<vs;k++){ const x=V[(i+1)*vs+k]-V[i*vs+k]; d+=x*x; } m=Math.sqrt(d); }
+      const dur=T[i+1]-T[i], big=m>=(q?SNAP_ANGLE:SNAP_MOVE)&&dur>=0.06; mag.push(big); sp.push(big?m/dur:0);
+    }
+    let best=-1; sp.forEach((v,i)=>{ if(v>0&&(best<0||v>sp[best])) best=i; });
+    if(best<0) return tr;
+    const T2=[T[0]], V2=V.slice(0,vs);
+    for(let i=0;i<n-1;i++){
+      if(mag[i]) for(let k=1;k<SNAP_STEPS;k++){
+        const u=k/SNAP_STEPS, w=(i===best)?u*u:1-Math.pow(1-Math.min(1,u/SNAP_SPAN),2);
+        T2.push(T[i]+(T[i+1]-T[i])*u);
+        if(q){ qa.fromArray(V,i*4); qb.fromArray(V,(i+1)*4); qa.slerp(qb,w); V2.push(qa.x,qa.y,qa.z,qa.w); }
+        else for(let c=0;c<vs;c++) V2.push(V[i*vs+c]+(V[(i+1)*vs+c]-V[i*vs+c])*w);
+      }
+      T2.push(T[i+1]); for(let c=0;c<vs;c++) V2.push(V[(i+1)*vs+c]);
+    }
+    return new tr.constructor(tr.name,T2,V2,tr.getInterpolation());
+  });
+  clip.resetDuration();
+}
+
 /* ---------- load ---------- */
 const raw=(function(){const s=atob(document.getElementById('knight-data').textContent.trim());const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u.buffer;})();
 /* Hide createImageBitmap so embedded textures load through plain <img> decoding (the sandbox blocks fetch of data: URIs). */
@@ -349,6 +381,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   names=order.filter(n=>gltf.animations.some(a=>a.name===n)).concat(gltf.animations.map(a=>a.name).filter(n=>!order.includes(n)&&n!==EVT_CLIP));
   menuNames=names.filter(n=>!AXE_BASE[n]);   // what the menus list: the axe variants are folded into Idle / Swing / Flaunt
   menuNames.push('GolemAttack');   // the golem's clip (see GOLEM below): not one of the knight's own, it swaps the golem in
+  if(SNAP_ON) gltf.animations.forEach(a=>{ if(SNAP_CLIPS.includes(a.name)) snapClip(a); });   // see SNAP
   gltf.animations.forEach(a=>{actions[a.name]=mixer.clipAction(a);});
   mixer.addEventListener('finished',e=>{ if(e.action===actions[EVT_CLIP]) evtDone=true; else if(e.action===actions.Swing||e.action===actions.AxeSwing) swingDone=true; else if(e.action===actions.AxeFlaunt&&e.action===current) flauntDone=true; else if(e.action===actions.Chestopen&&chestScene) chestDone=true; });
   mixer.addEventListener('loop',e=>{ if(evtDue&&e.action===current&&e.action.getClip().name===SEAT_CLIP) evtGo=true; });
@@ -1961,7 +1994,7 @@ function playGolemSfx(kind){ playSfxSet(kind==='atk'?'golem-atk-sfx-data':kind==
       const D=JSON.parse(ad.textContent);
       const clip=new THREE.AnimationClip(D.name,-1,D.tracks.map(k=>k.p==='q'?new THREE.QuaternionKeyframeTrack(k.n+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(k.n+'.position',k.t,k.v)));
       golemMixer=new THREE.AnimationMixer(g.scene); golemAct=golemMixer.clipAction(clip);
-      golemClips={Idle:g.animations.find(a=>a.name==='Idle'),Hit:g.animations.find(a=>a.name==='Hit'),Attack:clip};   // the enemy golems use these (their own Idle and Hit from the model file, and GolemAttack)
+      golemClips={Idle:g.animations.find(a=>a.name==='Idle'),Hit:g.animations.find(a=>a.name==='Hit'),Attack:clip}; if(SNAP_ON&&golemClips.Hit) snapClip(golemClips.Hit);   // the enemy golems use these (their own Idle and Hit from the model file, and GolemAttack)
     },e=>console.error('golem failed',e));
   }catch(e){ console.error(e); }
 })();
