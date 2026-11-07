@@ -1945,6 +1945,7 @@ function firstGesture(e){
 const GOLEM_SCALE=0.9;   // golem height as a fraction of the knight's (his raised fists reach well above his head)
 let golemRig=null, golemScene=null, golemMixer=null, golemAct=null, golemOn=false, golemH0=1, golemMinY=0, golemClips=null, golemPrevT=0;
 const GOLEM_HIT_AT=0.5;   // seconds into GolemAttack where the fists land (the slam), for the damage and the hit sound
+function golemEye(o){ return !!(o.parent&&o.parent.name==='Torso'&&o.position.z>0.2); }   // the two small cubes on his torso
 function golemReady(){ return !!(golemScene&&golemClips&&golemClips.Idle&&golemClips.Hit); }
 function playGolemSfx(kind){ playSfxSet(kind==='atk'?'golem-atk-sfx-data':kind==='pain'?'golem-pain-sfx-data':'golem-spawn-sfx-data',0,0.9,1,0); }
 (function(){
@@ -1953,7 +1954,7 @@ function playGolemSfx(kind){ playSfxSet(kind==='atk'?'golem-atk-sfx-data':kind==
     const t=atob(el.textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i);
     new THREE.GLTFLoader().parse(u.buffer,'',g=>{
       const cache=new Map();
-      g.scene.traverse(o=>{ if(!o.isMesh) return; const om=o.material; if(!cache.has(om.uuid)) cache.set(om.uuid,ps1Mat(om.map,1)); o.material=cache.get(om.uuid); o.frustumCulled=false; });
+      g.scene.traverse(o=>{ if(!o.isMesh) return; const om=o.material; if(!cache.has(om.uuid)) cache.set(om.uuid,ps1Mat(om.map,1)); o.material=cache.get(om.uuid); o.frustumCulled=false; if(golemEye(o)) o.material.uniforms.uMagma.value=1; });   // his two eyes glow like the Ignis trees' magma
       g.scene.updateMatrixWorld(true);
       const bx=new THREE.Box3().setFromObject(g.scene); golemH0=bx.max.y-bx.min.y; golemMinY=bx.min.y;
       golemScene=g.scene; golemRig=new THREE.Group(); golemRig.add(g.scene); golemRig.visible=false; scene.add(golemRig);
@@ -2315,14 +2316,14 @@ const DG_FOG=[4.5,10];         // fog near/far in knight-heights, pushed out so 
 /* camera shots: yaw is where the camera sits around the knight (0 = south, 90 = east/outside the gate, 180 = north, -90 = west, in front of him),
    drift = slow pan in deg/s, pitch in radians, dist in knight-heights, ty = look-at height above his middle in knight-heights */
 const DG_INTRO={yaw:112,drift:1.2,pitch:0.20,dist:3.0,ty:0.20,mid:0};
-const DG_SHOTS=[   // mid: 0 = look at the knight, 0.5 = the middle of the duel (knight and enemy line both in frame)
-  {yaw:78,  drift: 1.6,pitch:0.18,dist:2.8,ty:0.20,mid:0.45},   // over his shoulder from the gate, toward the enemy line
-  {yaw:-78, drift: 2.0,pitch:0.10,dist:1.9,ty:0.12,mid:0},      // close, from the enemy side
+const DG_SHOTS=[   // every shot orbits the CENTER of the battlefield (mid 0.5 = halfway between the knight and the enemy line) from far enough back that all of them and their health bars stay in frame; anything in the way dithers
+  {yaw:78,  drift: 1.6,pitch:0.20,dist:4.2,ty:0.12,mid:0.5},    // from the gate, toward the enemy line
+  {yaw:-78, drift: 2.0,pitch:0.16,dist:4.2,ty:0.12,mid:0.5},    // from the enemy side
   {yaw:180, drift: 2.0,pitch:0.32,dist:4.4,ty:0.10,mid:0.5},    // north, wide duel
   {yaw:0,   drift:-2.0,pitch:0.32,dist:4.4,ty:0.10,mid:0.5},    // south, wide duel
   {yaw:-30, drift:-3.0,pitch:1.00,dist:4.2,ty:0.00,mid:0.5},    // near-overhead duel
-  {yaw:-100,drift: 2.0,pitch:0.08,dist:3.2,ty:0.25,mid:0.3},    // low, from behind the enemies
-  {yaw:70,  drift: 1.8,pitch:0.06,dist:2.2,ty:0.25,mid:0.2}     // low, at the gate
+  {yaw:-100,drift: 2.0,pitch:0.14,dist:4.2,ty:0.12,mid:0.5},    // low, from behind the enemies
+  {yaw:70,  drift: 1.8,pitch:0.12,dist:4.2,ty:0.12,mid:0.5}     // low, at the gate
 ];
 let ruinsGroup=null, dgSlots=null, dungeon=false, dgBusy=false, dgState='walkin', fogBak=null, hudBak='', dgSmD=-1, dgSmP=0.2;
 const dgCam={yaw:0,pitch:0.2,dist:3.5,ty:0.2,mid:0}; let dgBlendT=3, dgYawV=0, dgPrevYaw=0, dgVelD={v:0}, dgVelP={v:0}; let dgShot=DG_INTRO, dgFrom=null, dgBlend=1, dgT=0, dgDur=1e9, dgLast=-1, dgYaw=0;
@@ -2517,7 +2518,7 @@ function spawnEnemies(){
     if(golemReady()){   // the ruins' knight is a golem now: same HP, same damage
       const root=golemScene.clone(true), gk=GOLEM_SCALE*H/golemH0;
       root.traverse(o=>{ if(!o.isMesh) return; const m=ps1Mat(o.material.uniforms.map.value,1);   // own materials, so this golem's death fade does not touch the others
-        m.uniforms.uFade={value:1}; m.fragmentShader=m.fragmentShader.replace('uniform sampler2D map;','uniform sampler2D map; uniform float uFade;').replace('gl_FragColor=vec4(c,1.0);','gl_FragColor=vec4(c,uFade);'); o.material=m; o.frustumCulled=false; });
+        m.uniforms.uFade={value:1}; m.fragmentShader=m.fragmentShader.replace('uniform sampler2D map;','uniform sampler2D map; uniform float uFade;').replace('gl_FragColor=vec4(c,1.0);','gl_FragColor=vec4(c,uFade);'); if(golemEye(o)) m.uniforms.uMagma.value=1; o.material=m; o.frustumCulled=false; });
       root.scale.setScalar(gk); root.position.y=-golemMinY*gk;
       const rig=new THREE.Group(); rig.add(root); rig.rotation.y=th; rig.position.set(sx,blobHome.y,sz); scene.add(rig);
       const mx=new THREE.AnimationMixer(root), a=mx.clipAction(golemClips.Idle);
