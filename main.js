@@ -379,8 +379,9 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   mixer=new THREE.AnimationMixer(gltf.scene);
   const order=['Idle','AxeIdle','Walk','Swing','AxeSwing','AxeFlaunt','Hit','Death'];
   names=order.filter(n=>gltf.animations.some(a=>a.name===n)).concat(gltf.animations.map(a=>a.name).filter(n=>!order.includes(n)&&n!==EVT_CLIP));
-  menuNames=names.filter(n=>!AXE_BASE[n]);   // what the menus list: the axe variants are folded into Idle / Swing / Flaunt
+  menuNames=names.filter(n=>!AXE_BASE[n]&&n!==START_CLIP);   // what the menus list: the axe variants are folded into Idle / Swing / Flaunt, and the start-screen pose (Pose3) is not an animation to browse
   menuNames.push('GolemAttack');   // the golem's clip (see GOLEM below): not one of the knight's own, it swaps the golem in
+  { const gi={enemies:0,self:1,shop:2}; menuNames=menuNames.map((n,i)=>[n,i]).sort((a,b)=>gi[animGroup(a[0])]-gi[animGroup(b[0])]||a[1]-b[1]).map(x=>x[0]); }   // grouped in the order the ANIMATIONS menu shows them (so the cycle keys follow it too)
   if(SNAP_ON) gltf.animations.forEach(a=>{ if(SNAP_CLIPS.includes(a.name)) snapClip(a); });   // see SNAP
   gltf.animations.forEach(a=>{actions[a.name]=mixer.clipAction(a);});
   mixer.addEventListener('finished',e=>{ if(e.action===actions[EVT_CLIP]) evtDone=true; else if(e.action===actions.Swing||e.action===actions.AxeSwing) swingDone=true; else if(e.action===actions.AxeFlaunt&&e.action===current) flauntDone=true; else if(e.action===actions.Chestopen&&chestScene) chestDone=true; });
@@ -2080,6 +2081,8 @@ function closeLoop(clip,end){
   });
   clip.resetDuration();
 }
+/* which ANIMATIONS sub-menu a clip belongs to: ENEMIES (the golem's), SHOPKEEPER (the Shop* clips), SELF (everything else - the knight's own) */
+function animGroup(n){ return n==='GolemAttack'?'enemies':(/^Shop/.test(n)?'shop':'self'); }
 function buildMenu(){
   const box=document.getElementById('anims');
   menuNames.forEach((n,i)=>{
@@ -4235,12 +4238,17 @@ function initMainMenu(){
   ['vlbl','voicesel','hlbl','helmsel','plbl','sws','albl','asws','astrl','astr','shiny','slbl','ssws','smatch'].forEach(id=>{ const n=document.getElementById(id); if(n) cust.appendChild(n); });
   let tt=0; window.toast=toast; function toast(t){ toastEl.textContent=t; toastEl.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>toastEl.classList.remove('show'),1700); }
   const BACK={t:'BACK',go:'main'}, BACK_OPT={t:'BACK',go:'options'};   // BACK_OPT: from a group of options back to OPTIONS
+  const BACK_ANIM={t:'BACK',go:'anims'};   // from an ANIMATIONS sub-menu back to the ANIMATIONS list
+  const animRows=g=>menuNames.filter(n=>animGroup(n)===g).map(n=>({t:n.toUpperCase(),v:()=>(n==='GolemAttack'?golemOn:(!golemOn&&current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n))?'PLAYING':'',run:()=>menuPlay(n)}));
   const SCREENS={
     start:{name:'PRESS START',items:[{t:'START',run:startGame}]},
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
-    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle}].concat(menuNames.map(n=>({t:n.toUpperCase(),v:()=>(n==='GolemAttack'?golemOn:(!golemOn&&current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n))?'PLAYING':'',run:()=>menuPlay(n)}))).concat([BACK]); }},
+    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
+    anims_enemies:{name:'ANIMATIONS: ENEMIES',up:'anims',get items(){ return animRows('enemies').concat([BACK_ANIM]); }},
+    anims_self:{name:'ANIMATIONS: SELF',up:'anims',get items(){ return animRows('self').concat([BACK_ANIM]); }},
+    anims_shop:{name:'ANIMATIONS: SHOPKEEPER',up:'anims',get items(){ return animRows('shop').concat([BACK_ANIM]); }},
     options:{name:'OPTIONS',items:[{t:'GRAPHICS',go:'opt_gfx'},{t:'WORLD',go:'opt_world'},{t:'SOUND',go:'opt_sound'},{t:'KNIGHT',go:'opt_knight'},BACK]},
     opt_gfx:{name:'GRAPHICS',up:'options',items:[
       {t:'LOOK',v:()=>ps1?'PS1':'MODERN',run:toggleLook},
@@ -4303,7 +4311,7 @@ function initMainMenu(){
     if(scrolls) root.appendChild(moreRow(1,items.length-top-vis,vis));
   }
   function mark(){ btns.forEach(b=>b.classList.toggle('on',b._i===idx)); }
-  function go(n){ if(invOn&&invCust&&n==='main'){ invShowInv(); return; } if(golemOn&&n!=='anims') golemShow(false); cur=n; idx=0; top=0; render(); }   // CUSTOMIZE lives in the inventory now: its BACK returns there
+  function go(n){ if(invOn&&invCust&&n==='main'){ invShowInv(); return; } if(golemOn&&n!=='anims'&&n.indexOf('anims_')!==0) golemShow(false); cur=n; idx=0; top=0; render(); }   // CUSTOMIZE lives in the inventory now: its BACK returns there
   invGoMenu=go;
   function act(){
     const it=SCREENS[cur].items[idx];
