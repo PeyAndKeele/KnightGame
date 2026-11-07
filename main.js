@@ -2458,7 +2458,7 @@ function enterDungeon(){
     swinging=swingQueued=swingDone=false; keys.clear(); stick.x=stick.y=0;
     const hud=document.getElementById('hud'); hudBak=hud.innerHTML; hud.innerHTML=HINT_AIM;
     fogBak=[U.uFogNear.value,U.uFogFar.value]; U.uFogNear.value=DG_FOG[0]*playerH; U.uFogFar.value=DG_FOG[1]*playerH;
-    ruinsGroup.visible=true; if(dgSlots) dgSlots.visible=true; try{ spawnEnemies(); }catch(e){ console.error('spawnEnemies failed',e); } battleReset(); setBattleMusic(true); try{ showPointer(); }catch(e){ console.error('showPointer failed',e); } if(dgForest) dgForest.visible=true; if(treeGroup) treeGroup.visible=false;
+    ruinsGroup.visible=true; if(dgSlots) dgSlots.visible=true; dgWave=0; try{ spawnEnemies(); }catch(e){ console.error('spawnEnemies failed',e); } battleReset(); setBattleMusic(true); try{ showPointer(); }catch(e){ console.error('showPointer failed',e); } if(dgForest) dgForest.visible=true; if(treeGroup) treeGroup.visible=false;
     playerRig.position.set(DG_START*playerH,0,0); heading=-Math.PI/2; playerRig.rotation.y=heading;   // facing west, into the ruins
     floorMesh.position.x=floorMesh.position.z=0;
     chestScene=false; chestDone=false; chestEndT=-1;
@@ -2524,15 +2524,61 @@ function playSlimeSfx(kind){
   else if(kind==='die') playSfxSet('slime-die-sfx-data',0,0.9,1,0);
   else if(kind==='win') playSfxSet('slime-win-sfx-data',0,0.9,1,0);
 }
+/* ---------- MOSSY RUINS WAVES + the new enemies: TREELING and SPORELING ----------
+   RUINS_WAVES = the three fights in a row, left to right as the enemy ring lays out (slots 0, 1, 2): 'slime', 'golem', or 'mob' (a treeling or a sporeling, picked at random for each 'mob').
+   When a wave is cleared the next one appears after a short pause; the knight keeps his HP. The last wave being cleared is the win (the chest). MOBS = name, hit points, and height as a fraction
+   of the knight's. Their model files bring their own Idle, Hit and atk clips; they fight like the golem (same hit timing rule: halfway through atk, same sounds for now). */
+const RUINS_WAVES=[['slime','mob','slime'],['mob','slime','mob'],['slime','golem','slime']];
+const MOBS={treeling:{name:'TREELING',hp:80,scale:0.9},sporeling:{name:'SPORELING',hp:50,scale:0.7}};
+const mobModels={}; let dgWave=0;
+function loadMobs(){
+  Object.keys(MOBS).forEach(key=>{
+    const el=document.getElementById(key+'-data'); if(!el) return;
+    try{
+      const t=atob(el.textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i);
+      new THREE.GLTFLoader().parse(u.buffer,'',g=>{
+        const cache=new Map();
+        g.scene.traverse(o=>{ if(!o.isMesh) return; const om=o.material; if(!cache.has(om.uuid)) cache.set(om.uuid,ps1Mat(om.map,1)); o.material=cache.get(om.uuid); o.frustumCulled=false; });
+        g.scene.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(g.scene), f=n=>g.animations.find(a=>a.name===n);
+        mobModels[key]={scene:g.scene,h0:bx.max.y-bx.min.y,minY:bx.min.y,clips:{Idle:f('Idle'),Hit:f('Hit'),Attack:f('atk')}};
+      },e=>console.error(key+' failed',e));
+    }catch(e){ console.error(key+' failed',e); }
+  });
+}
+setTimeout(loadMobs,0);
+function spawnMob(k,sx,sz,H,th){
+  const keys=Object.keys(mobModels).filter(q=>mobModels[q].clips.Idle&&mobModels[q].clips.Hit&&mobModels[q].clips.Attack); if(!keys.length) return false;
+  const key=keys[Math.floor(Math.random()*keys.length)], M=mobModels[key], D=MOBS[key], root=M.scene.clone(true), gk=D.scale*H/M.h0;
+  root.traverse(o=>{ if(!o.isMesh) return; const m=ps1Mat(o.material.uniforms.map.value,1);   // own materials, so this one's death fade does not touch the others
+    m.uniforms.uFade={value:1}; m.fragmentShader=m.fragmentShader.replace('uniform sampler2D map;','uniform sampler2D map; uniform float uFade;').replace('gl_FragColor=vec4(c,1.0);','gl_FragColor=vec4(c,uFade);'); o.material=m; o.frustumCulled=false; });
+  root.scale.setScalar(gk); root.position.y=-M.minY*gk;
+  const rig=new THREE.Group(); rig.add(root); rig.rotation.y=th; rig.position.set(sx,blobHome.y,sz); scene.add(rig);
+  const mx=new THREE.AnimationMixer(root), a=mx.clipAction(M.clips.Idle);
+  a.timeScale=0.92+Math.random()*0.16; a.play(); a.time=Math.random()*a.getClip().duration; mx.update(0);
+  const blob=new THREE.Mesh(new THREE.CircleGeometry(H*0.26,10),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.42,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));
+  blob.rotation.x=-Math.PI/2; blob.position.set(sx,blobHome.y,sz); scene.add(blob);
+  const fadeMats=[]; root.traverse(o=>{ if(o.isMesh&&o.material.uniforms&&o.material.uniforms.uFade) fadeMats.push(o.material); });
+  const en={isSlime:false,isGolem:true,gc:M.clips,mobName:D.name,fadeMats,fade:null,rig,mixer:mx,root,blob,tex:[],armor:'#6a8a4a',plume:'#b2ffa1',sword:null,x:sx,z:sz,idle:a,hit:null,hitDone:false,hp:D.hp,max:D.hp,dead:false,atk:null,atkDone:false,death:null,deathDone:false};
+  mx.addEventListener('finished',ev=>{ if(ev.action===en.hit) en.hitDone=true; if(ev.action===en.atk) en.atkDone=true; if(ev.action===en.death) en.deathDone=true; });
+  enemies.push(en); return true;
+}
+function nextWave(){   // every enemy of this wave is down: a pause, then the next wave steps up (the knight keeps his HP)
+  turn='wave'; try{ setTurnLabel('WAVE '+(dgWave+2)+' OF '+RUINS_WAVES.length); }catch(e){}
+  setTimeout(()=>{ if(!dungeon||turn!=='wave') return;
+    dgWave++; try{ spawnEnemies(); }catch(e){ console.error(e); }
+    pl.guard=false; ep=null; turn='player'; barsBuild(); setTurnLabel('YOUR TURN'); try{ showPointer(); }catch(e){}
+  },2000);
+}
 function spawnEnemies(){
   clearEnemies();
   if(!knightScene||!actions.Idle||!DG_ENEMY.n||!blobHome) return;
   const H=playerH, c=homeTarget, n=DG_ENEMY.n, th=Math.PI/2;      // heading +90 deg = facing east, toward the player
+  const lay=RUINS_WAVES[Math.min(dgWave,RUINS_WAVES.length-1)];
   const A=shuffled(EN_ARMOR), P=shuffled(EN_PLUME), W=shuffled(EN_SWORD);
   const HP=shuffled(helmetSets.map((_,i)=>i).filter(i=>i!==curHelmet));   // helmets other than the one the player wears, shuffled so each enemy gets a different one   // shuffled, so the three never repeat a color until the swatches run out
   for(let k=0;k<n;k++){
     const sx=c.x-DG_ENEMY.dist*H, sz=c.z+(k-(n-1)/2)*DG_ENEMY.gap*H;     // exactly where the ring is
-    if((k===0||k===2)&&elementalGltf){   // Enemy 1 (k=2) and Enemy 3 (k=0) are Slimes
+    if(lay[k]==='slime'&&elementalGltf){   // Enemy 1 (k=2) and Enemy 3 (k=0) are Slimes
       const root=cloneElemental();
       const rig=new THREE.Group(); rig.add(root); rig.rotation.y=th;
       rig.position.set(sx,blobHome.y,sz);
@@ -2548,7 +2594,8 @@ function spawnEnemies(){
       enemies.push(en);
       continue;
     }
-    if(golemReady()){   // the ruins' knight is a golem now: same HP, same damage
+    if(lay[k]==='mob'&&spawnMob(k,sx,sz,H,th)) continue;
+    if(lay[k]==='golem'&&golemReady()){   // the ruins' knight is a golem now: same HP, same damage
       const root=golemScene.clone(true), gk=GOLEM_SCALE*H/golemH0;
       root.traverse(o=>{ if(!o.isMesh) return; const m=ps1Mat(o.material.uniforms.map.value,1);   // own materials, so this golem's death fade does not touch the others
         m.uniforms.uFade={value:1}; m.fragmentShader=m.fragmentShader.replace('uniform sampler2D map;','uniform sampler2D map; uniform float uFade;').replace('gl_FragColor=vec4(c,1.0);','gl_FragColor=vec4(c,uFade);'); if(golemEye(o)) m.uniforms.uMagma.value=1; o.material=m; o.frustumCulled=false; });
@@ -2626,7 +2673,7 @@ function tgSync(){
   if(key===tgKey&&!tgEl.hidden) return; tgKey=key;
   let html='<div class="tg-h">TARGET</div><div class="tg-row">';
   for(let num=1;num<=n;num++){ const k=n-num, e=enemies[k]; html+='<div class="tg-s'+(k===enSel?' on':'')+(e.dead?' dead':'')+'">'+num+'<i style="background:'+(e.armor||'#9aa0aa')+'"></i><b style="background:'+(e.plume||'#d8d8d8')+'"></b></div>'; }
-  const s=enemies[enSel]; html+='</div><div class="tg-n">ENEMY '+(n-enSel)+' - '+(s.isSlime?'ELEMENTAL SLIME':s.isGolem?'GOLEM':((TG_NAMES[s.armor]||'STEEL')+' KNIGHT'))+'</div>';
+  const s=enemies[enSel]; html+='</div><div class="tg-n">ENEMY '+(n-enSel)+' - '+(s.isSlime?'ELEMENTAL SLIME':s.isGolem?(s.mobName||'GOLEM'):((TG_NAMES[s.armor]||'STEEL')+' KNIGHT'))+'</div>';
   tgEl.innerHTML=html; tgEl.hidden=false;
 }
 function initPointer(){
@@ -2785,7 +2832,7 @@ function playBlockAnim(){
   b.reset().setLoop(THREE.LoopOnce,1); b.clampWhenFinished=true; b.timeScale=1; b.fadeIn(0.08).play(); current=b;
 }
 function enemyHit(e){
-  const clip=e.isSlime?e.clips.death:(e.isGolem?golemClips.Hit:actions.Hit.getClip()); e.hitDone=false;
+  const clip=e.isSlime?e.clips.death:(e.isGolem?(e.gc||golemClips).Hit:actions.Hit.getClip()); e.hitDone=false;
   e.hit=e.mixer.clipAction(clip); e.hit.reset().setLoop(THREE.LoopOnce,1); e.hit.clampWhenFinished=true; e.hit.timeScale=1;
   e.idle.fadeOut(0.05); e.hit.fadeIn(0.05).play(); blip(130,0.14); if(e.isSlime) playSlimeSfx('hit'); else if(e.isGolem) playGolemSfx('pain'); else playGrunt();
 }
@@ -2857,7 +2904,7 @@ function barsClear(){ defeatScreen(false); bars.forEach(b=>b.el.remove()); bars=
 function barsBuild(){
   barsClear();
   const mk=(ent,name,isPl)=>{ const el=document.createElement('div'); el.className='hpb'+(isPl?' pl':''); el.innerHTML='<span></span><div class="bar"><i></i></div>'; hpLayer.appendChild(el); bars.push({ent,name,isPl,el,txt:el.firstChild,fill:el.lastChild.firstChild,shown:-1}); };
-  mk(pl,'KNIGHT',true); enemies.forEach(e=>mk(e,e.isSlime?'SLIME':e.isGolem?'GOLEM':(TG_NAMES[e.armor]||'STEEL'),false));
+  mk(pl,'KNIGHT',true); enemies.forEach(e=>mk(e,e.isSlime?'SLIME':e.isGolem?(e.mobName||'GOLEM'):(TG_NAMES[e.armor]||'STEEL'),false));
 }
 function headPos(b,out){ const H=playerH, y=(b.ent&&b.ent.isSlime?(blobHome.y+0.42*H):(homeTarget.y+H/2))+0.07*H; if(b.isPl){ const p=playerRig.position; return out.set(homeTarget.x+p.x,y,homeTarget.z+p.z); } return out.set(b.ent.x,y,b.ent.z); }
 function barsUpdate(dt){
@@ -2892,7 +2939,7 @@ function enemyDie(e){
     e.death=e.mixer.clipAction(own); e.death.reset().setLoop(THREE.LoopOnce,1); e.death.clampWhenFinished=true; e.death.timeScale=1;
     e.idle.fadeOut(0.05); e.death.fadeIn(0.05).play();
   } else {   // no death animation: the hit animation, fading out
-    const clip=e.isSlime?e.clips.death:(e.isGolem?golemClips.Hit:actions.Hit.getClip());
+    const clip=e.isSlime?e.clips.death:(e.isGolem?(e.gc||golemClips).Hit:actions.Hit.getClip());
     e.hit=e.mixer.clipAction(clip); e.hit.reset().setLoop(THREE.LoopOnce,1); e.hit.clampWhenFinished=true; e.hit.timeScale=1;
     e.idle.fadeOut(0.05); e.hit.fadeIn(0.05).play();
     (e.fadeMats||[]).forEach(m=>{ m.transparent=true; m.depthWrite=false; });
@@ -2916,7 +2963,7 @@ function startPotion(){   // ITEMS > POTION: uses the turn
 }
 function afterPlayerAction(){   // the player's command has finished: victory, or the enemies' turn
   if(turn==='over') return;
-  if(enemies.length&&enemies.every(e=>e.dead)){ battleEnd('win'); return; }
+  if(enemies.length&&enemies.every(e=>e.dead)){ if(dgWave<RUINS_WAVES.length-1){ nextWave(); return; } battleEnd('win'); return; }
   startEnemyPhase();
 }
 function startEnemyPhase(){ turn='enemies'; btBegin('enemy'); ep={i:-1,stage:9,t:0,e:null}; setTurnLabel('ENEMY TURN','foe'); }
@@ -2999,7 +3046,7 @@ function updateEnemyPhase(dt){
   ep.t+=dt;
   if(ep.stage===9){ if(ep.t>=ENEMY_START_BEAT) epNext(); return; }
   if(ep.e&&ep.e.isSlime&&ep.stage>=1&&ep.stage<=3) slimeSquish(ep.e,dt);   // the squishy jump drawn over the slime's own attack clip
-  const e=ep.e, sw=e.isSlime?e.clips.action:(e.isGolem?golemClips.Attack:actions.Swing.getClip()), spd=e.isSlime?SLIME_ATK_SPEED:(e.isGolem?1.0:SWING_SPEED), hitAt=e.isSlime?SLIME_HIT_AT/SLIME_ATK_SPEED:(e.isGolem?GOLEM_HIT_AT:(CARVE_HIT_AT/SWING_SPEED));
+  const e=ep.e, sw=e.isSlime?e.clips.action:(e.isGolem?(e.gc||golemClips).Attack:actions.Swing.getClip()), spd=e.isSlime?SLIME_ATK_SPEED:(e.isGolem?1.0:SWING_SPEED), hitAt=e.isSlime?SLIME_HIT_AT/SLIME_ATK_SPEED:(e.isGolem?(e.gc?e.gc.Attack.duration*0.5:GOLEM_HIT_AT):(CARVE_HIT_AT/SWING_SPEED));
   if(ep.stage===0){   // this enemy turns to face the player and attacks
     const px=homeTarget.x+playerRig.position.x, pz=homeTarget.z+playerRig.position.z;
     setEnemyYaw(e,Math.atan2(px-e.x,pz-e.z));
