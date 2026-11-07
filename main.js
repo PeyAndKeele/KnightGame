@@ -1279,7 +1279,7 @@ const CHEST_SCALE=1.7, CHEST_POS=[0,0.09,1.6], CHEST_YAW_DEG=90;
    CHEST_SCENE_X: how far west of the circle he stands, in knight-heights (the fence is at ~3.45, the trees start at 5.6). CHEST_LOOK_FWD: how far in front of him the camera looks (knight-heights).
    CHEST_END_HOLD: seconds the last pose is held before the fade. DG_CHEST: the camera shot (same fields as DG_SHOTS; yaw 35 = from just east of south, outside the fence and clear of the walls, so his side, the lid and the chest's front are all in view).
    CHEST_POP_DELAY / CHEST_POP_TIME: the chest appears this long after the screen is back, then grows in over this long. */
-const CHEST_SCENE_X=4.1, CHEST_LOOK_FWD=0.4, CHEST_END_HOLD=1.0, CHEST_POP_DELAY=0.3, CHEST_POP_TIME=0.45;
+const CHEST_SCENE_X=4.1, CHEST_LOOK_FWD=0.4, CHEST_END_HOLD=0.25, CHEST_POP_DELAY=0.3, CHEST_POP_TIME=0.45;
 const DG_CHEST={yaw:35,drift:0.6,pitch:0.20,dist:3.0,ty:0.20,mid:0};
 let chestScene=false, chestDone=false, chestEndT=-1, chestT0=0;
 /* The lid's creak (drs_barrelsecret_open, embedded as an mp3 in CHEST_SFX): it plays when the lid starts to lift, CHEST_SFX_AT seconds into Chestopen (the lid clip starts moving at 2.58 s),
@@ -1322,17 +1322,17 @@ function showLoot(){
   if(loot.on) return;
   if(!document.getElementById('loot-css')){
     const st=document.createElement('style'); st.id='loot-css';
-    st.textContent='#loot{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4vh;background:rgba(0,0,0,.62);font-family:inherit;color:#fff;text-shadow:2px 2px 0 #000;animation:lootbg .5s ease-out both}'
-    +'@keyframes lootbg{from{opacity:0}to{opacity:1}}@keyframes lootup{from{opacity:0;transform:translateY(60px) scale(.92)}to{opacity:1;transform:none}}'
+    st.textContent='#loot{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4vh;background:rgba(0,0,0,.62);font-family:inherit;color:#fff;text-shadow:2px 2px 0 #000;animation:lootbg .5s steps(5,end) both;image-rendering:pixelated;-webkit-font-smoothing:none;text-rendering:optimizeSpeed}'
+    +'@keyframes lootbg{from{opacity:0}to{opacity:1}}@keyframes lootup{from{opacity:0;transform:translateY(60px)}to{opacity:1;transform:none}}'
     +'#loot .lh{font-size:clamp(28px,4.2vw,56px);letter-spacing:.18em}#loot .lr{display:flex;gap:clamp(12px,2.4vw,36px);align-items:stretch}'
-    +'#loot .card{--c:#fff;width:clamp(150px,19vw,260px);padding:16px 14px 18px;background:linear-gradient(#26262c,#14141a);border:4px solid var(--c);border-radius:6px;color:#fff;font:inherit;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 0 0 2px #000,0 0 26px -4px var(--c);opacity:0;animation:lootup .55s cubic-bezier(.2,.9,.25,1.15) both;transition:transform .15s,box-shadow .15s,opacity .35s,filter .35s}'
-    +'#loot .card.on,#loot .card:hover{transform:translateY(-12px) scale(1.04);box-shadow:0 0 0 2px #000,0 0 46px 2px var(--c)}'
+    +'#loot .card{--c:#fff;width:clamp(150px,19vw,260px);padding:16px 14px 18px;background:#1b1b21;border:4px solid var(--c);border-radius:0;color:#fff;font:inherit;text-align:center;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 0 0 2px #000,0 0 0 6px color-mix(in srgb,var(--c) 55%,transparent),0 0 0 12px color-mix(in srgb,var(--c) 28%,transparent),0 0 0 18px color-mix(in srgb,var(--c) 12%,transparent);opacity:0;animation:lootup .55s steps(6,end) both;transition:transform .15s steps(3),box-shadow .15s steps(3),opacity .35s steps(4)}'
+    +'#loot .card.on,#loot .card:hover{transform:translateY(-12px);box-shadow:0 0 0 2px #000,0 0 0 8px color-mix(in srgb,var(--c) 55%,transparent),0 0 0 16px color-mix(in srgb,var(--c) 28%,transparent),0 0 0 24px color-mix(in srgb,var(--c) 12%,transparent)}'
     +'#loot .rar{font-size:clamp(16px,1.7vw,24px);letter-spacing:.2em;color:var(--c)}#loot .rar small{display:block;font-size:.62em;opacity:.7;letter-spacing:.3em}'
     +'#loot .ico{width:100%;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px dashed var(--c);background:rgba(255,255,255,.04);color:var(--c);font-size:clamp(56px,7vw,110px);line-height:1}'
     +'#loot .ico small{font-size:clamp(10px,1vw,14px);letter-spacing:.2em;opacity:.65;margin-top:6px}'
     +'#loot .nm{font-size:clamp(22px,2.4vw,34px);letter-spacing:.1em}#loot .bl{font-size:clamp(13px,1.3vw,19px);opacity:.78;line-height:1.15}'
     +'#loot .hint{font-size:clamp(14px,1.5vw,22px);opacity:.7;letter-spacing:.2em}'
-    +'#loot.done .card:not(.pick){opacity:0;filter:blur(2px);transform:scale(.9)}#loot.done .card.pick{transform:translateY(-16px) scale(1.12);box-shadow:0 0 0 2px #000,0 0 70px 6px var(--c)}';
+    +'#loot.done .card:not(.pick){opacity:0;transform:translateY(8px)}#loot.done .card.pick{transform:translateY(-16px);box-shadow:0 0 0 2px #000,0 0 0 12px color-mix(in srgb,var(--c) 55%,transparent),0 0 0 24px color-mix(in srgb,var(--c) 28%,transparent),0 0 0 36px color-mix(in srgb,var(--c) 12%,transparent)}#crt{z-index:100000}';   /* #crt (scanlines + vignette) goes over the loot screen too */
     document.head.appendChild(st);
   }
   const picks=LOOT_TIERS.map(t=>{ const pool=LOOT.filter(i=>i.rarity===t); return pool[Math.floor(Math.random()*pool.length)]; }).filter(Boolean);
