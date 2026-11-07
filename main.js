@@ -1334,6 +1334,44 @@ function playChestSfx(){
   }catch(e){ console.error('chest sfx',e); }
 }
 function chestReady(){ return !!(chestGrp&&actions.Chestopen); }
+/* ---------- saving to a cookie ----------
+   GameSave.get(key,default) / GameSave.set(key,value) keep any small JSON-able game data in one cookie ("kg_save", one year, this site only). The options (pixels, colors, bitcrush, weapon,
+   helmet, world, music, armor/sword tint) are saved automatically a second after they change and put back when the game has loaded. Limits: a cookie holds about 4 KB in total, so keep to small things
+   (flags, numbers, ids); and browsers do not keep cookies for a page opened straight from disk (file://), only when it is served over http(s), such as GitHub Pages or a local server. */
+const GameSave=(function(){
+  const NAME='kg_save'; let data={};
+  const ok=()=>{ try{ return navigator.cookieEnabled; }catch(e){ return false; } };
+  function read(){ try{ const m=document.cookie.split('; ').find(c=>c.indexOf(NAME+'=')===0); data=m?(JSON.parse(decodeURIComponent(m.slice(NAME.length+1)))||{}):{}; }catch(e){ data={}; } }
+  function write(){ if(!ok()) return; try{ const v=encodeURIComponent(JSON.stringify(data)); if(v.length>3800){ console.warn('GameSave: too big for a cookie'); return; } document.cookie=NAME+'='+v+'; max-age=31536000; path=/; SameSite=Lax'; }catch(e){} }
+  read();
+  return {get:(k,d)=>(k in data?data[k]:d), set:(k,v)=>{ data[k]=v; write(); }, all:()=>data, clear:()=>{ data={}; write(); }};
+})();
+function settingsSnapshot(){ return {px:pixIdx,co:colIdx,cr:crushOn,wp:weapon,hm:curHelmet,wd:forest,mu:musicOn,at:armorHex,am:armorAmt,sh:swordHex,sm:swordMatch}; }
+let lastSettings='', restoredSettings=false;
+function restoreSettings(){
+  const v=GameSave.get('s',null); restoredSettings=true; if(!v) return;
+  try{
+    if(typeof v.px==='number'&&v.px<PIX_STEPS.length) pixIdx=v.px;
+    if(typeof v.co==='number'&&v.co<COL_STEPS.length){ colIdx=v.co; U.uLevels.value=COL_STEPS[colIdx][1]; }
+    resize();
+    if(typeof v.cr==='boolean'&&v.cr!==crushOn) toggleCrush();
+    if(v.mu===false){ userChose=true; musicOn=false; try{ setSwitch('music',false,'Off'); }catch(e){} }
+    if(typeof v.at==='string'||v.at===null){ armorHex=v.at; if(typeof v.am==='number') armorAmt=v.am; }
+    if(typeof v.sh==='string'||v.sh===null) swordHex=v.sh; if(typeof v.sm==='boolean') swordMatch=v.sm;
+    applyArmorTint();
+    if(typeof v.hm==='number'&&v.hm>=0&&v.hm<helmetSets.length) setHelmet(v.hm);
+    if(typeof v.wp==='string'&&v.wp!==weapon) setWeapon(v.wp);
+    if(typeof v.wd==='boolean'&&v.wd!==forest) setWorld(v.wd);
+  }catch(e){ console.error('restore settings failed',e); }
+  lastSettings=JSON.stringify(settingsSnapshot());
+}
+setInterval(()=>{
+  try{
+    if(!restoredSettings){ if(knightScene&&actions.Idle&&helmetSets.length&&typeof setSwitch==='function') restoreSettings(); return; }   // wait until the game has loaded, then put the saved options back
+    const j=JSON.stringify(settingsSnapshot()); if(j!==lastSettings){ lastSettings=j; GameSave.set('s',JSON.parse(j)); }
+  }catch(e){}
+},1000);
+
 /* ---------- chest loot: three cards ----------
    After the chest opens, three cards rise up, one each of COMMON, UNCOMMON and RARE (shuffled left to right). Pick one (click it, or arrows/A/D + Enter, or 1/2/3) and the screen fades back to the menu.
    Nothing is stored yet: the pick is just remembered in loot.chosen. RARITY = the tier colours (all six; only the first three have items so far). LOOT = every item that can drop:
@@ -1385,7 +1423,7 @@ function showLoot(){
 function lootSel(i){ if(loot.picked) return; if(i!==loot.sel&&loot.on) { try{ blip(520,0.05); }catch(_){} } loot.sel=i; loot.cards.forEach((c,k)=>c.b.classList.toggle('on',k===i)); }
 function lootPick(i){
   if(!loot.on||loot.picked||!loot.cards[i]) return;
-  loot.picked=true; loot.chosen=loot.cards[i].it; try{ blip(880,0.12); }catch(_){}
+  loot.picked=true; loot.chosen=loot.cards[i].it; GameSave.set('lastLoot',loot.chosen.id); try{ blip(880,0.12); }catch(_){}
   loot.cards[i].b.classList.add('pick'); loot.el.classList.add('done');
   setTimeout(()=>{ hideLoot(); leaveDungeon(); },1200);
 }
