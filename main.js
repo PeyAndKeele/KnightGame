@@ -2946,20 +2946,69 @@ function playerStruck(e){
   else if(pl.guard){ if(!(current&&current.getClip().name==='BlockIdle')) playBlockIdle(); playBlockHitSeq(); }   // guarding: he stays in BlockIdle, the hit is just the sound
   else { const h=actions.Hit; if(h){ if(current&&current!==h) current.fadeOut(0.06); h.reset().setLoop(THREE.LoopOnce,1); h.clampWhenFinished=true; h.timeScale=1; h.fadeIn(0.06).play(); current=h; } blip(130,0.14); playGrunt(); }
 }
+/* ---------- the slime's attack: a squishy, painful-looking jump ----------
+   The slime's own 'action' clip only nudges its inner shells about, so a hop is drawn on top of it (the clip still plays underneath, and the hit still lands at SLIME_HIT_AT):
+   1 CROUCH   it sinks and bulges sideways, pulling back a little - the wind-up
+   2 LAUNCH   it springs up and stretches tall, leaping at the player in a real arc
+   3 SPLAT    it lands on the hit and flattens hard (it spreads wide as it flattens, always keeping its volume), with a violent shiver
+   4 WOBBLE   it recovers like jelly: a damped spring that overshoots tall, then wide, then settles, while it slides back to its place
+   Everything is eased, so there is no snapping between the phases. The numbers are the knobs: how deep the crouch and the splat go (smaller = squashier), the hop height and the lunge, in knight-heights. */
+/* Toned down: the original animation is still the star; this only adds a little weight to it, and the whole attack plays SLIME_ATK_SPEED times faster (so it is snappier). All times are in the original clip's seconds. */
+const SLIME_ATK_SPEED=1.35;
+const SQ={crouch:0.30,crouchSy:0.86,leapFrom:0.40,hop:0.07,lunge:0.10,pull:0.02,stretch:0.09,splatT:0.09,splatSy:0.80,shake:0.010,wobbleK:7,wobbleW:26,back:[0.82,1.0]};
+const sqEase=k=>{ k=Math.max(0,Math.min(1,k)); return k*k*(3-2*k); };
+function slimeSquishStart(e,px,pz){
+  const dx=px-e.x, dz=pz-e.z, d=Math.hypot(dx,dz)||1;
+  e.sqT=0; e.sqDir={x:dx/d,z:dz/d}; e.sqHome=e.rig.position.clone(); e.sqBase=e.root.scale.x;
+  e.root.position.y=0; e.rig.updateMatrixWorld(true); e.sqB=new THREE.Box3().setFromObject(e.root).min.y-e.rig.position.y;   // where its underside is (so it squashes onto the ground rather than into it)
+}
+function slimeSquish(e,dt){
+  if(e.sqT===undefined||!e.sqHome) return;
+  e.sqT+=dt*SLIME_ATK_SPEED; const t=e.sqT, H=playerH, hitAt=SLIME_HIT_AT, land=hitAt, tl=SQ.leapFrom;
+  let sy=1, hop=0, lg=0, shx=0;
+  if(t<SQ.crouch){                                   // 1 crouch
+    const k=sqEase(t/SQ.crouch); sy=1-(1-SQ.crouchSy)*k; lg=-SQ.pull*k;
+  } else if(t<land){                                 // 2 launch + flight: one arc from the crouch to the landing
+    const u=(t-tl)/(land-tl), kk=sqEase((t-SQ.crouch)/(tl-SQ.crouch));
+    hop=SQ.hop*4*Math.max(0,u)*(1-Math.max(0,u));
+    lg=-SQ.pull+(SQ.lunge+SQ.pull)*sqEase(u<0?0:u);
+    const stretch=1+SQ.stretch*Math.pow(Math.sin(Math.PI*Math.max(0,Math.min(1,u))),0.7);          // tall in the air...
+    sy=(t<tl)?(SQ.crouchSy+(stretch-SQ.crouchSy)*kk):stretch;                                         // ...springing out of the crouch
+  } else {
+    const a=t-land;
+    lg=SQ.lunge;
+    if(a<SQ.splatT){                                 // 3 splat: flattens fast
+      const k=sqEase(a/SQ.splatT); sy=1.0-(1.0-SQ.splatSy)*k; shx=SQ.shake*H*Math.sin(t*95)*(1-k*0.3);
+    } else {                                         // 4 wobble: damped jelly spring back to 1, after the splat has pressed it flat
+      const b=a-SQ.splatT, amp=1-SQ.splatSy;
+      sy=1-amp*Math.exp(-SQ.wobbleK*b)*Math.cos(SQ.wobbleW*b); shx=SQ.shake*H*0.5*Math.sin(t*95)*Math.exp(-14*b);
+      const bk=sqEase((t-SQ.back[0])/(SQ.back[1]-SQ.back[0])); lg=SQ.lunge*(1-bk);                  // slides back to its place
+    }
+  }
+  sy=Math.max(0.2,sy); const sxz=1/Math.sqrt(sy);                                                    // volume stays constant: low = wide, tall = thin
+  const S=e.sqBase; e.root.scale.set(S*sxz,S*sy,S*sxz); e.root.position.y=e.sqB*(1-sy);
+  const d=e.sqDir, h=e.sqHome;
+  e.rig.position.set(h.x+d.x*lg*H+(-d.z)*shx, h.y+hop*H, h.z+d.z*lg*H+d.x*shx);
+}
+function slimeSquishEnd(e){
+  if(!e.sqHome) return;
+  e.root.scale.setScalar(e.sqBase||SLIME_SCALE); e.root.position.y=0; e.rig.position.copy(e.sqHome); e.sqT=undefined;
+}
 function updateEnemyPhase(dt){
   if(!ep||turn==='over') return;
   ep.t+=dt;
   if(ep.stage===9){ if(ep.t>=ENEMY_START_BEAT) epNext(); return; }
-  const e=ep.e, sw=e.isSlime?e.clips.action:(e.isGolem?golemClips.Attack:actions.Swing.getClip()), spd=(e.isSlime||e.isGolem)?1.0:SWING_SPEED, hitAt=e.isSlime?SLIME_HIT_AT:(e.isGolem?GOLEM_HIT_AT:(CARVE_HIT_AT/SWING_SPEED));
+  if(ep.e&&ep.e.isSlime&&ep.stage>=1&&ep.stage<=3) slimeSquish(ep.e,dt);   // the squishy jump drawn over the slime's own attack clip
+  const e=ep.e, sw=e.isSlime?e.clips.action:(e.isGolem?golemClips.Attack:actions.Swing.getClip()), spd=e.isSlime?SLIME_ATK_SPEED:(e.isGolem?1.0:SWING_SPEED), hitAt=e.isSlime?SLIME_HIT_AT/SLIME_ATK_SPEED:(e.isGolem?GOLEM_HIT_AT:(CARVE_HIT_AT/SWING_SPEED));
   if(ep.stage===0){   // this enemy turns to face the player and attacks
     const px=homeTarget.x+playerRig.position.x, pz=homeTarget.z+playerRig.position.z;
     setEnemyYaw(e,Math.atan2(px-e.x,pz-e.z));
     e.atkDone=false; e.atk=e.mixer.clipAction(sw); e.atk.reset().setLoop(THREE.LoopOnce,1); e.atk.clampWhenFinished=true; e.atk.timeScale=spd;
-    e.idle.fadeOut(0.06); e.atk.fadeIn(0.06).play(); if(e.isSlime) playSlimeSfx('atk'); else if(!e.isGolem) playSword(SWING_SPEED); ep.stage=1; ep.t=0;
+    e.idle.fadeOut(0.06); e.atk.fadeIn(0.06).play(); if(e.isSlime){ playSlimeSfx('atk'); slimeSquishStart(e,px,pz); } else if(!e.isGolem) playSword(SWING_SPEED); ep.stage=1; ep.t=0;
   } else if(ep.stage===1&&ep.t>=hitAt){ ep.stage=2; if(e.isGolem) playGolemSfx('atk'); playerStruck(e); }
   else if(ep.stage===2&&(e.atkDone||ep.t>=sw.duration/spd+0.3)){ ep.stage=3; ep.t=0; }
   else if(ep.stage===3&&ep.t>=ENEMY_HOLD){
-    setEnemyYaw(e,Math.PI/2);
+    setEnemyYaw(e,Math.PI/2); if(e.isSlime) slimeSquishEnd(e);
     e.idle.reset().fadeIn(0.12).play(); e.atk.fadeOut(0.12);
     if(pl.dead){ battleEnd('lose'); return; }
     if(!pl.guard&&!pl.render) play(idleName());   // a raised guard stays up between the enemies' attacks
