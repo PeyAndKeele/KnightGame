@@ -359,7 +359,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   })();
   /* AxeIdle (the axe's idle) and AxeSwing (its swing, the rig's Swing3): embedded as axeidle-data / axeswing-data and added exactly like Death above.
      They are used whenever the Axe is the chosen weapon; the sword keeps Idle and Swing. */
-  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data','swingheavywindup-data','swingheavyturnhold-data','swingheavyrelease-data'].forEach(function(id){
+  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','dance-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data','swingheavywindup-data','swingheavyturnhold-data','swingheavyrelease-data'].forEach(function(id){
     const el=document.getElementById(id); if(!el) return;
     const D=JSON.parse(el.textContent), base={};
     if((id==='axeswing-data'&&AXE_SWING_REVERSE)||D.rev){   // play the swing backwards: keyframes in reverse order, times counted from the end
@@ -1574,6 +1574,14 @@ function swooshSample(h){
   swsh.prevP.copy(a); swsh.prevP2.copy(a2); swsh.prevC.copy(c); swsh.hasPrev=true;
 }
 /* advance the mixer; while the sword swings, do it in small steps and sample the blade after each one */
+/* DANCE: a 16-beat loop at 147 BPM (6.531 s) whose first beat is the song's beat at 0.33 s. While it plays, its time is slaved to the song's position, so it stays on the beat
+   whatever the frame rate and through every loop of the song (the song itself is shorter than a whole number of beats). */
+const DANCE_BPM=147, DANCE_BEATS=16, DANCE_OFFSET=0.33;
+function danceStep(){
+  if(!danceWant||!xtra.dance.src||!actions.Dance||current!==actions.Dance) return;
+  const L=DANCE_BEATS*60/DANCE_BPM, t=trackPos(xtra.dance.src)-DANCE_OFFSET-0.03;   // (0.03: the pose shown lags a little behind the clock)
+  actions.Dance.time=((t%L)+L)%L;
+}
 function stepMixer(dt){
   if(golemOn&&golemMixer){ golemPlace(); const p=golemAct.time; golemMixer.update(dt); if(p<GOLEM_HIT_AT&&golemAct.time>=GOLEM_HIT_AT) playGolemSfx('atk'); }
   const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease');
@@ -1902,7 +1910,7 @@ function loadBattle(){
 function setBattleMusic(on){ if(battleWant===on) return; battleWant=on; if(!on) battleResume=0; syncAudio(); }
 /* shop song (Sacrifice of Saint Dell, FM Skyline) plays in the shop; frost song (Ice, slowed, ZERTAL) plays once you travel to The Veiled Frost (on the map, from the transition between the areas) and stays while you are there.
    Priority: Flaunt song, battle song, shop song, frost song, main song. Same fades as every track, and they go through cz() so the BITCRUSH switch applies. */
-const xtra={shop:{id:'shop-song-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null},ignis:{id:'ignis-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false, ignisWant=false;
+const xtra={shop:{id:'shop-song-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null},ignis:{id:'ignis-song-data',buf:null,src:null,loading:null},dance:{id:'dance-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false, ignisWant=false, danceWant=false;   // dance: the song for the Dance animation (top priority)
 /* The shop song's name tag (bottom right of the shop view): just a now-playing label, not a button. */
 let shopSong='shop', shopSongBtn=null; const SHOP_SONG_NAMES={shop:'SACRIFICE OF SAINT DELL'};
 function loadX(k){ const x=xtra[k]; if(x.loading) return x.loading; const t=atob(document.getElementById(x.id).textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i); x.loading=new Promise((res,rej)=>ac.decodeAudioData(u.buffer,res,rej)).then(b=>{ x.buf=b; }); return x.loading; }
@@ -1910,7 +1918,7 @@ function setShopMusic(on){ if(shopWant===on) return; shopWant=on; syncAudio(); }
 function setFrostMusic(on){ if(frostWant===on) return; frostWant=on; syncAudio(); }
 function setIgnisMusic(on){ if(ignisWant===on) return; ignisWant=on; syncAudio(); }
 async function syncAudio(){
-  const pick=()=>!musicOn?null:(flauntWant?'flaunt':(battleWant?'battle':(shopWant?shopSong:(ignisWant?'ignis':(frostWant?'frost':'main')))));
+  const pick=()=>!musicOn?null:(danceWant?'dance':flauntWant?'flaunt':(battleWant?'battle':(shopWant?shopSong:(ignisWant?'ignis':(frostWant?'frost':'main')))));
   const stopX=keep=>{ for(const k in xtra){ if(k!==keep&&xtra[k].src){ stopTrack(xtra[k].src); xtra[k].src=null; } } };
   try{
     const want=pick();
@@ -2022,6 +2030,7 @@ function play(n){
   if((n==='AxeIdle'||n==='AxeSwing'||n==='AxeFlaunt'||n===FLAUNT_IDLE)&&weapon!=='axe') setWeapon('axe');   // these are the axe's own clips, so choosing one brings the axe out
   else if((n==='Idle'||n==='Swing')&&weapon==='axe') setWeapon('sword');   // and these are the sword's, so choosing one puts the sword back (the game itself always asks for idleName())
   const isFlaunt=(n==='Flaunt'||n==='AxeFlaunt'||n===FLAUNT_IDLE); if(isFlaunt!==flauntWant){ flauntWant=isFlaunt; syncAudio(); }   // either flaunt brings in the flaunt song
+  { const isD=(n==='Dance'); if(isD!==danceWant){ danceWant=isD; syncAudio(); } }   // the Dance animation brings in its own song
   if(n===EVT_CLIP) return;
   evtDue=evtGo=evtDone=flauntDone=false;
   const next=actions[n], fd=(n===FLAUNT_IDLE)?0.3:0.12;   // fd: the hand-off from AxeFlaunt into its idle is eased a little longer
@@ -3207,6 +3216,7 @@ function frame(now){
   if(mixer&&!paused){
     acc+=dt;
     let stepped=false;
+    danceStep();
     if(ps1){ if(acc>=STEP){ const n=Math.floor(acc/STEP); stepMixer(n*STEP); stepEnemies(n*STEP); acc-=n*STEP; stepped=true; } }
     else { stepMixer(acc); stepEnemies(acc); acc=0; stepped=true; }
     headLook(dt,stepped);
