@@ -1014,11 +1014,11 @@ function initKnightly(parent){
       m.position.set(p.t[0],p.t[1],p.t[2]); m.rotation.order='ZYX';
       m.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
       grp.add(m);
-      // the halo: a few see-through, additive copies of the part, each pushed a little further out (the edge of the texture's cut-out is ignored: it is a glow, not a surface)
+      // the halo (blade and its tip only): a few see-through, additive copies of the part, each pushed a little further out. Only their far faces are drawn, so the blade itself hides them: the glow shows around the blade, never over it
       geo.computeBoundingBox(); const bb=geo.boundingBox, ctr=bb.getCenter(new THREE.Vector3()), ext=bb.getSize(new THREE.Vector3());
-      const w=(p.name==='blade'||p.name==='blade_tip')?1:0.45;
-      KN_HALO.forEach(([d,a],li)=>{
-        const hm=new THREE.MeshBasicMaterial({color:new THREE.Color(KN_HALO_COLOR[0],KN_HALO_COLOR[1],KN_HALO_COLOR[2]),transparent:true,opacity:a*w,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+      const w=1;
+      if(p.name==='blade'||p.name==='blade_tip') KN_HALO.forEach(([d,a],li)=>{
+        const hm=new THREE.MeshBasicMaterial({color:new THREE.Color(KN_HALO_COLOR[0],KN_HALO_COLOR[1],KN_HALO_COLOR[2]),transparent:true,opacity:a*w,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.BackSide,fog:false});
         const h=new THREE.Mesh(geo,hm); h.name='knightly_halo'+li;
         h.rotation.order='ZYX'; h.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
         const sx=(ext.x+2*d)/Math.max(ext.x,1e-3), sy=(ext.y+2*d)/Math.max(ext.y,1e-3), sz=(ext.z+2*d)/Math.max(ext.z,1e-3);
