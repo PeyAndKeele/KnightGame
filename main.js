@@ -62,7 +62,7 @@ void main(){
 const FS=`
 uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform float uBlackGrey; uniform float uMaskNoShine;
 uniform vec3 uLampCol; uniform float uEmit; varying float vLampD; varying float vLampS;
-uniform float uMagma; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
+uniform float uMagma; uniform float uGem; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
 uniform vec3 uLamp2Col; varying float vLamp2D; varying float vLamp2S;
 uniform vec4 uOccF[6]; uniform float uOccN; uniform float uOccGap; uniform float uOccOn; uniform vec2 uOccNear;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying float vEnv; varying float vSpec;
@@ -100,8 +100,10 @@ void main(){
   }
   float mgm=uMagma*smoothstep(0.40,0.52,tx.r-0.5*tx.b);                                          // 1 on the orange texels (the charred dark ones stay dark), 0 elsewhere
   lit=mix(lit,base*(1.30+0.55*uMagmaPulse)*vec3(1.0,0.94,0.82),mgm);                                // the magma shines from within: brighter than any light would make it, and it swells with the pulse
+  float gem=uGem*smoothstep(0.08,0.16,max(tx.r,max(tx.g,tx.b))-min(tx.r,min(tx.g,tx.b)));        // uGem (the Knightly sword): every coloured texel (green, yellow, red, teal ...) glows from within, bright and breathing with the same pulse as the magma; the grey steel does not
+  lit=mix(lit,(tx.rgb*(1.85+0.7*uMagmaPulse)+0.12)*uTint,gem);
   lit=mix(lit,base,uEmit);                                                                      // uEmit: 1 on the lantern's bulb itself - it glows instead of being lit
-  vec3 c=mix(lit*mix(uNight,vec3(1.0),max(uEmit,mgm))+lampT,uFogColor,vFog);                    // (night does not dim a glow)
+  vec3 c=mix(lit*mix(uNight,vec3(1.0),max(max(uEmit,mgm),gem))+lampT,uFogColor,vFog);                    // (night does not dim a glow)
   if(uDither>0.5){
     vec2 p=floor(gl_FragCoord.xy);
     float b=(4.0*b2(p)+b2(floor(p*0.5)))/16.0-0.47;
@@ -170,7 +172,7 @@ function ps1Mat(tex,uvScale){
   tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
   tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
   return new THREE.ShaderMaterial({vertexShader:VS,fragmentShader:FS,side:THREE.DoubleSide,
-    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uMaskNoShine:{value:0},uEmit:{value:0},uMagma:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
+    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uMaskNoShine:{value:0},uEmit:{value:0},uMagma:{value:0},uGem:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
 }
 function ps1FloorMat(texG,texF,texI,uvScale,H){
   [texG,texF,texI].forEach(tex=>{ tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false; tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true; });
@@ -340,7 +342,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   blob.rotation.x=-Math.PI/2; blob.position.set(ctr.x,box.min.y+H*0.002,ctr.z); scene.add(blob); blobMesh=blob; blobHome=blob.position.clone();
 
   U.uFogNear.value=H*2.6; U.uFogFar.value=H*5.2;
-  initTrees(H,box.min.y); initRuins(H,box.min.y,ctr); initPointer(); initElemental(); initDgForest(H,box.min.y,ctr); initSky(H,box.min.y); initNight(H,box.min.y); groundYNight=box.min.y; initLeaves(box.min.y); initSnow(H,box.min.y); initRock(gltf.scene,box.min.y); initSword(gltf.scene); initHatchet(gltf.scene); initHammer(gltf.scene); initAxe(gltf.scene); initPotion(gltf.scene); initChest(rig); setWorld(true);
+  initTrees(H,box.min.y); initRuins(H,box.min.y,ctr); initPointer(); initElemental(); initDgForest(H,box.min.y,ctr); initSky(H,box.min.y); initNight(H,box.min.y); groundYNight=box.min.y; initLeaves(box.min.y); initSnow(H,box.min.y); initRock(gltf.scene,box.min.y); initSword(gltf.scene); initHatchet(gltf.scene); initHammer(gltf.scene); initKnightly(gltf.scene); initAxe(gltf.scene); initPotion(gltf.scene); initChest(rig); setWorld(true);
   baseDist=H; resize();
 
   // animations
@@ -935,11 +937,12 @@ function setVoice(v){
   const sel=document.getElementById('voicesel'); if(sel) sel.value=voice;
 }
 function toggleVoice(){ setVoice(voice==='voice1'?'voice2':'voice1'); }
-let hatchetGrp=null, hammerGrp=null, swordStyle='sword';   // swordStyle: 'sword' or 'hatchet' (only shows while the weapon is the light one)
+let hatchetGrp=null, hammerGrp=null, knightlyGrp=null, swordStyle='sword';   // swordStyle: 'sword' or 'hatchet' (only shows while the weapon is the light one)
 function showWeapons(){ applyAxeStyle();
   if(swordGrp) swordGrp.visible=(weapon==='sword'&&swordStyle==='sword');
   if(hatchetGrp) hatchetGrp.visible=(weapon==='sword'&&swordStyle==='hatchet');
   if(hammerGrp) hammerGrp.visible=(weapon==='sword'&&swordStyle==='hammer');
+  if(knightlyGrp) knightlyGrp.visible=(weapon==='sword'&&swordStyle==='knightly');
   if(axeGrp) axeGrp.visible=(weapon==='axe');
   swooshUse();
 }
@@ -981,6 +984,57 @@ function initHatchet(parent){
     swooshAddRig('hatchet',grp,parent.getObjectByName(SWORD_HAND+'_Arm')||fore,HATCHET_SWOOSH.tip,HATCHET_SWOOSH.hilt,{width:HATCHET_SWOOSH.width,start:SWOOSH_START_SPEED,stop:SWOOSH_STOP_SPEED});
     showWeapons();
   }).catch(e=>console.error('hatchet load failed',e));
+}
+/* ---------- the Knightly Sword (knightly-sword-data): the shortsword's shape with its own textures, a fifth style for the SWORD. Held exactly like the sword (same mount, animations and swoosh).
+   Its coloured texels glow like the magma on the Ignis Mourne trees (uGem, in the shader) and a soft halo breathes around it (KN_HALO: [how far out it reaches, how strong], one entry per layer). It takes no armor/weapon tint: the colours are its own. ---------- */
+const KN_HALO=[[0.035,0.20],[0.080,0.11],[0.140,0.055]], KN_HALO_COLOR=[1.0,0.95,0.78];
+function initKnightly(parent){
+  const el=document.getElementById('knightly-sword-data'); if(!el) return;
+  const SD=JSON.parse(el.textContent);
+  const fore=parent.getObjectByName(SWORD_HAND+'_Forearm'), hand=parent.getObjectByName('Adventurer_'+SWORD_HAND+'_Hand');
+  if(!fore||!hand){ console.error('knightly sword: hand bones not found'); return; }
+  parent.updateMatrixWorld(true);
+  const hc=new THREE.Box3().setFromObject(hand).getCenter(new THREE.Vector3()); fore.worldToLocal(hc);
+  const D=Math.PI/180;
+  const grp=new THREE.Group(); grp.name='KnightlySword'; grp.rotation.order='ZYX';
+  grp.rotation.set(SWORD_ROT_DEG[0]*D,SWORD_ROT_DEG[1]*D,SWORD_ROT_DEG[2]*D);
+  grp.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),SWORD_ROLL_DEG*D));
+  const grip=new THREE.Vector3(0,SWORD_GRIP_Y,0).applyQuaternion(grp.quaternion);
+  grp.position.copy(hc).sub(grip).add(new THREE.Vector3(SWORD_NUDGE[0],SWORD_NUDGE[1],SWORD_NUDGE[2]));
+  Promise.all(SD.parts.map(p=>loadImg(p.tex))).then(imgs=>{
+    SD.parts.forEach((p,k)=>{
+      const geo=new THREE.BufferGeometry();
+      geo.setAttribute('position',new THREE.Float32BufferAttribute(p.p,3));
+      geo.setAttribute('normal',new THREE.Float32BufferAttribute(p.n,3));
+      geo.setAttribute('uv',new THREE.Float32BufferAttribute(p.uv,2));
+      geo.setIndex(p.i);
+      const tex=new THREE.Texture(imgs[k]); tex.flipY=false;
+      const kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1;
+      const m=new THREE.Mesh(geo,kmat); m.name='knightly_'+p.name;
+      m.position.set(p.t[0],p.t[1],p.t[2]); m.rotation.order='ZYX';
+      m.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
+      grp.add(m);
+      // the halo: a few see-through, additive copies of the part, each pushed a little further out (the edge of the texture's cut-out is ignored: it is a glow, not a surface)
+      geo.computeBoundingBox(); const bb=geo.boundingBox, ctr=bb.getCenter(new THREE.Vector3()), ext=bb.getSize(new THREE.Vector3());
+      const w=(p.name==='blade'||p.name==='blade_tip')?1:0.45;
+      KN_HALO.forEach(([d,a],li)=>{
+        const hm=new THREE.MeshBasicMaterial({color:new THREE.Color(KN_HALO_COLOR[0],KN_HALO_COLOR[1],KN_HALO_COLOR[2]),transparent:true,opacity:a*w,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+        const h=new THREE.Mesh(geo,hm); h.name='knightly_halo'+li;
+        h.rotation.order='ZYX'; h.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
+        const sx=(ext.x+2*d)/Math.max(ext.x,1e-3), sy=(ext.y+2*d)/Math.max(ext.y,1e-3), sz=(ext.z+2*d)/Math.max(ext.z,1e-3);
+        h.scale.set(sx,sy,sz);
+        // scale about the middle of the part: shift so the middle stays where it was
+        const off=new THREE.Vector3(ctr.x*(1-sx),ctr.y*(1-sy),ctr.z*(1-sz)).applyEuler(h.rotation);
+        h.position.set(p.t[0]+off.x,p.t[1]+off.y,p.t[2]+off.z);
+        h.renderOrder=6; h.frustumCulled=false;
+        h.onBeforeRender=()=>{ hm.opacity=a*w*(0.8+0.4*U.uMagmaPulse.value); };   // it breathes with the gems
+        grp.add(h);
+      });
+    });
+    fore.add(grp); knightlyGrp=grp;
+    swooshAddRig('knightly',grp,parent.getObjectByName(SWORD_HAND+'_Arm')||fore,[0,SWOOSH_TIP_Y,0],[0,SWOOSH_HILT_Y,0],{width:SWOOSH_WIDTH,start:SWOOSH_START_SPEED,stop:SWOOSH_STOP_SPEED});
+    showWeapons();
+  }).catch(e=>console.error('knightly sword load failed',e));
 }
 function initHammer(parent){
   const el=document.getElementById('hammer-data'); if(!el) return;
@@ -1038,7 +1092,7 @@ function initShovel(grp){   // the shovel's meshes ride in the axe's own group, 
   });
 }
 function toggleStyle(){
-  swordStyle=(swordStyle==='sword')?'hatchet':(swordStyle==='hatchet')?'hammer':'sword';
+  swordStyle=(swordStyle==='sword')?'hatchet':(swordStyle==='hatchet')?'hammer':(swordStyle==='hammer')?'knightly':'sword';
   if(weapon!=='sword') setWeapon('sword'); else showWeapons();   // a sword style only shows on the light weapon, so changing it brings that one out
   refreshAnim();
 }
@@ -1245,6 +1299,7 @@ function waistStep(stow){
   const hips=knightScene&&knightScene.getObjectByName('Root_Hips');
   if(hatchetGrp&&weapon==='sword'&&swordStyle==='hatchet') hatchetGrp.visible=!stow;
   if(hammerGrp&&weapon==='sword'&&swordStyle==='hammer') hammerGrp.visible=!stow;
+  if(knightlyGrp&&weapon==='sword'&&swordStyle==='knightly') knightlyGrp.visible=!stow;
   const g=swordGrp; if(!g||!hips) return;
   if(stow){
     if(!g.userData.home) g.userData.home={parent:g.parent,p:g.position.clone(),q:g.quaternion.clone()};
@@ -1386,7 +1441,8 @@ setInterval(()=>{
    add one with a rarity key and it joins its tier's draw. LOOT_TIERS = which tiers the three cards come from. icon is a placeholder letter until the models exist. */
 const RARITY={
   common:{name:'COMMON',alt:'STANDARD',color:'#E0E0E0'}, uncommon:{name:'UNCOMMON',alt:'FINE',color:'#2ECC71'}, rare:{name:'RARE',alt:'SUPERIOR',color:'#3498DB'},
-  epic:{name:'EPIC',alt:'HEROIC',color:'#9B59B6'}, legendary:{name:'LEGENDARY',alt:'MASTERWORK',color:'#F39C12'}, mythic:{name:'MYTHIC',alt:'ARTIFACT',color:'#E74C3C'}
+  epic:{name:'EPIC',alt:'HEROIC',color:'#9B59B6'}, legendary:{name:'LEGENDARY',alt:'MASTERWORK',color:'#F39C12'}, mythic:{name:'MYTHIC',alt:'ARTIFACT',color:'#E74C3C'},
+  knightly:{name:'KNIGHTLY',alt:'HONORED',color:'#FFD966'}   // a tier of its own: no card is drawn from it yet (it is not in LOOT_TIERS)
 };
 const LOOT=[
   {id:'scrap',name:'SCRAP',rarity:'common',icon:'S',blurb:'Bent metal. Somebody might want it.'},
@@ -1395,7 +1451,8 @@ const LOOT=[
   {id:'hatchet',name:'HATCHET',rarity:'uncommon',icon:'H',blurb:'Light, quick, easy to carry.'},
   {id:'axe',name:'AXE',rarity:'uncommon',icon:'A',blurb:'Two hands and a long swing.'},
   {id:'hammer',name:'HAMMER',rarity:'rare',icon:'M',blurb:'Heavy. Makes a point.'},
-  {id:'shovel',name:'SHOVEL',rarity:'rare',icon:'V',blurb:'For digging. Or for hitting.'}
+  {id:'shovel',name:'SHOVEL',rarity:'rare',icon:'V',blurb:'For digging. Or for hitting.'},
+  {id:'knightly_sword',name:'KNIGHTLY SWORD',rarity:'knightly',icon:'K',blurb:'Gems that never go dark.'}
 ];
 const LOOT_TIERS=['common','uncommon','rare'];
 const loot={on:false,picked:false,sel:1,cards:[],el:null,chosen:null};
@@ -1487,7 +1544,7 @@ function chestStep(){   // called right after every mixer update
   if(on){
     { const t=(performance.now()-chestT0)/1000-CHEST_POP_DELAY, x=Math.min(1,Math.max(0,t/CHEST_POP_TIME)), c1=1.70158, k=x-1;   // easeOutBack: grows past full size and settles
       chestGrp.scale.setScalar(CHEST_SCALE*Math.max(0.0001,1+(c1+1)*k*k*k+c1*k*k)); }
-    if(swordGrp) swordGrp.visible=false; if(hatchetGrp) hatchetGrp.visible=false; if(hammerGrp) hammerGrp.visible=false;
+    if(swordGrp) swordGrp.visible=false; if(hatchetGrp) hatchetGrp.visible=false; if(hammerGrp) hammerGrp.visible=false; if(knightlyGrp) knightlyGrp.visible=false;
     if(current.time>=CHEST_SFX_AT&&chestPrevT<CHEST_SFX_AT) playChestSfx();   // the lid starts to lift
     chestPrevT=current.time;
     if(chestAct){ chestAct.reset(); chestAct.time=current.time; chestMixer.update(0); }   // lid follows the knight's clock (reset first: the lid clip holds its last pose once it has finished)
@@ -1561,7 +1618,7 @@ function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop,flag:o.flag||0};
 }
 function swooshUse(){
-  const key=weapon==='axe'?'axe':(swordStyle==='hatchet'?'hatchet':swordStyle==='hammer'?'hammer':'sword'), r=swRigs[key]||swRigs.sword; if(!r) return;
+  const key=weapon==='axe'?'axe':(swordStyle==='hatchet'?'hatchet':swordStyle==='hammer'?'hammer':swordStyle==='knightly'?'knightly':'sword'), r=swRigs[key]||swRigs.sword; if(!r) return;
   swTip=r.tip; swAlt=r.alt||null; swHilt=r.hilt; swPivot=r.pivot; swLen=r.len; swWidth=r.width; swStart=r.start; swStop=r.stop; swFlag=r.flag||0; swFlagOn=false; swsh.hasPrev=false; swsh.emit=false;
 }
 const swsh={mesh:null,geo:null,mat:null,pts:[],emit:false,active:false,age:0,hasPrev:false,k:1,
@@ -4265,6 +4322,7 @@ const INV_ROWS=[
   {t:'AXE',    v:()=>(weapon==='axe'&&axeStyle==='axe')?'EQUIPPED':'', run:()=>{ axeStyle='axe'; setWeapon('axe'); showWeapons(); refreshAnim(); }},
   {t:'SHOVEL', v:()=>(weapon==='axe'&&axeStyle==='shovel')?'EQUIPPED':'', run:()=>{ axeStyle='shovel'; setWeapon('axe'); showWeapons(); refreshAnim(); }},
   {t:'HAMMER', v:()=>(weapon==='sword'&&swordStyle==='hammer')?'EQUIPPED':'', run:()=>{ swordStyle='hammer'; setWeapon('sword'); refreshAnim(); }},
+  {t:'KNIGHTLY SWORD', v:()=>(weapon==='sword'&&swordStyle==='knightly')?'EQUIPPED':'', run:()=>{ swordStyle='knightly'; setWeapon('sword'); refreshAnim(); }},
   {t:'POTION', v:()=>'x1', run:()=>{}},
   {t:'BACK',   v:()=>'', run:()=>closeInventory()}];
 function invRefresh(){ if(!invUi) return; [...invUi.querySelectorAll('.mi')].forEach((b,i)=>{ b.classList.toggle('on',i===invCur); b.lastChild.textContent=INV_ROWS[i].v(); }); }
@@ -4316,7 +4374,7 @@ function initMainMenu(){
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
-    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>ualOn?'UNIVERSAL':'KNIGHT',run:toggleUal},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
+    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':swordStyle==='knightly'?'KNIGHTLY':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>ualOn?'UNIVERSAL':'KNIGHT',run:toggleUal},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
     anims_enemies:{name:'ANIMATIONS: ENEMIES',up:'anims',get items(){ return animRows('enemies').concat([BACK_ANIM]); }},
     anims_self:{name:'ANIMATIONS: SELF',up:'anims',get items(){ return animRows('self').concat([BACK_ANIM]); }},
     anims_shop:{name:'ANIMATIONS: SHOPKEEPER',up:'anims',get items(){ return animRows('shop').concat([BACK_ANIM]); }},
@@ -4338,7 +4396,7 @@ function initMainMenu(){
       {t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},BACK_OPT]},
     opt_knight:{name:'KNIGHT',up:'options',items:[
       {t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},
-      {t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>ualOn?'UNIVERSAL':'KNIGHT',run:toggleUal},
+      {t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':swordStyle==='knightly'?'KNIGHTLY':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>ualOn?'UNIVERSAL':'KNIGHT',run:toggleUal},
       {t:'SWOOSH',v:()=>swooshOn?'ON':'OFF',run:toggleSwoosh},
       {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},BACK_OPT]},
     /* Attribution: This work is based on "Low Poly Campfire" (https://sketchfab.com/3d-models/low-poly-campfire-695c62069ac44614acbfc6effcf7499d) by MrE_Sauce (https://sketchfab.com/MrE_Sauce) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Glint and falling-leaf sprites by Kaessis. */
