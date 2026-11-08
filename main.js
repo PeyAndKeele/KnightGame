@@ -1636,7 +1636,7 @@ function danceStep(){
 }
 function stepMixer(dt){
   if(golemOn&&golemMixer){ golemPlace(); const p=golemAct.time; golemMixer.update(dt); if(p<GOLEM_HIT_AT&&golemAct.time>=GOLEM_HIT_AT) playGolemSfx('atk'); }
-  const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease');
+  const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease'||/^UAL_(Sword_Regular|Sword_Heavy|Melee_Hook)/.test(cn));
   if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); return; }
   const n=Math.max(1,Math.ceil(dt/SWOOSH_STEP-1e-6)), h=dt/n;
   for(let i=0;i<n;i++){ mixer.update(h); swooshSample(h); }
@@ -2136,10 +2136,12 @@ function closeLoop(clip,end){
 /* ANIM SET (options): UNIVERSAL plays the retargeted Universal Animation Library clips in place of some of the knight's own. The game keeps asking for Idle / Walk / Swing ... by name, so the swap
    just points those names at the UAL action: every loop mode, finish event and sound cue keeps working. One-shots are stretched to the length of the clip they replace, because the game's timing counts on it. */
 const UAL_ALT={Idle:'UAL_Idle_Shield_Loop',AxeIdle:'UAL_Idle_Shield_Loop',Walk:'UAL_Walk_Loop',Swing:'UAL_Sword_Regular_A',AxeSwing:'UAL_Sword_Regular_C',Hit:'UAL_Hit_Stagger',Block:'UAL_Sword_Block',Drinking_Potion:'UAL_Consume'};
-let ualOn=false; const ualOrig={};
+let ualOn=false; const ualOrig={}, ualAl={};
+/* The game finds its clips by NAME (the swing's sword trail, the sounds that repeat every loop, the footsteps ...). So the UAL clip that replaces Swing is a copy that is itself called 'Swing' (Idle, Walk, Hit ... likewise): everything keyed on those names keeps working. */
+function ualAlias(k,sn){ const key=k+'|'+sn; if(!ualAl[key]){ const c=actions[sn].getClip().clone(); c.name=k; ualAl[key]=mixer.clipAction(c); } return ualAl[key]; }
 function ualApply(){
   Object.keys(UAL_ALT).forEach(k=>{
-    const alt=actions[(k==='Block'&&weapon==='axe')?'UALX_Sword_Block':UAL_ALT[k]]; if(!ualOrig[k]&&actions[k]&&actions[k]!==alt) ualOrig[k]=actions[k];   // (Block with the axe: the game turns the model round again for it, so that one uses the clip in its original hand)
+    const sn=(k==='Block'&&weapon==='axe')?'UALX_Sword_Block':UAL_ALT[k], alt=actions[sn]&&ualAlias(k,sn); if(!ualOrig[k]&&actions[k]&&actions[k]!==alt) ualOrig[k]=actions[k];   // (Block with the axe: the game turns the model round again for it, so that one uses the clip in its original hand)
     const o=ualOrig[k]; if(!o||!alt) return;
     alt.setEffectiveTimeScale(1);
     if(ualOn){ actions[k]=alt; if(!/Idle|Walk|Hit/.test(k)) alt.setDuration(o.getClip().duration); } else actions[k]=o;   // Hit plays at its own speed: squeezed into the knight's 0.26 s it looked wrong
@@ -3381,7 +3383,9 @@ const ANIM_SFX={
   Block:()=>playBlockSfx(),
   Death:()=>playGrunt(DEATH_GRUNT)
 };
-const ANIM_SFX_LOOPS={Swing:1,AxeSwing:1,Hit:1,Block:1};   // clips that loop in the test screen get their sound again every loop (Death plays once)
+const ANIM_SFX_LOOPS={Swing:1,AxeSwing:1,Hit:1,Block:1};
+['UAL_Sword_Regular_A','UAL_Sword_Regular_B','UAL_Sword_Regular_C','UAL_Sword_Regular_Combo','UAL_Sword_Heavy_Combo','UAL_Melee_Hook'].forEach(n=>{ ANIM_SFX[n]=ANIM_SFX.Swing; ANIM_SFX_LOOPS[n]=1; });   // the UAL clips in the ANIMATIONS menu get the same sounds
+ANIM_SFX.UAL_Sword_Block=ANIM_SFX.Block; ANIM_SFX_LOOPS.UAL_Sword_Block=1; ANIM_SFX.UAL_Hit_Stagger=ANIM_SFX.Hit; ANIM_SFX_LOOPS.UAL_Hit_Stagger=1;   // clips that loop in the test screen get their sound again every loop (Death plays once)
 const DEATH_GRUNT=2;   // which of the three grunts Death uses (the longest one); a hit picks one at random
 function playGrunt(i){
   try{
