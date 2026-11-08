@@ -62,7 +62,7 @@ void main(){
 const FS=`
 uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform float uBlackGrey; uniform float uMaskNoShine;
 uniform vec3 uLampCol; uniform float uEmit; varying float vLampD; varying float vLampS;
-uniform float uMagma; uniform float uGem; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
+uniform float uMagma; uniform float uGem; uniform float uBladeGlow; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
 uniform vec3 uLamp2Col; varying float vLamp2D; varying float vLamp2S;
 uniform vec4 uOccF[6]; uniform float uOccN; uniform float uOccGap; uniform float uOccOn; uniform vec2 uOccNear;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying float vEnv; varying float vSpec;
@@ -102,8 +102,10 @@ void main(){
   lit=mix(lit,base*(1.30+0.55*uMagmaPulse)*vec3(1.0,0.94,0.82),mgm);                                // the magma shines from within: brighter than any light would make it, and it swells with the pulse
   float gem=uGem*smoothstep(0.08,0.16,max(tx.r,max(tx.g,tx.b))-min(tx.r,min(tx.g,tx.b)));        // uGem (the Knightly sword): every coloured texel (green, yellow, red, teal ...) glows from within, bright and breathing with the same pulse as the magma; the grey steel does not
   lit=mix(lit,(tx.rgb*(1.85+0.7*uMagmaPulse)+0.12)*uTint,gem);
+  float bgl=uBladeGlow*(1.0-gem);                                                              // uBladeGlow (the Knightly sword's blade): the steel itself glows a little - much less than the gems
+  lit=mix(lit,tx.rgb*(1.12+0.2*uMagmaPulse)*uTint,bgl*0.55);
   lit=mix(lit,base,uEmit);                                                                      // uEmit: 1 on the lantern's bulb itself - it glows instead of being lit
-  vec3 c=mix(lit*mix(uNight,vec3(1.0),max(max(uEmit,mgm),gem))+lampT,uFogColor,vFog);                    // (night does not dim a glow)
+  vec3 c=mix(lit*mix(uNight,vec3(1.0),max(max(uEmit,mgm),max(gem,bgl*0.45)))+lampT,uFogColor,vFog);                    // (night does not dim a glow)
   if(uDither>0.5){
     vec2 p=floor(gl_FragCoord.xy);
     float b=(4.0*b2(p)+b2(floor(p*0.5)))/16.0-0.47;
@@ -172,7 +174,7 @@ function ps1Mat(tex,uvScale){
   tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
   tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
   return new THREE.ShaderMaterial({vertexShader:VS,fragmentShader:FS,side:THREE.DoubleSide,
-    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uMaskNoShine:{value:0},uEmit:{value:0},uMagma:{value:0},uGem:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
+    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uMaskNoShine:{value:0},uEmit:{value:0},uMagma:{value:0},uGem:{value:0},uBladeGlow:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
 }
 function ps1FloorMat(texG,texF,texI,uvScale,H){
   [texG,texF,texI].forEach(tex=>{ tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false; tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true; });
@@ -986,8 +988,7 @@ function initHatchet(parent){
   }).catch(e=>console.error('hatchet load failed',e));
 }
 /* ---------- the Knightly Sword (knightly-sword-data): the shortsword's shape with its own textures, a fifth style for the SWORD. Held exactly like the sword (same mount, animations and swoosh).
-   Its coloured texels glow like the magma on the Ignis Mourne trees (uGem, in the shader) and a soft halo breathes around it (KN_HALO: [how far out it reaches, how strong], one entry per layer). It takes no armor/weapon tint: the colours are its own. ---------- */
-const KN_HALO=[[0.035,0.20],[0.080,0.11],[0.140,0.055]], KN_HALO_COLOR=[1.0,0.95,0.78];
+   Its coloured texels glow like the magma on the Ignis Mourne trees (uGem, in the shader) and the blade steel itself glows a little (uBladeGlow, much weaker). It takes no armor/weapon tint: the colours are its own. ---------- */
 function initKnightly(parent){
   const el=document.getElementById('knightly-sword-data'); if(!el) return;
   const SD=JSON.parse(el.textContent);
@@ -1009,27 +1010,11 @@ function initKnightly(parent){
       geo.setAttribute('uv',new THREE.Float32BufferAttribute(p.uv,2));
       geo.setIndex(p.i);
       const tex=new THREE.Texture(imgs[k]); tex.flipY=false;
-      const kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1;
+      const kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; if(p.name==='blade'||p.name==='blade_tip') kmat.uniforms.uBladeGlow.value=1;   // the blade and its tip glow a little
       const m=new THREE.Mesh(geo,kmat); m.name='knightly_'+p.name;
       m.position.set(p.t[0],p.t[1],p.t[2]); m.rotation.order='ZYX';
       m.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
       grp.add(m);
-      // the halo (blade and its tip only): a few see-through, additive copies of the part, each pushed a little further out. Only their far faces are drawn, so the blade itself hides them: the glow shows around the blade, never over it
-      geo.computeBoundingBox(); const bb=geo.boundingBox, ctr=bb.getCenter(new THREE.Vector3()), ext=bb.getSize(new THREE.Vector3());
-      const w=1;
-      if(p.name==='blade'||p.name==='blade_tip') KN_HALO.forEach(([d,a],li)=>{
-        const hm=new THREE.MeshBasicMaterial({color:new THREE.Color(KN_HALO_COLOR[0],KN_HALO_COLOR[1],KN_HALO_COLOR[2]),transparent:true,opacity:a*w,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.BackSide,fog:false});
-        const h=new THREE.Mesh(geo,hm); h.name='knightly_halo'+li;
-        h.rotation.order='ZYX'; h.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
-        const sx=(ext.x+2*d)/Math.max(ext.x,1e-3), sy=(ext.y+2*d)/Math.max(ext.y,1e-3), sz=(ext.z+2*d)/Math.max(ext.z,1e-3);
-        h.scale.set(sx,sy,sz);
-        // scale about the middle of the part: shift so the middle stays where it was
-        const off=new THREE.Vector3(ctr.x*(1-sx),ctr.y*(1-sy),ctr.z*(1-sz)).applyEuler(h.rotation);
-        h.position.set(p.t[0]+off.x,p.t[1]+off.y,p.t[2]+off.z);
-        h.renderOrder=6; h.frustumCulled=false;
-        h.onBeforeRender=()=>{ hm.opacity=a*w*(0.8+0.4*U.uMagmaPulse.value); };   // it breathes with the gems
-        grp.add(h);
-      });
     });
     fore.add(grp); knightlyGrp=grp;
     swooshAddRig('knightly',grp,parent.getObjectByName(SWORD_HAND+'_Arm')||fore,[0,SWOOSH_TIP_Y,0],[0,SWOOSH_HILT_Y,0],{width:SWOOSH_WIDTH,start:SWOOSH_START_SPEED,stop:SWOOSH_STOP_SPEED});
