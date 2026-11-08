@@ -387,7 +387,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   mixer=new THREE.AnimationMixer(gltf.scene);
   const order=['Idle','AxeIdle','Walk','Swing','AxeSwing','AxeFlaunt','Hit','Death'];
   names=order.filter(n=>gltf.animations.some(a=>a.name===n)).concat(gltf.animations.map(a=>a.name).filter(n=>!order.includes(n)&&n!==EVT_CLIP));
-  menuNames=names.filter(n=>!AXE_BASE[n]&&n!==START_CLIP);   // what the menus list: the axe variants are folded into Idle / Swing / Flaunt, and the start-screen pose (Pose3) is not an animation to browse
+  menuNames=names.filter(n=>!AXE_BASE[n]&&n!==START_CLIP&&!/^UALX_/.test(n));   // what the menus list: the axe variants are folded into Idle / Swing / Flaunt, and the start-screen pose (Pose3) is not an animation to browse
   menuNames.push('GolemAttack');   // the golem's clip (see GOLEM below): not one of the knight's own, it swaps the golem in
   { const gi={enemies:0,self:1,shop:2}; menuNames=menuNames.map((n,i)=>[n,i]).sort((a,b)=>gi[animGroup(a[0])]-gi[animGroup(b[0])]||a[1]-b[1]).map(x=>x[0]); }   // grouped in the order the ANIMATIONS menu shows them (so the cycle keys follow it too)
   if(SNAP_ON) gltf.animations.forEach(a=>{ if(SNAP_CLIPS.includes(a.name)) snapClip(a); });   // see SNAP
@@ -1518,6 +1518,7 @@ function refreshAnim(){   // after the weapon changes: if Idle / Swing / Flaunt 
 }
 function setWeapon(w){
   weapon=w; showWeapons(); applyHandedness();
+  try{ ualApply(); }catch(e){}   // ANIM SET: the axe's Block uses a different clip from the sword's
   swooshHide(); setSwitch('sword',true,w==='axe'?'Axe':'Sword');
 }
 function toggleWeapon(){
@@ -2134,18 +2135,18 @@ function closeLoop(clip,end){
 /* which ANIMATIONS sub-menu a clip belongs to: ENEMIES (the golem's), SHOPKEEPER (the Shop* clips), SELF (everything else - the knight's own) */
 /* ANIM SET (options): UNIVERSAL plays the retargeted Universal Animation Library clips in place of some of the knight's own. The game keeps asking for Idle / Walk / Swing ... by name, so the swap
    just points those names at the UAL action: every loop mode, finish event and sound cue keeps working. One-shots are stretched to the length of the clip they replace, because the game's timing counts on it. */
-const UAL_ALT={Idle:'UAL_Idle_Shield_Loop',AxeIdle:'UAL_Idle_Shield_Loop',Walk:'UAL_Walk_Carry_Loop',Swing:'UAL_Sword_Regular_A',AxeSwing:'UAL_Sword_Regular_C',Hit:'UAL_Hit_Knockback',Block:'UAL_Sword_Block',Drinking_Potion:'UAL_Consume'};
+const UAL_ALT={Idle:'UAL_Idle_Shield_Loop',AxeIdle:'UAL_Idle_Shield_Loop',Walk:'UAL_Walk_Loop',Swing:'UAL_Sword_Regular_A',AxeSwing:'UAL_Sword_Regular_C',Hit:'UAL_Hit_Stagger',Block:'UAL_Sword_Block',Drinking_Potion:'UAL_Consume'};
 let ualOn=false; const ualOrig={};
 function ualApply(){
   Object.keys(UAL_ALT).forEach(k=>{
-    const alt=actions[UAL_ALT[k]]; if(!ualOrig[k]&&actions[k]&&actions[k]!==alt) ualOrig[k]=actions[k];
+    const alt=actions[(k==='Block'&&weapon==='axe')?'UALX_Sword_Block':UAL_ALT[k]]; if(!ualOrig[k]&&actions[k]&&actions[k]!==alt) ualOrig[k]=actions[k];   // (Block with the axe: the game turns the model round again for it, so that one uses the clip in its original hand)
     const o=ualOrig[k]; if(!o||!alt) return;
     alt.setEffectiveTimeScale(1);
-    if(ualOn){ actions[k]=alt; if(!/Idle|Walk/.test(k)) alt.setDuration(o.getClip().duration); } else actions[k]=o;
+    if(ualOn){ actions[k]=alt; if(!/Idle|Walk|Hit/.test(k)) alt.setDuration(o.getClip().duration); } else actions[k]=o;   // Hit plays at its own speed: squeezed into the knight's 0.26 s it looked wrong
   });
 }
 function toggleUal(){
-  let base=null; Object.keys(UAL_ALT).forEach(k=>{ if(current&&(current===actions[k]||current===ualOrig[k]||current===actions[UAL_ALT[k]])) base=k; });
+  let base=null; Object.keys(UAL_ALT).forEach(k=>{ if(current&&(current===actions[k]||current===ualOrig[k]||current===actions[UAL_ALT[k]]||current===actions.UALX_Sword_Block&&k==='Block')) base=k; });
   ualOn=!ualOn; ualApply(); if(base) play(base);
 }
 function animGroup(n){ return n==='GolemAttack'?'enemies':(/^Shop/.test(n)?'shop':'self'); }
