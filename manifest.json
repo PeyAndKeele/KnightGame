@@ -340,6 +340,11 @@
     "url": "swingheavyrelease-data.json"
   },
   {
+    "id": "swing2-data",
+    "type": "application/json",
+    "url": "swing2-data.json"
+  },
+  {
     "id": "swish-sfx-data",
     "type": "application/json",
     "url": "swish-sfx-data.json"
@@ -348,6 +353,11 @@
     "id": "render-swish-sfx-data",
     "type": "application/json",
     "url": "render-swish-sfx-data.json"
+  },
+  {
+    "id": "render-attack-sfx-data",
+    "type": "application/json",
+    "url": "render-attack-sfx-data.json"
   },
   {
     "id": "render-hit-sfx-data",

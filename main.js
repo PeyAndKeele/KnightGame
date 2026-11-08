@@ -2947,6 +2947,18 @@ function startBlock(){
   pl.guard=true; bmToast('GUARDING');   // the enemies' attacks this round do much less damage
   playBlockAnim(); playBlockSfx();
 }
+/* RENDER's finishing blow: one of four attack sounds (render-attack-sfx-data: generic_attack_00038ee1 / 00038ee4 / 000242db / 000242dc), picked at random, never the same twice running,
+   layered with the bluntflesh hit (render-hit-sfx-data) the moment the blade connects. RENDER_ATK_PEAK = where each one's loudest hit sits inside its file; each starts early enough for that
+   to land on the bluntflesh hit's own peak (0.227 s in + the 0.03 s it is delayed). 000242db builds up to its peak (0.56 s), so it just starts with the hit. */
+const RENDER_ATK_GAIN=0.9, RENDER_ATK_PEAK=[0.070,0.094,0.562,0.080], RENDER_HIT_PEAK=0.227;   // RENDER_HIT_PEAK: where the bluntflesh hit is loudest inside its own file
+let renderAtkLast=-1;
+function playRenderAttackLayer(hitStart,track){   // hitStart: seconds from now until the bluntflesh hit STARTS (0.03 in RENDER); track: keep the sound where swishStopAll can cancel it
+  if(hitStart===undefined) hitStart=0.03;
+  let i; do{ i=Math.floor(Math.random()*RENDER_ATK_PEAK.length); }while(i===renderAtkLast&&RENDER_ATK_PEAK.length>1);
+  renderAtkLast=i;
+  const d=hitStart+Math.max(0,RENDER_HIT_PEAK-RENDER_ATK_PEAK[i]);
+  if(track) playSfxSetTracked('render-attack-sfx-data',i,RENDER_ATK_GAIN,1,d); else playSfxSet('render-attack-sfx-data',i,RENDER_ATK_GAIN,1,d);
+}
 const RENDER_GUARD=0.10, RENDER_DAMAGE=25;   // RENDER: the share of each enemy hit it blocks (10%), and what the heavy swing does to EVERY enemy
 function startRender(){
   if(!actions.SwingHeavyWindUp||!actions.SwingHeavyTurnHold||!actions.SwingHeavyRelease){ bmToast('NO RENDER ANIMATION'); return; }
@@ -3228,7 +3240,7 @@ function updateBattle(dt){
     if(bt.stage===0&&bt.t>=actions.SwingHeavyWindUp.getClip().duration){ bt.stage=1; playHeavy('SwingHeavyTurnHold',1,true); afterPlayerAction(); }   // windup done: he holds while the enemies take their turn
   } else if(bt.act==='renderswing'){
     const rd=actions.SwingHeavyRelease.getClip().duration;
-    if(bt.stage===0&&bt.t>=rd*0.45){ bt.stage=1; bt.hold=0; playSfxSet('render-swish-sfx-data',0,0.9,1,0); playSfxSet('render-hit-sfx-data',0,0.9,1,0.03); enemies.forEach(e=>{ if(!e.dead) hurtEnemy(e,RENDER_DAMAGE); }); }   // the blade connects: all targets
+    if(bt.stage===0&&bt.t>=rd*0.45){ bt.stage=1; bt.hold=0; playSfxSet('render-swish-sfx-data',0,0.9,1,0); playSfxSet('render-hit-sfx-data',0,0.9,1,0.03); playRenderAttackLayer(); enemies.forEach(e=>{ if(!e.dead) hurtEnemy(e,RENDER_DAMAGE); }); }   // the blade connects: all targets
     else if(bt.stage===1){ bt.hold+=dt; if(bt.t>=rd&&bt.hold>=HIT_HOLD){ bt.stage=2; enemies.forEach(e=>{ if(!e.dead&&e.hit){ e.idle.reset().fadeIn(0.12).play(); e.hit.fadeOut(0.12); } }); play(idleName()); btEnd(); } }   // btEnd -> victory, or the enemies go again; then he gets to pick
   } else if(bt.act==='potion'){
     const c=current&&current.getClip().name==='Drinking_Potion';
@@ -3437,6 +3449,15 @@ function playSwish(i,delay){   // i: 0..2 medium, 3 large; delay: seconds from n
     swishLive.push(src); src.onended=()=>{ const k=swishLive.indexOf(src); if(k>=0) swishLive.splice(k,1); };
   }catch(_){}
 }
+function playSfxSetTracked(id,i,gain,rate,delay){   // like playSfxSet, but the sound can be cancelled by swishStopAll (the combo finisher: switching animation must not leave it waiting)
+  try{
+    const st=SFX_SETS[id]; if(!sfx||!st||!st.bufs){ playSfxSet(id,i,gain,rate,delay); return; }
+    sfx.resume();
+    const src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=cz(st.bufs[i]); src.playbackRate.value=rate||1; g.gain.value=gain;
+    src.connect(g); g.connect(sfx.destination); src.start(sfx.currentTime+(delay||0));
+    swishLive.push(src); src.onended=()=>{ const k=swishLive.indexOf(src); if(k>=0) swishLive.splice(k,1); };
+  }catch(_){}
+}
 function swishStopAll(){ swishLive.forEach(x=>{ try{ x.stop(); }catch(_){} }); swishLive.length=0; }   // switching animation cancels swishes still waiting for their swing
 function playSwordOld(ts,chop){   // the original swing sounds: the whoosh (or voice 2's shout) plus the knife layer. chop: clip time the whoosh should land on (default SWORD_CHOP_T, the knight's Swing)
   const i=Math.floor(Math.random()*3), c=(chop===undefined?SWORD_CHOP_T:chop)/(ts||1);
@@ -3457,10 +3478,15 @@ const SWISH_COMBO={
   UAL_Sword_Regular_Combo:[[0.167,0.267],[0.667,0.742],[1.1,1.267],[1.483,1.533]],
   UAL_Sword_Heavy_Combo:[[0.333,0.517],[0.967,1.017],[1.108,1.192],[1.692,1.742],[1.82,1.9],[2.0,2.108]]
 };
+const HEAVY_COMBO_FINISH_T=2.108;   // clip time of the Heavy Combo's last, hardest strike (the fastest blade of the whole clip): the bluntflesh hit and one of the four attack sounds land here. The clip carries on ~2 s of recovery after it
 function playSwishClip(n){
   const T=SWISH_COMBO[n]; if(!T){ playSword(1); return; }
   swishStopAll();
   T.forEach(w=>{ const i=swishNext(); playSwordOld(1,w[0]+0.018); playSwish(i,Math.max(0,w[1]-SWISH_PEAK[i])); });
+  if(n==='UAL_Sword_Heavy_Combo'){   // the finishing blow: the bluntflesh hit (as RENDER's) with one of the attack sounds
+    const hs=Math.max(0,HEAVY_COMBO_FINISH_T-RENDER_HIT_PEAK);
+    playSfxSetTracked('render-hit-sfx-data',0,0.9,1,hs); playRenderAttackLayer(hs,true);
+  }
 }
 const STEP_GAIN=0.8, STEP_CLIP_T=0.09;   // STEP_CLIP_T: clip time of the first footfall in the Walk animation (the clip is 0.636 s long)
 function playStep(rate){ playSfxSet('step-data',0,STEP_GAIN,rate,0); }
@@ -3554,7 +3580,7 @@ function playBlockSfx(){
   }catch(_){}
 }
 function blip(f,len){
-  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('swish-sfx-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['render-swish-sfx-data','render-hit-sfx-data','render-charge-sfx-data','golem-atk-sfx-data','golem-pain-sfx-data','golem-spawn-sfx-data'].forEach(loadSfxSet);
+  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('swish-sfx-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['render-swish-sfx-data','render-hit-sfx-data','render-attack-sfx-data','render-charge-sfx-data','golem-atk-sfx-data','golem-pain-sfx-data','golem-spawn-sfx-data'].forEach(loadSfxSet);
     ['v2-sword-sfx-data','v2-block-sfx-data','v2-grunt-data','v2-die-data','v2-flaunt-sfx-data','slime-atk-sfx-data','slime-hit-sfx-data','slime-die-sfx-data','slime-win-sfx-data'].forEach(loadSfxSet);   // voice 2 and the slimes too, so their very first play is not lost
     const o=sfx.createOscillator(), g=sfx.createGain(); o.type='square'; o.frequency.value=f; g.gain.value=0.045;
     o.connect(g); g.connect(sfx.destination); const t=sfx.currentTime; g.gain.setValueAtTime(0.045,t); g.gain.exponentialRampToValueAtTime(0.001,t+len); o.start(t); o.stop(t+len+0.02);
