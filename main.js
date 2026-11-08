@@ -2751,7 +2751,7 @@ function spawnEnemies(){
     }
     const ah=A[k%A.length], ph=P[k%P.length], sh=W[k%W.length];
     const root=(()=>{ const st=[]; knightScene.traverse(o=>{ if(o.userData&&Object.keys(o.userData).length){ st.push([o,o.userData]); o.userData={}; } }); try{ return knightScene.clone(true); } finally{ st.forEach(([o,u])=>{ o.userData=u; }); } })(), cache=new Map(), pTex=[], rocks=[]; root.scale.x=MIRROR_MODEL?-1:1;   // enemies keep the normal handedness whatever the player's weapon
-    root.traverse(o=>{ if(o.name==='Shortsword') o.visible=true; else if(o.name==='Axe'||o.name==='Hatchet'||o.name==='Hammer') o.visible=false; });   // enemies stay with swords + the normal Idle
+    root.traverse(o=>{ if(o.name==='Shortsword') o.visible=true; else if(o.name==='Axe'||o.name==='Hatchet'||o.name==='Hammer'||o.name==='KnightlySword') o.visible=false; });   // enemies stay with swords + the normal Idle
     if(HP.length){   // swap the helmet: show this enemy's set in the clone and hide the rest (clone meshes are found by their position in the hierarchy)
       const hi=HP[k%HP.length], oL=[], cL=[]; knightScene.traverse(o=>oL.push(o)); root.traverse(o=>cL.push(o));
       helmetSets.forEach((set,j)=>set.forEach(m=>{ const cm=cL[oL.indexOf(m)]; if(cm) cm.visible=(j===hi); }));
@@ -2760,7 +2760,8 @@ function spawnEnemies(){
       if(o.name==='SeatRock') rocks.push(o);
       if(!o.isMesh||o.name==='SeatRock') return;
       if(o.name==='H6Face'){ if(helm6.mat) o.material=helm6.mat; o.scale.x=root.scale.x<0?-1:1; return; }   // Helmet 6's face: the same animated material, not tinted like armor
-      const om=o.material; let nm=cache.get(om.uuid);
+      const om=o.material; if(!om.uniforms){ o.visible=false; return; }   /* the Knightly sword's halo (a plain additive material) is left out of copies of the knight */
+      let nm=cache.get(om.uuid);
       if(!nm){
         const src=om.uniforms.map.value, isPl=/Plume$/.test(o.name), isSw=o.name.indexOf('sword_')===0; let tex=src;
         if(isPl){   // each plume needs its own canvas, or all the enemies would share one color
@@ -4136,7 +4137,7 @@ function spawnShopKeeperInBuilding(){
   const root=(()=>{ const st=[]; knightScene.traverse(o=>{ if(o.userData&&Object.keys(o.userData).length){ st.push([o,o.userData]); o.userData={}; } }); try{ return knightScene.clone(true); } finally{ st.forEach(([o,u])=>{ o.userData=u; }); } })();
   const cache=new Map(), pTex=[], rocks=[];
   root.scale.x=MIRROR_MODEL?1:-1;   // the keeper is mirrored the other way from the player, so every shop clip plays flipped left-for-right (mirroring the model is the exact way to mirror an animation: see MIRROR_MODEL)
-  root.traverse(o=>{ if(o.name==='Shortsword'||o.name==='Axe'||o.name==='Hatchet'||o.name==='Hammer') o.visible=false; });
+  root.traverse(o=>{ if(o.name==='Shortsword'||o.name==='Axe'||o.name==='Hatchet'||o.name==='Hammer'||o.name==='KnightlySword') o.visible=false; });
   const h6Idx=Math.max(0,helmetNames.indexOf('Helmet 6')), oL=[], cL=[];
   knightScene.traverse(o=>oL.push(o)); root.traverse(o=>cL.push(o));
   helmetSets.forEach((set,j)=>set.forEach(m=>{ const cm=cL[oL.indexOf(m)]; if(cm) cm.visible=(j===h6Idx); }));
@@ -4146,7 +4147,8 @@ function spawnShopKeeperInBuilding(){
     if(o.name==='SeatRock') rocks.push(o);
     if(!o.isMesh||o.name==='SeatRock') return;
     if(o.name==='H6Face'){ shopFaceAttach(o,root); o.frustumCulled=false; return; }   // the keeper's own animated face (shop-face-data), not tinted
-    const om=o.material; let nm=cache.get(om.uuid);
+    const om=o.material; if(!om.uniforms){ o.visible=false; return; }   /* the Knightly sword's halo (a plain additive material) is left out of copies of the knight */
+      let nm=cache.get(om.uuid);
     if(!nm){
       const src=om.uniforms.map.value, isPl=/Plume$/.test(o.name); let tex=src;
       if(isPl){
