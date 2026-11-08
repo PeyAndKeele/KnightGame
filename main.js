@@ -4343,6 +4343,7 @@ function closeInventory(){
 }
 addEventListener('keydown',e=>{
   if(!invOn||invCust) return; const k=e.key;
+  e.stopImmediatePropagation();   // this key is the inventory's alone: otherwise, once it closes the inventory, the main menu's own handler sees the same key press (Escape = back to the START SCREEN, Enter = a menu item)
   if(k==='c'||k==='C'||k==='Tab'){ e.preventDefault(); invShowCust(); return; }
   if(k==='Escape'||k==='Backspace'){ e.preventDefault(); blip(300,0.08); closeInventory(); }
   else if(k==='ArrowDown'||k==='s'){ e.preventDefault(); invSelect(invCur+1,true); }
