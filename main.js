@@ -282,7 +282,7 @@ const SEAT_TAIL=0.583;   // seconds added to the Pose2 loop so it can ease back 
    Keys stay exactly where they are, so every hit time, whoosh and sound that is tied to a key still lines up; only the motion BETWEEN keys changes. In each track the single fastest big move
    is the strike: it eases IN (slow start, arrives hard on its key). Every other big move pops: it finishes in the first SNAP_SPAN of its time and holds. Small moves stay as they were, so
    breathing and settling keep flowing. Loops (Idle, Walk, BlockIdle, the holds) and the shop / seated poses are left alone. Set SNAP_ON=false for the old motion. */
-const SNAP_ON=true, SNAP_CLIPS=['Hit','Swing','AxeSwing','Flaunt','AxeFlaunt','Block','Death','Drinking_Potion','SwingHeavyWindUp','SwingHeavyRelease'];
+const SNAP_ON=true, SNAP_CLIPS=['Hit','AxeSwing','Flaunt','AxeFlaunt','Block','Death','Drinking_Potion','SwingHeavyWindUp','SwingHeavyRelease'];
 const SNAP_ANGLE=0.45, SNAP_MOVE=0.08, SNAP_SPAN=0.6, SNAP_STEPS=6;   // what counts as a big move (radians / units), how much of a segment a pop takes, samples per snapped segment
 function snapClip(clip){
   clip.tracks=clip.tracks.map(tr=>{
@@ -362,7 +362,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   })();
   /* AxeIdle (the axe's idle) and AxeSwing (its swing, the rig's Swing3): embedded as axeidle-data / axeswing-data and added exactly like Death above.
      They are used whenever the Axe is the chosen weapon; the sword keeps Idle and Swing. */
-  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','dance-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data','swingheavywindup-data','swingheavyturnhold-data','swingheavyrelease-data'].forEach(function(id){
+  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','dance-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data','swingheavywindup-data','swingheavyturnhold-data','swingheavyrelease-data','swing2-data'].forEach(function(id){
     const el=document.getElementById(id); if(!el) return;
     const D=JSON.parse(el.textContent), base={};
     if((id==='axeswing-data'&&AXE_SWING_REVERSE)||D.rev){   // play the swing backwards: keyframes in reverse order, times counted from the end
@@ -372,6 +372,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
     gltf.animations.forEach(a=>a.tracks.forEach(t=>{ const b=t.name.slice(0,t.name.lastIndexOf('.')); base[b.replace(/_\d+$/,'')]=b; }));
     const tr=D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); });
     if(id==='block-data'){ const old=gltf.animations.findIndex(a=>a.name==='Block'); if(old>=0) gltf.animations.splice(old,1); }   // the new Block replaces the rig's own
+    if(id==='swing2-data'){ const old=gltf.animations.findIndex(a=>a.name==='Swing'); if(old>=0) gltf.animations.splice(old,1); }   // Swing2 (from the rig) replaces the knight's own Swing; it keeps the name Swing so everything keyed on it still works
     gltf.animations.push(new THREE.AnimationClip(D.name,-1,tr));
   });
   /* Chestopen: the rig's own chest-opening clip (embedded below as CHESTOPEN_CLIP, same track format as the other embedded clips). It lists itself in the animation menus; the chest it opens is built in initChest. */
@@ -1010,13 +1011,14 @@ function initKnightly(parent){
       geo.setIndex(p.i);
       const tex=new THREE.Texture(imgs[k]); tex.flipY=false;
       const kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; kmat.uniforms.uBladeGlow.value=(p.name==='blade'||p.name==='blade_tip')?1:0.8;   // the steel is pushed far towards white: the blade fully, the guard / pommel / grip a little less, so they read slightly darker
+      if(p.name==='blade') knightlyBladeMat=kmat;
       kmat.userData.tintAmt=1; swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);   // it follows the weapon colour like the other swords, at full strength
       const m=new THREE.Mesh(geo,kmat); m.name='knightly_'+p.name;
       m.position.set(p.t[0],p.t[1],p.t[2]); m.rotation.order='ZYX';
       m.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
       grp.add(m);
     });
-    fore.add(grp); knightlyGrp=grp; sampleKnightlyTint(imgs);
+    fore.add(grp); knightlyGrp=grp;
     swooshAddRig('knightly',grp,parent.getObjectByName(SWORD_HAND+'_Arm')||fore,[0,SWOOSH_TIP_Y,0],[0,SWOOSH_HILT_Y,0],{width:SWOOSH_WIDTH,start:SWOOSH_START_SPEED,stop:SWOOSH_STOP_SPEED});
     showWeapons();
   }).catch(e=>console.error('knightly sword load failed',e));
@@ -1602,33 +1604,14 @@ function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   let alt=null; if(o.alt){ alt=new THREE.Object3D(); alt.position.set(o.alt[0],o.alt[1],o.alt[2]); grp.add(alt); }
   swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop,flag:o.flag||0};
 }
-/* The Knightly Sword's swing trail takes a faint tint sampled from the sword itself (see sampleKnightlyTint): the average colour of its coloured (gem) texels, brightened to full strength.
-   SWOOSH_TINT_AMT = how much of it is washed in: 0 = none, 1 = the trail multiplied by the full gem colour. */
+/* The Knightly Sword's swing trail takes a faint tint of the sword's OWN colour: it is read live from the sword's blade material (its tint uniform, the colour the steel is showing),
+   so it follows whatever colour the sword has been given. SWOOSH_TINT_AMT = how much is washed in: 0 = none, 1 = the trail multiplied by the full sword colour. */
 const SWOOSH_TINT_AMT=0.4;
-let swKnightlyTint=null, swTintOn=false;
+let swTintOn=false, knightlyBladeMat=null;
 function swooshApplyTint(){
   if(!swsh.mat) return;
-  const u=swsh.mat.uniforms, c=swKnightlyTint||[1,1,1];
-  u.uTint.value.set(c[0],c[1],c[2]); u.uTintAmt.value=(swTintOn&&swKnightlyTint)?SWOOSH_TINT_AMT:0;
-}
-function sampleKnightlyTint(imgs){   // average the saturated texels of the sword's textures (the gems), weighted by how saturated they are; the grey steel and the dark grip are skipped
-  try{
-    let r=0,g=0,b=0,w=0;
-    imgs.forEach(im=>{
-      const W=im.naturalWidth||im.width, H=im.naturalHeight||im.height; if(!W||!H) return;
-      const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const cx=cv.getContext('2d'); cx.drawImage(im,0,0);
-      const d=cx.getImageData(0,0,W,H).data;
-      for(let i=0;i<d.length;i+=4){
-        if(d[i+3]<128) continue;
-        const mx=Math.max(d[i],d[i+1],d[i+2]), mn=Math.min(d[i],d[i+1],d[i+2]), sat=mx?(mx-mn)/mx:0;
-        if(sat<0.3||mx<80) continue;
-        const k=sat*sat; r+=d[i]*k; g+=d[i+1]*k; b+=d[i+2]*k; w+=k;
-      }
-    });
-    if(!(w>0)) return;
-    r/=w; g/=w; b/=w; const m=Math.max(r,g,b)||1;
-    swKnightlyTint=[r/m,g/m,b/m]; swooshApplyTint();
-  }catch(e){ console.error('knightly tint sample failed',e); }
+  const u=swsh.mat.uniforms, v=(swTintOn&&knightlyBladeMat)?knightlyBladeMat.uniforms.uTint.value:null;
+  if(v){ u.uTint.value.set(v.x,v.y,v.z); u.uTintAmt.value=SWOOSH_TINT_AMT; } else { u.uTint.value.set(1,1,1); u.uTintAmt.value=0; }
 }
 function swooshUse(){
   const key=weapon==='axe'?'axe':(swordStyle==='hatchet'?'hatchet':swordStyle==='hammer'?'hammer':swordStyle==='knightly'?'knightly':'sword'), r=swRigs[key]||swRigs.sword; if(!r) return;
@@ -1688,6 +1671,7 @@ function swooshSample(h){
   if(!swsh.emit) swsh.alt=!!swAlt&&sp2>sp1;                    // a double-bitted head: the bit that is moving faster leads, and keeps the trail for this swing
   const cur=swsh.alt?a2:a, speed=swsh.alt?sp2:sp1, prev=swsh.alt?swsh.prevP2:swsh.prevP;
   if(!swsh.emit&&current&&current.time>=SWOOSH_MIN_CLIP_T&&speed>=swStart){
+    swooshApplyTint();   // pick up the sword's colour as it is right now
     swsh.emit=true; swsh.active=true; swsh.age=0; swsh.pts.length=0;
     swsh.pts.push({p:prev.clone(),c:swsh.prevC.clone()});                             // start from where the blade just was
   }
@@ -3431,9 +3415,9 @@ const KNIFE_GAIN=0.8, KNIFE_PEAK=0.045;   // knife-sfx-data: FUEL_VAB_00000 knif
 const V2_SWORD_ONSET=[0.013,0.015,0.013];
 /* ---------- swing swishes (swish-sfx-data: wpn_swish_medium_01..03 + wpn_swish_large_01) ----------
    Light weapons (sword, knightly sword, hatchet) play one of the three medium swishes; the heavy class (axe, shovel, hammer) plays the large one.
-   Each is timed so the loudest part of the swish (SWISH_PEAK: seconds into the file) lands on the chop of the swing animation (SWISH_CHOP_T: clip time of the chop, ~0.39 s in Swing and AxeSwing).
-   Mediums come out of a shuffled bag, so none repeats until all three have played. Voice 2 keeps her sword shout on top. */
-const SWISH_GAIN=0.85, SWISH_CHOP_T=0.39, SWISH_PEAK=[0.174,0.142,0.103,0.222];   // SWISH_PEAK order: medium 1, 2, 3, large
+   Each is timed so the loudest part of the swish (SWISH_PEAK: seconds into the file) lands on the chop of the swing animation (SWISH_CHOP_T: clip time of the chop, ~0.40 s in Swing and AxeSwing).
+   Mediums come out of a shuffled bag, so none repeats until all three have played. The original sword sounds still play with them. */
+const SWISH_GAIN=0.85, SWISH_CHOP_T=0.40, SWISH_PEAK=[0.174,0.142,0.103,0.222];   // SWISH_PEAK order: medium 1, 2, 3, large
 let swishBag=[], swishLast=-1, swishLive=[];
 function swishNext(){   // the next medium swish (0..2): a shuffled bag of the three, never the same one twice running
   if(!swishBag.length){
@@ -3454,23 +3438,29 @@ function playSwish(i,delay){   // i: 0..2 medium, 3 large; delay: seconds from n
   }catch(_){}
 }
 function swishStopAll(){ swishLive.forEach(x=>{ try{ x.stop(); }catch(_){} }); swishLive.length=0; }   // switching animation cancels swishes still waiting for their swing
-function playSword(ts){
+function playSwordOld(ts,chop){   // the original swing sounds: the whoosh (or voice 2's shout) plus the knife layer. chop: clip time the whoosh should land on (default SWORD_CHOP_T, the knight's Swing)
+  const i=Math.floor(Math.random()*3), c=(chop===undefined?SWORD_CHOP_T:chop)/(ts||1);
+  if(voice==='voice2') playSfxSet('v2-sword-sfx-data',i,V2_SWORD_GAIN,1,Math.max(0,c-V2_SWORD_ONSET[i]));
+  else playSfxSet('sword-sfx-data',i,SWORD_GAIN,1,Math.max(0,c-SWORD_ONSET[i]));
+  playSfxSet('knife-sfx-data',0,KNIFE_GAIN,1,Math.max(0,c-KNIFE_PEAK));
+}
+function playSword(ts){   // every swing: the original sounds, with the class swish played alongside them
+  playSwordOld(ts);
   const i=swishHeavy()?3:swishNext();
   playSwish(i,Math.max(0,SWISH_CHOP_T/(ts||1)-SWISH_PEAK[i]/(ts||1)));
-  if(voice==='voice2'){ const j=Math.floor(Math.random()*3); playSfxSet('v2-sword-sfx-data',j,V2_SWORD_GAIN,1,Math.max(0,SWORD_CHOP_T/(ts||1)-V2_SWORD_ONSET[j])); }
 }
-/* The UAL combos hold several swings in one clip. Each swing gets the next medium swish from the bag, one after the other (SWISH_COMBO: clip times of each swing's peak, read off the speed of the hand in the clip).
-   The single UAL swings get one swish timed to their own peak instead of the 0.39 s of the knight's Swing. */
+/* The UAL swings. Every swing in a clip gets BOTH the original swing sounds (whoosh + knife, landing as the blade starts to move fast) AND the next medium swish from the bag (its loudest part on the fastest moment),
+   one swing after the other, so the combos never repeat a swish until all three have played. SWISH_COMBO lists each swing as [start, peak]: the clip times (s) where the blade tip gets fast and where it is fastest,
+   read off the tip's speed with the sword mounted as in the game (the same speed test the swing trail uses). Swing2 itself works out at start 0.34 / peak 0.41, which is where SWORD_CHOP_T / SWISH_CHOP_T come from. */
 const SWISH_COMBO={
-  UAL_Sword_Regular_A:[0.25], UAL_Sword_Regular_B:[0.25], UAL_Sword_Regular_C:[0.3,0.72], UAL_Melee_Hook:[0.1],
-  UAL_Sword_Regular_Combo:[0.27,1.56,2.13],
-  UAL_Sword_Heavy_Combo:[0.52,1.04,1.75,2.1,2.6]
+  UAL_Sword_Regular_A:[[0.167,0.267]], UAL_Sword_Regular_B:[[0.208,0.242]], UAL_Sword_Regular_C:[[0.22,0.283],[0.558,0.742]], UAL_Melee_Hook:[[0.15,0.233]],
+  UAL_Sword_Regular_Combo:[[0.167,0.267],[0.667,0.742],[1.1,1.267],[1.483,1.533]],
+  UAL_Sword_Heavy_Combo:[[0.333,0.517],[0.967,1.017],[1.108,1.192],[1.692,1.742],[1.82,1.9],[2.0,2.108]]
 };
 function playSwishClip(n){
   const T=SWISH_COMBO[n]; if(!T){ playSword(1); return; }
   swishStopAll();
-  T.forEach(t=>{ const i=swishNext(); playSwish(i,Math.max(0,t-SWISH_PEAK[i])); });
-  if(voice==='voice2'){ const j=Math.floor(Math.random()*3); playSfxSet('v2-sword-sfx-data',j,V2_SWORD_GAIN,1,Math.max(0,T[0]-V2_SWORD_ONSET[j])); }
+  T.forEach(w=>{ const i=swishNext(); playSwordOld(1,w[0]+0.018); playSwish(i,Math.max(0,w[1]-SWISH_PEAK[i])); });
 }
 const STEP_GAIN=0.8, STEP_CLIP_T=0.09;   // STEP_CLIP_T: clip time of the first footfall in the Walk animation (the clip is 0.636 s long)
 function playStep(rate){ playSfxSet('step-data',0,STEP_GAIN,rate,0); }
