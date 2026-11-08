@@ -1016,7 +1016,7 @@ function initKnightly(parent){
       m.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
       grp.add(m);
     });
-    fore.add(grp); knightlyGrp=grp;
+    fore.add(grp); knightlyGrp=grp; sampleKnightlyTint(imgs);
     swooshAddRig('knightly',grp,parent.getObjectByName(SWORD_HAND+'_Arm')||fore,[0,SWOOSH_TIP_Y,0],[0,SWOOSH_HILT_Y,0],{width:SWOOSH_WIDTH,start:SWOOSH_START_SPEED,stop:SWOOSH_STOP_SPEED});
     showWeapons();
   }).catch(e=>console.error('knightly sword load failed',e));
@@ -1602,8 +1602,37 @@ function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   let alt=null; if(o.alt){ alt=new THREE.Object3D(); alt.position.set(o.alt[0],o.alt[1],o.alt[2]); grp.add(alt); }
   swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop,flag:o.flag||0};
 }
+/* The Knightly Sword's swing trail takes a faint tint sampled from the sword itself (see sampleKnightlyTint): the average colour of its coloured (gem) texels, brightened to full strength.
+   SWOOSH_TINT_AMT = how much of it is washed in: 0 = none, 1 = the trail multiplied by the full gem colour. */
+const SWOOSH_TINT_AMT=0.4;
+let swKnightlyTint=null, swTintOn=false;
+function swooshApplyTint(){
+  if(!swsh.mat) return;
+  const u=swsh.mat.uniforms, c=swKnightlyTint||[1,1,1];
+  u.uTint.value.set(c[0],c[1],c[2]); u.uTintAmt.value=(swTintOn&&swKnightlyTint)?SWOOSH_TINT_AMT:0;
+}
+function sampleKnightlyTint(imgs){   // average the saturated texels of the sword's textures (the gems), weighted by how saturated they are; the grey steel and the dark grip are skipped
+  try{
+    let r=0,g=0,b=0,w=0;
+    imgs.forEach(im=>{
+      const W=im.naturalWidth||im.width, H=im.naturalHeight||im.height; if(!W||!H) return;
+      const cv=document.createElement('canvas'); cv.width=W; cv.height=H; const cx=cv.getContext('2d'); cx.drawImage(im,0,0);
+      const d=cx.getImageData(0,0,W,H).data;
+      for(let i=0;i<d.length;i+=4){
+        if(d[i+3]<128) continue;
+        const mx=Math.max(d[i],d[i+1],d[i+2]), mn=Math.min(d[i],d[i+1],d[i+2]), sat=mx?(mx-mn)/mx:0;
+        if(sat<0.3||mx<80) continue;
+        const k=sat*sat; r+=d[i]*k; g+=d[i+1]*k; b+=d[i+2]*k; w+=k;
+      }
+    });
+    if(!(w>0)) return;
+    r/=w; g/=w; b/=w; const m=Math.max(r,g,b)||1;
+    swKnightlyTint=[r/m,g/m,b/m]; swooshApplyTint();
+  }catch(e){ console.error('knightly tint sample failed',e); }
+}
 function swooshUse(){
   const key=weapon==='axe'?'axe':(swordStyle==='hatchet'?'hatchet':swordStyle==='hammer'?'hammer':swordStyle==='knightly'?'knightly':'sword'), r=swRigs[key]||swRigs.sword; if(!r) return;
+  swTintOn=(key==='knightly'); swooshApplyTint();
   swTip=r.tip; swAlt=r.alt||null; swHilt=r.hilt; swPivot=r.pivot; swLen=r.len; swWidth=r.width; swStart=r.start; swStop=r.stop; swFlag=r.flag||0; swFlagOn=false; swsh.hasPrev=false; swsh.emit=false;
 }
 const swsh={mesh:null,geo:null,mat:null,pts:[],emit:false,active:false,age:0,hasPrev:false,k:1,
@@ -1618,12 +1647,12 @@ void main(){
   gl_Position=cp; vUv=uv;
 }`;
 const SWOOSH_FS=`
-uniform sampler2D map; uniform float uFrame; uniform float uFrames; uniform float uFade; varying vec2 vUv;
+uniform sampler2D map; uniform float uFrame; uniform float uFrames; uniform float uFade; uniform vec3 uTint; uniform float uTintAmt; varying vec2 vUv;
 void main(){
   if(uFade<0.999 && fract(dot(floor(gl_FragCoord.xy),vec2(0.7548776662,0.5698402910)))>=uFade) discard;   // fade in/out as a dither, to match the picture
   vec4 tx=texture2D(map,vec2((uFrame+clamp(vUv.x,0.002,0.998))/uFrames,clamp(vUv.y,0.002,0.998)));
   if(tx.a<0.5) discard;
-  gl_FragColor=vec4(tx.rgb,1.0);
+  gl_FragColor=vec4(mix(tx.rgb,tx.rgb*uTint,uTintAmt),1.0);   // a faint wash of the weapon's colour (uTintAmt is 0 for every weapon but the Knightly Sword)
 }`;
 function initSwoosh(grp,parent){
   swTip=new THREE.Object3D(); swTip.position.set(0,SWOOSH_TIP_Y,0); grp.add(swTip);
@@ -1635,7 +1664,8 @@ function initSwoosh(grp,parent){
     const tex=new THREE.Texture(img); tex.flipY=false; tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
     tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
     swsh.mat=new THREE.ShaderMaterial({vertexShader:SWOOSH_VS,fragmentShader:SWOOSH_FS,side:THREE.DoubleSide,
-      uniforms:{map:{value:tex},uFrame:{value:0},uFrames:{value:SWOOSH_FRAMES},uFade:{value:1},uRes:U.uRes,uSnap:U.uSnap}});
+      uniforms:{map:{value:tex},uFrame:{value:0},uFrames:{value:SWOOSH_FRAMES},uFade:{value:1},uTint:{value:new THREE.Vector3(1,1,1)},uTintAmt:{value:0},uRes:U.uRes,uSnap:U.uSnap}});
+    swooshApplyTint();
     const M=SWOOSH_MAXPTS, geo=new THREE.BufferGeometry();
     const pa=new THREE.BufferAttribute(new Float32Array(M*2*3),3), ua=new THREE.BufferAttribute(new Float32Array(M*2*2),2);
     pa.setUsage(THREE.DynamicDrawUsage); ua.setUsage(THREE.DynamicDrawUsage);
@@ -2126,6 +2156,7 @@ function play(n){
   const isFlaunt=(n==='Flaunt'||n==='AxeFlaunt'||n===FLAUNT_IDLE); if(isFlaunt!==flauntWant){ flauntWant=isFlaunt; syncAudio(); }   // either flaunt brings in the flaunt song
   { const isD=(n==='Dance'); if(isD!==danceWant){ danceWant=isD; syncAudio(); } }   // the Dance animation brings in its own song
   if(n===EVT_CLIP) return;
+  swishStopAll();
   evtDue=evtGo=evtDone=flauntDone=false;
   const next=actions[n], fd=(n===FLAUNT_IDLE)?0.3:0.12;   // fd: the hand-off from AxeFlaunt into its idle is eased a little longer
   if(evtPlaying){ actions[EVT_CLIP].fadeOut(0.12); evtPlaying=false; }
@@ -3398,11 +3429,48 @@ const V2_GRUNT_GAIN=0.63, V2_DIE_GAIN=0.68, V2_FLAUNT_GAIN=0.62, V2_SWORD_GAIN=0
 const SWORD_GAIN=0.75, SWORD_ONSET=[0.34,0,0], SWORD_CHOP_T=0.36;   // SWORD_ONSET: where the whoosh starts inside each file; SWORD_CHOP_T: clip time of the chop in the Swing animation
 const KNIFE_GAIN=0.8, KNIFE_PEAK=0.045;   // knife-sfx-data: FUEL_VAB_00000 knife swing, layered on every swing (sword and axe); KNIFE_PEAK = where its loudest hit sits inside the file
 const V2_SWORD_ONSET=[0.013,0.015,0.013];
+/* ---------- swing swishes (swish-sfx-data: wpn_swish_medium_01..03 + wpn_swish_large_01) ----------
+   Light weapons (sword, knightly sword, hatchet) play one of the three medium swishes; the heavy class (axe, shovel, hammer) plays the large one.
+   Each is timed so the loudest part of the swish (SWISH_PEAK: seconds into the file) lands on the chop of the swing animation (SWISH_CHOP_T: clip time of the chop, ~0.39 s in Swing and AxeSwing).
+   Mediums come out of a shuffled bag, so none repeats until all three have played. Voice 2 keeps her sword shout on top. */
+const SWISH_GAIN=0.85, SWISH_CHOP_T=0.39, SWISH_PEAK=[0.174,0.142,0.103,0.222];   // SWISH_PEAK order: medium 1, 2, 3, large
+let swishBag=[], swishLast=-1, swishLive=[];
+function swishNext(){   // the next medium swish (0..2): a shuffled bag of the three, never the same one twice running
+  if(!swishBag.length){
+    swishBag=[0,1,2]; for(let i=2;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [swishBag[i],swishBag[j]]=[swishBag[j],swishBag[i]]; }
+    if(swishBag[swishBag.length-1]===swishLast){ const j=Math.floor(Math.random()*(swishBag.length-1)); [swishBag[swishBag.length-1],swishBag[j]]=[swishBag[j],swishBag[swishBag.length-1]]; }   // the next one popped must not repeat the last played
+  }
+  return swishLast=swishBag.pop();
+}
+function swishHeavy(){ return weapon==='axe'||swordStyle==='hammer'; }   // the heavy weapon class
+function playSwish(i,delay){   // i: 0..2 medium, 3 large; delay: seconds from now until the swish STARTS
+  try{
+    if(!sfx) return;
+    const s=SFX_SETS['swish-sfx-data']; if(!s||!s.bufs){ const l=loadSfxSet('swish-sfx-data'), t0=performance.now(); if(l) l.then(()=>{ const left=(delay||0)-(performance.now()-t0)/1000; if(left>-0.15&&SFX_SETS['swish-sfx-data']&&SFX_SETS['swish-sfx-data'].bufs) playSwish(i,Math.max(0,left)); }); return; }
+    sfx.resume();
+    const src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=cz(s.bufs[i]); g.gain.value=SWISH_GAIN;
+    src.connect(g); g.connect(sfx.destination); src.start(sfx.currentTime+Math.max(0,delay||0));
+    swishLive.push(src); src.onended=()=>{ const k=swishLive.indexOf(src); if(k>=0) swishLive.splice(k,1); };
+  }catch(_){}
+}
+function swishStopAll(){ swishLive.forEach(x=>{ try{ x.stop(); }catch(_){} }); swishLive.length=0; }   // switching animation cancels swishes still waiting for their swing
 function playSword(ts){
-  const i=Math.floor(Math.random()*3);
-  if(voice==='voice2') playSfxSet('v2-sword-sfx-data',i,V2_SWORD_GAIN,1,Math.max(0,SWORD_CHOP_T/(ts||1)-V2_SWORD_ONSET[i]));
-  else playSfxSet('sword-sfx-data',i,SWORD_GAIN,1,Math.max(0,SWORD_CHOP_T/(ts||1)-SWORD_ONSET[i]));
-  playSfxSet('knife-sfx-data',0,KNIFE_GAIN,1,Math.max(0,SWORD_CHOP_T/(ts||1)-KNIFE_PEAK));
+  const i=swishHeavy()?3:swishNext();
+  playSwish(i,Math.max(0,SWISH_CHOP_T/(ts||1)-SWISH_PEAK[i]/(ts||1)));
+  if(voice==='voice2'){ const j=Math.floor(Math.random()*3); playSfxSet('v2-sword-sfx-data',j,V2_SWORD_GAIN,1,Math.max(0,SWORD_CHOP_T/(ts||1)-V2_SWORD_ONSET[j])); }
+}
+/* The UAL combos hold several swings in one clip. Each swing gets the next medium swish from the bag, one after the other (SWISH_COMBO: clip times of each swing's peak, read off the speed of the hand in the clip).
+   The single UAL swings get one swish timed to their own peak instead of the 0.39 s of the knight's Swing. */
+const SWISH_COMBO={
+  UAL_Sword_Regular_A:[0.25], UAL_Sword_Regular_B:[0.25], UAL_Sword_Regular_C:[0.3,0.72], UAL_Melee_Hook:[0.1],
+  UAL_Sword_Regular_Combo:[0.27,1.56,2.13],
+  UAL_Sword_Heavy_Combo:[0.52,1.04,1.75,2.1,2.6]
+};
+function playSwishClip(n){
+  const T=SWISH_COMBO[n]; if(!T){ playSword(1); return; }
+  swishStopAll();
+  T.forEach(t=>{ const i=swishNext(); playSwish(i,Math.max(0,t-SWISH_PEAK[i])); });
+  if(voice==='voice2'){ const j=Math.floor(Math.random()*3); playSfxSet('v2-sword-sfx-data',j,V2_SWORD_GAIN,1,Math.max(0,T[0]-V2_SWORD_ONSET[j])); }
 }
 const STEP_GAIN=0.8, STEP_CLIP_T=0.09;   // STEP_CLIP_T: clip time of the first footfall in the Walk animation (the clip is 0.636 s long)
 function playStep(rate){ playSfxSet('step-data',0,STEP_GAIN,rate,0); }
@@ -3427,7 +3495,7 @@ const ANIM_SFX={
   Death:()=>playGrunt(DEATH_GRUNT)
 };
 const ANIM_SFX_LOOPS={Swing:1,AxeSwing:1,Hit:1,Block:1};
-['UAL_Sword_Regular_A','UAL_Sword_Regular_B','UAL_Sword_Regular_C','UAL_Sword_Regular_Combo','UAL_Sword_Heavy_Combo','UAL_Melee_Hook'].forEach(n=>{ ANIM_SFX[n]=ANIM_SFX.Swing; ANIM_SFX_LOOPS[n]=1; });   // the UAL clips in the ANIMATIONS menu get the same sounds
+['UAL_Sword_Regular_A','UAL_Sword_Regular_B','UAL_Sword_Regular_C','UAL_Sword_Regular_Combo','UAL_Sword_Heavy_Combo','UAL_Melee_Hook'].forEach(n=>{ ANIM_SFX[n]=()=>playSwishClip(n); ANIM_SFX_LOOPS[n]=1; });   // the UAL clips in the ANIMATIONS menu get the same sounds
 ANIM_SFX.UAL_Sword_Block=ANIM_SFX.Block; ANIM_SFX_LOOPS.UAL_Sword_Block=1; ANIM_SFX.UAL_Hit_Stagger=ANIM_SFX.Hit; ANIM_SFX_LOOPS.UAL_Hit_Stagger=1;   // clips that loop in the test screen get their sound again every loop (Death plays once)
 const DEATH_GRUNT=2;   // which of the three grunts Death uses (the longest one); a hit picks one at random
 function playGrunt(i){
@@ -3496,7 +3564,7 @@ function playBlockSfx(){
   }catch(_){}
 }
 function blip(f,len){
-  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['render-swish-sfx-data','render-hit-sfx-data','render-charge-sfx-data','golem-atk-sfx-data','golem-pain-sfx-data','golem-spawn-sfx-data'].forEach(loadSfxSet);
+  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('swish-sfx-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['render-swish-sfx-data','render-hit-sfx-data','render-charge-sfx-data','golem-atk-sfx-data','golem-pain-sfx-data','golem-spawn-sfx-data'].forEach(loadSfxSet);
     ['v2-sword-sfx-data','v2-block-sfx-data','v2-grunt-data','v2-die-data','v2-flaunt-sfx-data','slime-atk-sfx-data','slime-hit-sfx-data','slime-die-sfx-data','slime-win-sfx-data'].forEach(loadSfxSet);   // voice 2 and the slimes too, so their very first play is not lost
     const o=sfx.createOscillator(), g=sfx.createGain(); o.type='square'; o.frequency.value=f; g.gain.value=0.045;
     o.connect(g); g.connect(sfx.destination); const t=sfx.currentTime; g.gain.setValueAtTime(0.045,t); g.gain.exponentialRampToValueAtTime(0.001,t+len); o.start(t); o.stop(t+len+0.02);

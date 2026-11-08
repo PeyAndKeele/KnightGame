@@ -340,6 +340,11 @@
     "url": "swingheavyrelease-data.json"
   },
   {
+    "id": "swish-sfx-data",
+    "type": "application/json",
+    "url": "swish-sfx-data.json"
+  },
+  {
     "id": "render-swish-sfx-data",
     "type": "application/json",
     "url": "render-swish-sfx-data.json"
