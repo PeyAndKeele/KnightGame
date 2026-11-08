@@ -374,6 +374,14 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   /* Chestopen: the rig's own chest-opening clip (embedded below as CHESTOPEN_CLIP, same track format as the other embedded clips). It lists itself in the animation menus; the chest it opens is built in initChest. */
   { const base={}; gltf.animations.forEach(a=>a.tracks.forEach(t=>{ const b=t.name.slice(0,t.name.lastIndexOf('.')); base[b.replace(/_\d+$/,'')]=b; }));
     [CHESTOPEN_CLIP,CARSHDANCE_CLIP].forEach(D=>gltf.animations.push(new THREE.AnimationClip(D.name,-1,D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); })))); }   // CARSHDANCE: see CARSHDANCE_CLIP below
+  /* UAL: clips from Quaternius' Universal Animation Library, retargeted onto this rig offline (ual-data: arms and legs aimed by direction, hips / torso / head by world rotation, feet kept on the ground).
+     They are added next to the knight's own clips as UAL_*; ANIM SET in the options plays them in place of Idle / Walk / Swing / Hit / Block ... (see UAL_ALT). */
+  (function(){
+    const el=document.getElementById('ual-data'); if(!el) return;
+    const U=JSON.parse(el.textContent), base={};
+    gltf.animations.forEach(a=>a.tracks.forEach(t=>{ const b=t.name.slice(0,t.name.lastIndexOf('.')); base[b.replace(/_\d+$/,'')]=b; }));
+    U.clips.forEach(D=>{ const tr=D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); }); gltf.animations.push(new THREE.AnimationClip(D.name,-1,tr)); });
+  })();
   { [START_CLIP,'ShopIdle','ShopIdleAnimation1','ShopIdleAnimationIntoTalk','ShopIdleAnimationOutroTalk','ShopIdleAnimationWhileTalking'].forEach(cn=>{ const p3=gltf.animations.find(a=>a.name===cn); if(p3) setLeftShin(p3,LEFT_SHIN_DEG); }); }   // Pose3 shares Pose2's legs, so it gets the same tweak and sits on the same rock. Its head is left as authored; the occasional look at the sky is added on top, see headLook()
   /* AxeFlaunt is the rig's own "animation" clip, played exactly as authored (arms, body, legs and head are not touched). Only the axe moves: it rests on his back, see AXE_STOW_CLIPS. */
   mixer=new THREE.AnimationMixer(gltf.scene);
@@ -2124,6 +2132,22 @@ function closeLoop(clip,end){
   clip.resetDuration();
 }
 /* which ANIMATIONS sub-menu a clip belongs to: ENEMIES (the golem's), SHOPKEEPER (the Shop* clips), SELF (everything else - the knight's own) */
+/* ANIM SET (options): UNIVERSAL plays the retargeted Universal Animation Library clips in place of some of the knight's own. The game keeps asking for Idle / Walk / Swing ... by name, so the swap
+   just points those names at the UAL action: every loop mode, finish event and sound cue keeps working. One-shots are stretched to the length of the clip they replace, because the game's timing counts on it. */
+const UAL_ALT={Idle:'UAL_Idle_Shield_Loop',AxeIdle:'UAL_Idle_Shield_Loop',Walk:'UAL_Walk_Carry_Loop',Swing:'UAL_Sword_Regular_A',AxeSwing:'UAL_Sword_Regular_C',Hit:'UAL_Hit_Knockback',Block:'UAL_Sword_Block',Drinking_Potion:'UAL_Consume'};
+let ualOn=false; const ualOrig={};
+function ualApply(){
+  Object.keys(UAL_ALT).forEach(k=>{
+    const alt=actions[UAL_ALT[k]]; if(!ualOrig[k]&&actions[k]&&actions[k]!==alt) ualOrig[k]=actions[k];
+    const o=ualOrig[k]; if(!o||!alt) return;
+    alt.setEffectiveTimeScale(1);
+    if(ualOn){ actions[k]=alt; if(!/Idle|Walk/.test(k)) alt.setDuration(o.getClip().duration); } else actions[k]=o;
+  });
+}
+function toggleUal(){
+  let base=null; Object.keys(UAL_ALT).forEach(k=>{ if(current&&(current===actions[k]||current===ualOrig[k]||current===actions[UAL_ALT[k]])) base=k; });
+  ualOn=!ualOn; ualApply(); if(base) play(base);
+}
 function animGroup(n){ return n==='GolemAttack'?'enemies':(/^Shop/.test(n)?'shop':'self'); }
 function buildMenu(){
   const box=document.getElementById('anims');
@@ -4287,7 +4311,7 @@ function initMainMenu(){
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
-    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
+    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>ualOn?'UNIVERSAL':'KNIGHT',run:toggleUal},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
     anims_enemies:{name:'ANIMATIONS: ENEMIES',up:'anims',get items(){ return animRows('enemies').concat([BACK_ANIM]); }},
     anims_self:{name:'ANIMATIONS: SELF',up:'anims',get items(){ return animRows('self').concat([BACK_ANIM]); }},
     anims_shop:{name:'ANIMATIONS: SHOPKEEPER',up:'anims',get items(){ return animRows('shop').concat([BACK_ANIM]); }},
@@ -4309,7 +4333,7 @@ function initMainMenu(){
       {t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},BACK_OPT]},
     opt_knight:{name:'KNIGHT',up:'options',items:[
       {t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},
-      {t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},
+      {t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>ualOn?'UNIVERSAL':'KNIGHT',run:toggleUal},
       {t:'SWOOSH',v:()=>swooshOn?'ON':'OFF',run:toggleSwoosh},
       {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},BACK_OPT]},
     /* Attribution: This work is based on "Low Poly Campfire" (https://sketchfab.com/3d-models/low-poly-campfire-695c62069ac44614acbfc6effcf7499d) by MrE_Sauce (https://sketchfab.com/MrE_Sauce) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Glint and falling-leaf sprites by Kaessis. */
