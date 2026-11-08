@@ -3478,7 +3478,7 @@ const SWISH_COMBO={
   UAL_Sword_Regular_Combo:[[0.167,0.267],[0.667,0.742],[1.1,1.267],[1.483,1.533]],
   UAL_Sword_Heavy_Combo:[[0.333,0.517],[0.967,1.017],[1.108,1.192],[1.692,1.742],[1.82,1.9],[2.0,2.108]]
 };
-const HEAVY_COMBO_FINISH_T=2.17;   // clip time the Heavy Combo's last strike drives the sword into the floor (the blade tip is at its lowest, ~0.06 s after the fastest part of the swing at 2.11): the bluntflesh hit and one of the four attack sounds land here. The clip carries on ~2 s of recovery after it
+const HEAVY_COMBO_FINISH_T=2.66;   // clip time the Heavy Combo's finishing blow slams the sword into the floor (after the stab at ~2.17 he leaps and brings it down; the lowest point of the blade drops from 0.5 above the floor at 2.62 to 0.2 at 2.66 and stays there): the bluntflesh hit and one of the four attack sounds land here. The clip carries on with ~1.7 s of recovery after it
 function playSwishClip(n){
   const T=SWISH_COMBO[n]; if(!T){ playSword(1); return; }
   swishStopAll();
