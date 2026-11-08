@@ -1010,7 +1010,8 @@ function initKnightly(parent){
       geo.setAttribute('uv',new THREE.Float32BufferAttribute(p.uv,2));
       geo.setIndex(p.i);
       const tex=new THREE.Texture(imgs[k]); tex.flipY=false;
-      const kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; kmat.uniforms.uBladeGlow.value=(p.name==='blade'||p.name==='blade_tip')?1:0.8;   // the steel is pushed far towards white: the blade fully, the guard / pommel / grip a little less, so they read slightly darker
+      const kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; kmat.uniforms.uBladeGlow.value=0;   // 0: no white wash on the steel any more (the gems still glow, uGem)
+      //   // the steel is pushed far towards white: the blade fully, the guard / pommel / grip a little less, so they read slightly darker
       if(p.name==='blade') knightlyBladeMat=kmat;
       kmat.userData.tintAmt=1; swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);   // it follows the weapon colour like the other swords, at full strength
       const m=new THREE.Mesh(geo,kmat); m.name='knightly_'+p.name;
@@ -1690,13 +1691,25 @@ function danceStep(){
   const L=DANCE_BEATS*60/DANCE_BPM, t=trackPos(xtra.dance.src)-DANCE_OFFSET-0.03;   // (0.03: the pose shown lags a little behind the clock)
   actions.Dance.time=((t%L)+L)%L;
 }
+/* The UAL heavy combos lift his whole body off the floor (the hips' height comes straight from the mocap), so while one plays his height is controlled: every frame the rig is moved up or
+   down so his lowest foot is exactly on the ground, and put back to its normal height as soon as the clip is over. */
+let ualY0=null; const _ugB=new THREE.Box3(), UAL_GROUND=/^UAL_.*Heavy/;
+function ualGround(){
+  if(!playerRig||!current) return;
+  const c=current.getClip(), src=c.ualSrc||c.name;
+  if(!UAL_GROUND.test(src)){ if(ualY0!==null){ playerRig.position.y=ualY0; ualY0=null; } return; }
+  if(ualY0===null) ualY0=playerRig.position.y;
+  playerRig.position.y=ualY0; playerRig.updateMatrixWorld(true);
+  let lo=1e9; ['Adventurer_Left_Foot','Adventurer_Right_Foot','Adventurer_Left_Boot','Adventurer_Right_Boot'].forEach(n=>{ const o=playerRig.getObjectByName(n); if(o){ _ugB.setFromObject(o); if(_ugB.min.y<lo) lo=_ugB.min.y; } });
+  if(lo<1e8){ const ground=(blobHome?blobHome.y:0)-0.002*playerH; playerRig.position.y=ualY0+(ground-lo); }
+}
 function stepMixer(dt){
   if(golemOn&&golemMixer){ golemPlace(); const p=golemAct.time; golemMixer.update(dt); if(p<GOLEM_HIT_AT&&golemAct.time>=GOLEM_HIT_AT) playGolemSfx('atk'); }
   const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease'||/^UAL_(Sword_Regular|Sword_Heavy|Melee_Hook)/.test(cn));
-  if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); return; }
+  if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); ualGround(); return; }
   const n=Math.max(1,Math.ceil(dt/SWOOSH_STEP-1e-6)), h=dt/n;
   for(let i=0;i<n;i++){ mixer.update(h); swooshSample(h); }
-  stickAxe();
+  stickAxe(); ualGround();
 }
 /* lay the ribbon along the sampled path, facing the camera; u runs across it (0 = outside), v along it (0 = oldest = sharp tail) */
 function swooshBuild(){
@@ -2195,7 +2208,7 @@ function closeLoop(clip,end){
 const UAL_ALT={Idle:'UAL_Idle_Shield_Loop',AxeIdle:'UAL_Idle_Shield_Loop',Walk:'UAL_Walk_Loop',Swing:'UAL_Sword_Regular_A',AxeSwing:'UAL_Sword_Regular_C',Hit:'UAL_Hit_Stagger',Block:'UAL_Sword_Block',Drinking_Potion:'UAL_Consume'};
 let ualOn=false; const ualOrig={}, ualAl={};
 /* The game finds its clips by NAME (the swing's sword trail, the sounds that repeat every loop, the footsteps ...). So the UAL clip that replaces Swing is a copy that is itself called 'Swing' (Idle, Walk, Hit ... likewise): everything keyed on those names keeps working. */
-function ualAlias(k,sn){ const key=k+'|'+sn; if(!ualAl[key]){ const c=actions[sn].getClip().clone(); c.name=k; ualAl[key]=mixer.clipAction(c); } return ualAl[key]; }
+function ualAlias(k,sn){ const key=k+'|'+sn; if(!ualAl[key]){ const c=actions[sn].getClip().clone(); c.name=k; c.ualSrc=sn; ualAl[key]=mixer.clipAction(c); } return ualAl[key]; }
 function ualApply(){
   Object.keys(UAL_ALT).forEach(k=>{
     const sn=(k==='Block'&&weapon==='axe')?'UALX_Sword_Block':UAL_ALT[k], alt=actions[sn]&&ualAlias(k,sn); if(!ualOrig[k]&&actions[k]&&actions[k]!==alt) ualOrig[k]=actions[k];   // (Block with the axe: the game turns the model round again for it, so that one uses the clip in its original hand)
