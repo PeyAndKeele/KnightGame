@@ -71,7 +71,7 @@ void main(){
   vec2 st=uAffine>0.5 ? vUvA/vW : vUvP;
   vec4 tx=texture2D(map,st);
   if(tx.a<0.5) discard;
-  if(uBladeGlow>0.0){ float ch=max(tx.r,max(tx.g,tx.b))-min(tx.r,min(tx.g,tx.b)); tx.rgb=mix(tx.rgb,vec3(1.0),uBladeGlow*0.5*(1.0-smoothstep(0.08,0.16,ch))); }   // uBladeGlow (the Knightly sword): the grey steel is pushed towards white (the coloured gems are left alone)
+  if(uBladeGlow>0.0){ float ch=max(tx.r,max(tx.g,tx.b))-min(tx.r,min(tx.g,tx.b)); tx.rgb=mix(tx.rgb,vec3(1.0),uBladeGlow*0.85*(1.0-smoothstep(0.08,0.16,ch))); }   // uBladeGlow (the Knightly sword): the grey steel is pushed towards white (the coloured gems are left alone)
   if(uOccOn>0.5&&uOccN>0.5){                                      // see-through obstacles: what stands between the camera and the knight / an enemy is dithered away around him
     float hide=0.0;
     for(int i=0;i<6;i++){
@@ -102,7 +102,7 @@ void main(){
   float mgm=uMagma*smoothstep(0.40,0.52,tx.r-0.5*tx.b);                                          // 1 on the orange texels (the charred dark ones stay dark), 0 elsewhere
   lit=mix(lit,base*(1.30+0.55*uMagmaPulse)*vec3(1.0,0.94,0.82),mgm);                                // the magma shines from within: brighter than any light would make it, and it swells with the pulse
   float gem=uGem*smoothstep(0.08,0.16,max(tx.r,max(tx.g,tx.b))-min(tx.r,min(tx.g,tx.b)));        // uGem (the Knightly sword): every coloured texel (green, yellow, red, teal ...) glows from within, bright and breathing with the same pulse as the magma; the grey steel does not
-  lit=mix(lit,(tx.rgb*(1.85+0.7*uMagmaPulse)+0.12)*uTint,gem);
+  lit=mix(lit,tx.rgb*(1.85+0.7*uMagmaPulse)+0.12,gem);   // (the gems keep their own colours: the sword's tint does not touch them)
   lit=mix(lit,base,uEmit);                                                                      // uEmit: 1 on the lantern's bulb itself - it glows instead of being lit
   vec3 c=mix(lit*mix(uNight,vec3(1.0),max(max(uEmit,mgm),gem))+lampT,uFogColor,vFog);                    // (night does not dim a glow)
   if(uDither>0.5){
@@ -191,7 +191,7 @@ function tintMat(m,hex,amt){   // amt: tint strength 0..1 (default: the ARMOR sl
   shineMat(m);
   const v=m.uniforms.uTint.value; if(!hex){ v.set(1,1,1); return; }
   const c=new THREE.Color(hex), mx=Math.max(c.r,c.g,c.b,1e-4);   // brightest channel = 1, so it recolors without darkening
-  const a=amt===undefined?armorAmt:amt;
+  const a=amt!==undefined?amt:(m.userData.tintAmt!==undefined?m.userData.tintAmt:armorAmt);   // (a material can carry its own strength in userData.tintAmt)
   v.set(1+(c.r/mx-1)*a, 1+(c.g/mx-1)*a, 1+(c.b/mx-1)*a);
 }
 function tintArmorMat(m){ tintMat(m,armorHex); }
@@ -987,7 +987,7 @@ function initHatchet(parent){
   }).catch(e=>console.error('hatchet load failed',e));
 }
 /* ---------- the Knightly Sword (knightly-sword-data): the shortsword's shape with its own textures, a fifth style for the SWORD. Held exactly like the sword (same mount, animations and swoosh).
-   Its coloured texels glow like the magma on the Ignis Mourne trees (uGem, in the shader) and the grey steel is pushed towards white (uBladeGlow: 0.5 = halfway). It takes no armor/weapon tint: the colours are its own. ---------- */
+   Its coloured texels glow like the magma on the Ignis Mourne trees (uGem, in the shader) and the grey steel is pushed far towards white (uBladeGlow, 0.85 in the shader at 1). The steel takes the weapon colour at full strength (userData.tintAmt); the gems keep their own colours. ---------- */
 function initKnightly(parent){
   const el=document.getElementById('knightly-sword-data'); if(!el) return;
   const SD=JSON.parse(el.textContent);
@@ -1009,7 +1009,8 @@ function initKnightly(parent){
       geo.setAttribute('uv',new THREE.Float32BufferAttribute(p.uv,2));
       geo.setIndex(p.i);
       const tex=new THREE.Texture(imgs[k]); tex.flipY=false;
-      const kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; kmat.uniforms.uBladeGlow.value=1;   // every part (blade, tip, guard, pommel, grip) is pushed towards white
+      const kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; kmat.uniforms.uBladeGlow.value=(p.name==='blade'||p.name==='blade_tip')?1:0.8;   // the steel is pushed far towards white: the blade fully, the guard / pommel / grip a little less, so they read slightly darker
+      kmat.userData.tintAmt=1; swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);   // it follows the weapon colour like the other swords, at full strength
       const m=new THREE.Mesh(geo,kmat); m.name='knightly_'+p.name;
       m.position.set(p.t[0],p.t[1],p.t[2]); m.rotation.order='ZYX';
       m.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
