@@ -10,6 +10,7 @@
 :root{
   --sky:#232a4a; --win-hi:#5568d4; --win-mid:#1a2468; --win-lo:#0a0f38;
   --edge:#d4dbf7; --text:#ffffff; --dim:#97a8ea; --pick:#ffe27a;
+  --t-hi:#8fa4ff; --t-mid:#4558c8; --t-lo:#1a2468; --t-glow:rgba(130,160,255,.5); --t-rule:#3a4aa8;   /* the title's lettering and the rule under a screen's name: these follow the armor colour (see UI_THEME in main.js) */
   --ui-edge:var(--ui-edge); --ui-text:#d4ecff; --ui-dim:#9fc9ff; --ui-text2:#bcdcff; --ui-panel:rgba(40,100,230,.30); --ui-hi:rgba(127,196,255,.28); --ui-hover:rgba(70,140,255,.5);   /* the blue panels' colours; main.js repaints all of these (and --win-* / --edge / --dim above) from the armor colour: see uiThemeApply */
   box-sizing:border-box; color-scheme:dark;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
@@ -76,9 +77,9 @@ select.pick option{background:var(--win-lo); color:var(--text); text-shadow:none
 #ui{position:fixed;left:calc(4vw + env(safe-area-inset-left,0px));top:50%;transform:translateY(-50%);width:min(380px,42vw);text-shadow:3px 3px 0 #000;animation:fade .9s steps(7) both;user-select:none}
 @keyframes fade{from{opacity:0;transform:translateY(-46%)}to{opacity:1;transform:translateY(-50%)}}
 .title{margin:0;font-size:clamp(64px,11vw,132px);line-height:.82;font-weight:400;letter-spacing:.04em;color:#fff;
-  text-shadow:0 4px 0 #8fa4ff,0 8px 0 #4558c8,0 12px 0 #1a2468,6px 14px 0 #000,0 0 30px rgba(130,160,255,.5)}
+  text-shadow:0 4px 0 var(--t-hi),0 8px 0 var(--t-mid),0 12px 0 var(--t-lo),6px 14px 0 #000,0 0 30px var(--t-glow)}
 .sub{margin:18px 0 22px;font-size:24px;letter-spacing:.3em;color:var(--pick)}
-.scr{font-size:22px;color:var(--dim);letter-spacing:.2em;margin:0 0 6px;border-bottom:2px solid #3a4aa8;padding-bottom:4px}
+.scr{font-size:22px;color:var(--dim);letter-spacing:.2em;margin:0 0 6px;border-bottom:2px solid var(--t-rule);padding-bottom:4px}
 .mi{display:flex;justify-content:space-between;gap:14px;width:100%;text-align:left;background:none;border:0;margin:0;padding:3px 0 3px 30px;position:relative;
   font:inherit;font-size:clamp(30px,4.2vw,42px);line-height:1.08;color:var(--dim);text-shadow:inherit;cursor:pointer}
 .mi.on{color:var(--text)}

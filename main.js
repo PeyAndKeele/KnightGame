@@ -196,11 +196,9 @@ function tintMat(m,hex,amt){   // amt: tint strength 0..1 (default: the ARMOR sl
 }
 function tintArmorMat(m){ tintMat(m,armorHex); }
 function applySwordTint(){ swordMats.forEach(m=>tintMat(m,swordMatch?armorHex:swordHex)); }
-/* UI THEME: every window / panel colour in the game (the --win-* / --edge / --dim / --ui-* variables) is a blue by default. With an armor colour picked, the same palette is repainted in that colour's hue
-   (same lightness steps; the saturation follows how colourful the armor is, so grey armor gives grey panels). With no armor colour it stays blue. */
-const UI_THEME=[['--win-hi','#5568d4'],['--win-mid','#1a2468'],['--win-lo','#0a0f38'],['--edge','#d4dbf7'],['--dim','#97a8ea'],
-  ['--ui-edge','#7fc4ff'],['--ui-text','#d4ecff'],['--ui-dim','#9fc9ff'],['--ui-text2','#bcdcff'],
-  ['--ui-panel','rgba(40,100,230,.30)'],['--ui-hi','rgba(127,196,255,.28)'],['--ui-hover','rgba(70,140,255,.5)']];
+/* UI THEME: only the title lettering and the rule under a screen's name (the --t-* variables) follow the armor colour. They are blue by default; with an armor colour picked the same palette is repainted in
+   that colour's hue (same lightness steps; the saturation follows how colourful the armor is, so grey armor gives grey). Every other window / panel colour (--win-*, --edge, --dim, --ui-*) stays its own blue. */
+const UI_THEME=[['--t-hi','#8fa4ff'],['--t-mid','#4558c8'],['--t-lo','#1a2468'],['--t-glow','rgba(130,160,255,.5)'],['--t-rule','#3a4aa8']];
 function _uiRgb(c){ let m=/^#?([0-9a-f]{6})$/i.exec(c); if(m){ const n=parseInt(m[1],16); return [n>>16&255,n>>8&255,n&255,1]; } m=/rgba\((\d+),(\d+),(\d+),([\d.]+)\)/.exec(c); return m?[+m[1],+m[2],+m[3],+m[4]]:null; }
 function _uiHsl(r,g,b){ r/=255; g/=255; b/=255; const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2; let h=0, s=0; if(mx!==mn){ const d=mx-mn; s=l>0.5?d/(2-mx-mn):d/(mx+mn); h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4; h/=6; } return [h,s,l]; }
 function _uiFromHsl(h,s,l){ const f=(p,q,t)=>{ if(t<0) t+=1; if(t>1) t-=1; return t<1/6?p+(q-p)*6*t:t<1/2?q:t<2/3?p+(q-p)*(2/3-t)*6:p; }; if(s<=0){ const v=Math.round(l*255); return [v,v,v]; } const q=l<0.5?l*(1+s):l+s-l*s, p=2*l-q; return [f(p,q,h+1/3),f(p,q,h),f(p,q,h-1/3)].map(x=>Math.round(x*255)); }
