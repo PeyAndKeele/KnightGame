@@ -2307,7 +2307,8 @@ addEventListener('contextmenu',e=>e.preventDefault());   // right-drag orbits th
 const ptrs=new Map(); let pinch=0;
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,[e.clientX,e.clientY]); pinch=0;});
 canvas.addEventListener('pointermove',e=>{
-  const p=ptrs.get(e.pointerId); if(!p||mapMode||startScr||invOn) return;
+  const p=ptrs.get(e.pointerId); if(!p||mapMode||startScr) return;
+  if(invOn){ if(ptrs.size===1) yaw-=(e.clientX-p[0])*0.01; ptrs.set(e.pointerId,[e.clientX,e.clientY]); return; }   // the inventory: dragging sideways turns him (the camera's height and distance stay as the inventory set them)
   if(ptrs.size===1){ yaw-=(e.clientX-p[0])*0.01; pitch=Math.max(-0.35,Math.min(1.2,pitch+(e.clientY-p[1])*0.008)); }
   ptrs.set(e.pointerId,[e.clientX,e.clientY]);
   if(ptrs.size===2){ const [a,b]=[...ptrs.values()]; const d=Math.hypot(a[0]-b[0],a[1]-b[1]); if(pinch) zoom=Math.max(0.5,Math.min(2.2,zoom*pinch/d)); pinch=d; }
@@ -4442,16 +4443,17 @@ function exitShop(){
 /* ---------- INVENTORY (main menu > INVENTORY) ----------
    The camera eases in on the knight (closer, a little above the middle of him) with the picture pushed right to leave room for the panel on the left - the same layout as the shop -
    he is put in his idle pose and everything except him is hidden, so the fog/sky colour is the background (the turntable stays off). The panel mocks the shop's: SWORD / HATCHET / AXE equip that weapon, POTION is only listed. */
-const INV_ZOOM=0.5, INV_PITCH=0.06, INV_TY=0.1, INV_VIEW=0;   // zoom, tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift; 0 = centred, between the item list on the left and the details on the right)
+const INV_ZOOM=0.72, INV_PITCH=0.06, INV_TY=0.08, INV_VIEW=0, INV_FOG_LIGHT=0.4;   // zoom (bigger = further away = smaller on screen), tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift; 0 = centred, between the item list on the left and the details on the right)
 function invStep(dt){
   if(!invOn&&invK===0) return;
   if(invOn) invHid.forEach(h=>{ h.o.visible=false; });   // (kept hidden every frame, in case something else switches it back on)
   const goal=invOn?1:0; invK+=(goal-invK)*(1-Math.exp(-dt*4)); if(Math.abs(goal-invK)<0.002) invK=goal;
+  applyAreaFog(); if(invK>0){ _fogB.setHex(0xffffff); _fogC.lerp(_fogB,INV_FOG_LIGHT*invK); renderer.setClearColor(_fogC); U.uFogColor.value.copy(_fogC); }   // the background / fog is lightened while the inventory is open (INV_FOG_LIGHT: 0 = as usual, 1 = white) and settles back as it closes
   if(!invPrev) return;
   zoom=mapLerp(invPrev.zoom,INV_ZOOM,invK); pitch=mapLerp(invPrev.pitch,INV_PITCH,invK);
   target.set(invPrev.tx,mapLerp(invPrev.ty,homeTarget.y+playerH*INV_TY,invK),invPrev.tz);
   mapViewK=mapLerp(1,INV_VIEW,invK); applyView();
-  if(!invOn&&invK===0){ invPrev=null; mapViewK=1; applyView(); }
+  if(!invOn&&invK===0){ invPrev=null; mapViewK=1; applyView(); applyAreaFog(); }
 }
 /* The inventory is laid out like Elden Ring's: TABS along the top (WEAPONS, ITEMS; Q / E switch them), under them the TYPES inside a tab (WEAPONS: LIGHT / HEAVY; A / D or the left / right arrows switch them),
    the list of what you hold on the left (the equipped one wears an E), and the highlighted item's details on the right. ENTER on a weapon opens a little menu next to it (EQUIP / BACK).
@@ -4502,8 +4504,9 @@ function invRefresh(){
   const list=invUi.querySelector('#inv-list');
   list.innerHTML=L.map((it,i)=>'<button type="button" class="ir'+(i===invCur?' on':'')+'" data-i="'+i+'"><span class="ii">'+invIcon(it.icon)+'</span><span class="in">'+it.t+'</span><span class="iv">'+(it.eq?(it.eq()?'<b class="eb">E</b>':''):(it.qty?it.qty():''))+'</span></button>').join('');
   invUi.querySelector('#inv-count').textContent=(T.subs?T.subs[invSub[invTab]].t+' ':'')+L.length;
-  invDetail(); invMenuDraw();
+  invDetail(); invMenuDraw(); invSpinLabel();
 }
+function invSpinLabel(){ if(invUi) invUi.querySelector('#inv-spin').textContent='TURNTABLE: '+(spin?'ON':'OFF'); }
 function invDetail(){
   const it=invList()[invCur], box=invUi.querySelector('#inv-det'); if(!it){ box.innerHTML=''; return; }
   box.innerHTML='<div class="ib">'+invIcon(it.icon)+'</div><div class="idn">'+it.t+'</div><div class="idt">'+it.kind+(it.eq&&it.eq()?'<b class="eb">E</b>':'')+'</div>'
@@ -4535,25 +4538,25 @@ function invMenuGo(){
 function invBuild(){
   if(invUi) return;
   const st=document.createElement('style'); st.textContent=`
-#invui{position:fixed;left:3vw;right:3vw;top:4vh;bottom:4vh;display:grid;grid-template-columns:minmax(0,min(34vw,470px)) minmax(0,1fr) minmax(0,min(30vw,420px));grid-template-rows:auto minmax(0,1fr) auto;gap:12px;font-size:min(26px,3.8vh);letter-spacing:.12em;color:#d4ecff;text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}
+#invui{position:fixed;left:3vw;right:3vw;top:4vh;bottom:4vh;display:grid;grid-template-columns:minmax(0,min(31vw,430px)) minmax(0,1fr) minmax(0,min(30vw,420px));grid-template-rows:auto minmax(0,1fr) auto;gap:12px;font-size:min(26px,3.8vh);letter-spacing:.12em;color:#d4ecff;text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}
 #invui.on{opacity:1}#invui.on>*{pointer-events:auto}
 #invui .ip{box-sizing:border-box;border:3px solid #7fc4ff;background:rgba(40,100,230,.30);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35)}
 #invui button{font:inherit;letter-spacing:inherit;color:inherit;text-shadow:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:left}
 #invtop{grid-column:1/4;display:flex;align-items:center;gap:16px;padding:6px 16px}
-#invtop .ttl{flex:0 0 auto}#inv-tabs{flex:1;display:flex;justify-content:center;align-items:center;gap:8px}
+#invtop .ttl{flex:0 0 auto}#invtop #inv-spin{margin-left:auto}#inv-tabs{flex:1;display:flex;justify-content:center;align-items:center;gap:8px}
 #invui .ik{display:inline-block;min-width:1.3em;text-align:center;font-size:.7em;padding:0 4px;border:2px solid #7fc4ff;background:rgba(0,0,0,.4);color:#9fc9ff}
 #invui .it{padding:2px 22px;border:2px solid transparent;color:#9fc9ff}#invui .it.on{color:#fff;border-color:#7fc4ff;background:rgba(127,196,255,.28)}
-#inv-cust{font-size:.62em!important;padding:2px 10px!important;border:2px solid #7fc4ff!important;background:rgba(0,0,0,.35)!important;letter-spacing:.1em!important}
-#invleft{grid-column:1;grid-row:2;display:flex;flex-direction:column;position:relative;padding:12px;min-height:0}
-#inv-subs{display:flex;align-items:center;gap:8px;padding-bottom:8px;margin-bottom:8px;border-bottom:2px solid #7fc4ff}
+#inv-cust,#inv-spin{font-size:.62em!important;padding:2px 10px!important;border:2px solid #7fc4ff!important;background:rgba(0,0,0,.35)!important;letter-spacing:.1em!important;flex:0 0 auto}#inv-tabs{margin-left:0}
+#invleft{grid-column:1;grid-row:2;display:flex;flex-direction:column;position:relative;padding:9px;min-height:0}
+#inv-subs{display:flex;align-items:center;gap:6px;padding-bottom:6px;margin-bottom:6px;border-bottom:2px solid #7fc4ff}
 #invui .is{padding:0 14px;border:2px solid transparent;color:#9fc9ff}#invui .is.on{color:#fff;border-color:#7fc4ff;background:rgba(127,196,255,.28)}#invui .ih{padding:0 6px}
 #inv-list{flex:1;min-height:0;overflow-y:auto;position:relative;scrollbar-width:thin;scrollbar-color:#7fc4ff transparent}
-#invui .ir{display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;padding:5px 8px;border:2px solid transparent}
+#invui .ir{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:3px 7px;border:2px solid transparent}
 #invui .ir.on{background:rgba(127,196,255,.28);border-color:#7fc4ff;color:#fff}#invui.menu .ir:not(.on){opacity:.45}
-#invui .ii{flex:0 0 auto;width:1.5em;height:1.5em;padding:3px;box-sizing:border-box;border:2px solid #7fc4ff;background:rgba(0,0,0,.4)}
+#invui .ii{flex:0 0 auto;width:1.35em;height:1.35em;padding:3px;box-sizing:border-box;border:2px solid #7fc4ff;background:rgba(0,0,0,.4)}
 #invui .in{flex:1;white-space:nowrap}#invui .iv{flex:0 0 auto}
 #invui .eb{display:inline-block;margin-left:8px;min-width:1.2em;text-align:center;font-size:.75em;line-height:1.2;border:2px solid #ffe27a;color:#ffe27a;background:rgba(0,0,0,.45);font-weight:normal}
-#inv-count{padding-top:8px;margin-top:8px;border-top:2px solid #7fc4ff;font-size:.7em;color:#9fc9ff;text-align:right}
+#inv-count{padding-top:6px;margin-top:6px;border-top:2px solid #7fc4ff;font-size:.7em;color:#9fc9ff;text-align:right}
 #inv-menu{display:none;position:absolute;right:20px;z-index:3;min-width:9em;border:3px solid #7fc4ff;background:rgba(8,20,60,.96);box-shadow:0 0 0 3px #000;padding:6px}
 #invui .im{display:block;width:100%;box-sizing:border-box;padding:3px 12px;border:2px solid transparent}#invui .im.on{background:rgba(127,196,255,.28);border-color:#7fc4ff;color:#fff}#invui .im.off{color:#6f8fb4}
 #invright{grid-column:3;grid-row:2;align-self:start;max-height:100%;overflow:auto;padding:14px;scrollbar-width:thin;scrollbar-color:#7fc4ff transparent}
@@ -4565,13 +4568,14 @@ function invBuild(){
 @media (max-aspect-ratio:9/10){#invui{grid-template-columns:1fr;grid-template-rows:auto minmax(0,40vh) auto;bottom:auto;gap:8px;font-size:min(22px,3.4vh)}#invtop{grid-column:1;flex-wrap:wrap;gap:8px}#invtop .ttl{display:none}#invleft{grid-column:1}#invright,#invhint{display:none}}`;
   document.head.appendChild(st);
   invUi=document.createElement('div'); invUi.id='invui';
-  invUi.innerHTML='<div id="invtop" class="ip"><span class="ttl">INVENTORY</span><div id="inv-tabs"></div><button type="button" id="inv-cust">CUSTOMIZE</button></div>'
+  invUi.innerHTML='<div id="invtop" class="ip"><span class="ttl">INVENTORY</span><div id="inv-tabs"></div><button type="button" id="inv-spin">TURNTABLE: OFF</button><button type="button" id="inv-cust">CUSTOMIZE</button></div>'
     +'<div id="invleft" class="ip"><div id="inv-subs"></div><div id="inv-list"></div><div id="inv-count"></div><div id="inv-menu"></div></div>'
     +'<div id="invright" class="ip"><div id="inv-det"></div></div>'
-    +'<div id="invhint" class="ip"><span>Q / E: TABS</span><span>A / D: TYPE</span><span>W / S: SELECT</span><span>ENTER: CONFIRM</span><span>C: CUSTOMIZE</span><span>ESC: BACK</span></div>';
+    +'<div id="invhint" class="ip"><span>Q / E: TABS</span><span>A / D: TYPE</span><span>W / S: SELECT</span><span>ENTER: CONFIRM</span><span>T: TURNTABLE</span><span>C: CUSTOMIZE</span><span>ESC: BACK</span></div>';
   invUi.addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b||!invUi.contains(b)) return;
     if(b.id==='inv-cust'){ blip(880,0.09); invShowCust(); }
+    else if(b.id==='inv-spin'){ blip(620,0.06); toggleSpin(); invSpinLabel(); }
     else if(b.dataset.tab!==undefined) invGoto(+b.dataset.tab,undefined,true);
     else if(b.dataset.sub!==undefined) invGoto(undefined,+b.dataset.sub,true);
     else if(b.dataset.m!==undefined){ invMenuCur=+b.dataset.m; invMenuGo(); }
@@ -4597,7 +4601,7 @@ function openInventory(){
 }
 function closeInventory(){
   if(!invOn) return;
-  invOn=false; invCust=false; invUi.classList.remove('on'); if(invPrev&&invPrev.spin&&!spin) toggleSpin();
+  invOn=false; invCust=false; invUi.classList.remove('on'); if(invPrev&&invPrev.spin!==spin) toggleSpin();   // the turntable goes back to how it was before the inventory
   invHid.forEach(h=>{ h.o.visible=h.v; }); invHid=[]; if(invPrev&&invPrev.clip&&actions[invPrev.clip]) play(invPrev.clip);   // the world comes back and he returns to the pose he was in
   document.body.classList.remove('map');
 }
@@ -4611,6 +4615,7 @@ addEventListener('keydown',e=>{
     return;
   }
   if(k==='c'||k==='C'){ e.preventDefault(); invShowCust(); return; }
+  if(k==='t'||k==='T'){ e.preventDefault(); blip(620,0.06); toggleSpin(); invSpinLabel(); return; }
   if(k==='Escape'||k==='Backspace'){ e.preventDefault(); blip(300,0.08); closeInventory(); }
   else if(k==='q'||k==='Q'||k==='PageUp'){ e.preventDefault(); invGoto(invTab-1,undefined,true); }       // tabs
   else if(k==='e'||k==='E'||k==='PageDown'||k==='Tab'){ e.preventDefault(); invGoto(invTab+1,undefined,true); }
