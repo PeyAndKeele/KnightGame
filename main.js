@@ -1013,7 +1013,6 @@ function initKnightly(parent){
       let kmat;
       if(p.name!=='crossguard'){
         kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; kmat.uniforms.uBladeGlow.value=0;   // 0: no white wash on the steel any more (the gems still glow, uGem)
-        if(p.name==='blade') knightlyBladeMat=kmat;
         kmat.userData.tintAmt=1; swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);   // it follows the weapon colour like the other swords, at full strength
       } else {   // the guard is the normal sword's own, copied into knightly-sword-data: built exactly as initSword builds it (no glow, no shine, the normal sword's tint). The pommel and grip are still the knightly sword's
         kmat=ps1Mat(tex,1); swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);
@@ -1609,15 +1608,12 @@ function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   let alt=null; if(o.alt){ alt=new THREE.Object3D(); alt.position.set(o.alt[0],o.alt[1],o.alt[2]); grp.add(alt); }
   swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop,flag:o.flag||0};
 }
-/* The Knightly Sword's swing trail takes a faint tint of the sword's OWN colour: it is read live from the sword's blade material (its tint uniform, the colour the steel is showing),
-   so it follows whatever colour the sword has been given. SWOOSH_TINT_AMT = how much is washed in: 0 = none, 1 = the trail multiplied by the full sword colour. */
-const SWOOSH_TINT_AMT=0.4;
-let swTintOn=false, knightlyBladeMat=null;
-function swooshApplyTint(){
-  if(!swsh.mat) return;
-  const u=swsh.mat.uniforms, v=(swTintOn&&knightlyBladeMat)?knightlyBladeMat.uniforms.uTint.value:null;
-  if(v){ u.uTint.value.set(v.x,v.y,v.z); u.uTintAmt.value=SWOOSH_TINT_AMT; } else { u.uTint.value.set(1,1,1); u.uTintAmt.value=0; }
-}
+/* The Knightly Sword's swing trail is a bright, sharp RGB fade: the trail is painted in pure rainbow colours, running along its length from the tail (oldest) to the tip (newest), and the whole
+   spectrum rolls along it as the swing goes (the shader's uRainbow / uHue). SWOOSH_RAINBOW_CYCLES = how many times the full spectrum repeats along the trail; SWOOSH_RAINBOW_SPEED = how fast it rolls (spectra per second);
+   SWOOSH_RAINBOW_BRIGHT = brightness boost on the picture's own light and dark (above 1 = punchier). Every other weapon keeps the plain trail. */
+const SWOOSH_RAINBOW_CYCLES=1.0, SWOOSH_RAINBOW_SPEED=2.5, SWOOSH_RAINBOW_BRIGHT=1.35;
+let swTintOn=false;   // (the Knightly Sword is held)
+function swooshApplyTint(){ if(swsh.mat) swsh.mat.uniforms.uRainbow.value=swTintOn?1:0; }
 function swooshUse(){
   const key=weapon==='axe'?'axe':(swordStyle==='hatchet'?'hatchet':swordStyle==='hammer'?'hammer':swordStyle==='knightly'?'knightly':'sword'), r=swRigs[key]||swRigs.sword; if(!r) return;
   swTintOn=(key==='knightly'); swooshApplyTint();
@@ -1635,12 +1631,20 @@ void main(){
   gl_Position=cp; vUv=uv;
 }`;
 const SWOOSH_FS=`
-uniform sampler2D map; uniform float uFrame; uniform float uFrames; uniform float uFade; uniform vec3 uTint; uniform float uTintAmt; varying vec2 vUv;
+uniform sampler2D map; uniform float uFrame; uniform float uFrames; uniform float uFade; uniform float uRainbow; uniform float uHue; uniform float uCycles; uniform float uBright; varying vec2 vUv;
 void main(){
   if(uFade<0.999 && fract(dot(floor(gl_FragCoord.xy),vec2(0.7548776662,0.5698402910)))>=uFade) discard;   // fade in/out as a dither, to match the picture
   vec4 tx=texture2D(map,vec2((uFrame+clamp(vUv.x,0.002,0.998))/uFrames,clamp(vUv.y,0.002,0.998)));
   if(tx.a<0.5) discard;
-  gl_FragColor=vec4(mix(tx.rgb,tx.rgb*uTint,uTintAmt),1.0);   // a faint wash of the weapon's colour (uTintAmt is 0 for every weapon but the Knightly Sword)
+  vec3 col=tx.rgb;
+  if(uRainbow>0.5){   // the Knightly Sword: pure, fully saturated spectrum (red > green > blue) along the trail, rolling with uHue; the picture's own lights and darks shape how bright it is
+    float h=fract(vUv.y*uCycles+uHue);
+    vec3 rgb=clamp(abs(fract(h+vec3(0.0,2.0/3.0,1.0/3.0))*6.0-3.0)-1.0,0.0,1.0);
+    float l=dot(tx.rgb,vec3(0.299,0.587,0.114));
+    col=clamp(rgb*(0.45+l*uBright),0.0,1.0);
+    col=mix(col,vec3(1.0),smoothstep(0.9,1.0,l)*0.35);   // only the very brightest core of the picture goes hot white
+  }
+  gl_FragColor=vec4(col,1.0);
 }`;
 function initSwoosh(grp,parent){
   swTip=new THREE.Object3D(); swTip.position.set(0,SWOOSH_TIP_Y,0); grp.add(swTip);
@@ -1652,7 +1656,7 @@ function initSwoosh(grp,parent){
     const tex=new THREE.Texture(img); tex.flipY=false; tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
     tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
     swsh.mat=new THREE.ShaderMaterial({vertexShader:SWOOSH_VS,fragmentShader:SWOOSH_FS,side:THREE.DoubleSide,
-      uniforms:{map:{value:tex},uFrame:{value:0},uFrames:{value:SWOOSH_FRAMES},uFade:{value:1},uTint:{value:new THREE.Vector3(1,1,1)},uTintAmt:{value:0},uRes:U.uRes,uSnap:U.uSnap}});
+      uniforms:{map:{value:tex},uFrame:{value:0},uFrames:{value:SWOOSH_FRAMES},uFade:{value:1},uRainbow:{value:0},uHue:{value:0},uCycles:{value:SWOOSH_RAINBOW_CYCLES},uBright:{value:SWOOSH_RAINBOW_BRIGHT},uRes:U.uRes,uSnap:U.uSnap}});
     swooshApplyTint();
     const M=SWOOSH_MAXPTS, geo=new THREE.BufferGeometry();
     const pa=new THREE.BufferAttribute(new Float32Array(M*2*3),3), ua=new THREE.BufferAttribute(new Float32Array(M*2*2),2);
@@ -1676,7 +1680,6 @@ function swooshSample(h){
   if(!swsh.emit) swsh.alt=!!swAlt&&sp2>sp1;                    // a double-bitted head: the bit that is moving faster leads, and keeps the trail for this swing
   const cur=swsh.alt?a2:a, speed=swsh.alt?sp2:sp1, prev=swsh.alt?swsh.prevP2:swsh.prevP;
   if(!swsh.emit&&current&&current.time>=SWOOSH_MIN_CLIP_T&&speed>=swStart){
-    swooshApplyTint();   // pick up the sword's colour as it is right now
     swsh.emit=true; swsh.active=true; swsh.age=0; swsh.pts.length=0;
     swsh.pts.push({p:prev.clone(),c:swsh.prevC.clone()});                             // start from where the blade just was
   }
@@ -1776,7 +1779,7 @@ function updateSwoosh(dt){
   swsh.age+=dt;
   const f=Math.floor(swsh.age*1000/SWOOSH_FRAME_MS);
   if(f>=SWOOSH_FRAMES){ swooshHide(); return; }
-  swsh.mat.uniforms.uFrame.value=f;
+  swsh.mat.uniforms.uFrame.value=f; swsh.mat.uniforms.uHue.value=-swsh.age*SWOOSH_RAINBOW_SPEED;   // (rainbow only: the spectrum rolls towards the tip as the swing goes)
   swooshBuild();
 }
 function toggleSword(){ toggleWeapon(); }   // kept for old callers: the Sword on/off switch became the Sword / Axe choice
