@@ -1010,10 +1010,14 @@ function initKnightly(parent){
       geo.setAttribute('uv',new THREE.Float32BufferAttribute(p.uv,2));
       geo.setIndex(p.i);
       const tex=new THREE.Texture(imgs[k]); tex.flipY=false;
-      const kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; kmat.uniforms.uBladeGlow.value=0;   // 0: no white wash on the steel any more (the gems still glow, uGem)
-      //   // the steel is pushed far towards white: the blade fully, the guard / pommel / grip a little less, so they read slightly darker
-      if(p.name==='blade') knightlyBladeMat=kmat;
-      kmat.userData.tintAmt=1; swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);   // it follows the weapon colour like the other swords, at full strength
+      let kmat;
+      if(p.name==='blade'||p.name==='blade_tip'){
+        kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; kmat.uniforms.uBladeGlow.value=0;   // 0: no white wash on the steel any more (the gems still glow, uGem)
+        if(p.name==='blade') knightlyBladeMat=kmat;
+        kmat.userData.tintAmt=1; swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);   // it follows the weapon colour like the other swords, at full strength
+      } else {   // the hilt (guard, pommel, grip) is the normal sword's own, copied into knightly-sword-data: built exactly as initSword builds it (no glow, no shine, the normal sword's tint)
+        kmat=ps1Mat(tex,1); swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);
+      }
       const m=new THREE.Mesh(geo,kmat); m.name='knightly_'+p.name;
       m.position.set(p.t[0],p.t[1],p.t[2]); m.rotation.order='ZYX';
       m.rotation.set(p.r[0]*D,p.r[1]*D,p.r[2]*D);
