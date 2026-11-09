@@ -236,7 +236,7 @@ function startShine(){
   shine.wait=1;
 }
 /* ---------- HEAVY COMBO SPARKS: for the last CS_LEAD seconds before the Heavy Combo's finishing blow, bright tinted glints (the knight-shine sprite) fly up off the ground under the sword ---------- */
-const CS_LEAD=0.8, CS_RATE=80, CS_BURST=30, CS_POOL=130;   // seconds before the finisher they start, glints per second, the extra burst when the blow lands, sprites in the pool
+const CS_LEAD=0.5, CS_RATE=28, CS_BURST=16, CS_POOL=60, CS_GRAV=3.2;   // seconds before the finisher they start, glints per second, the extra burst when the blow lands, sprites in the pool, gravity (knight heights / s²)
 const csPool=[], csTex=[null,null]; let csPrevT=-1, csAcc=0, csLive=0;
 function csEnsure(){
   ensureShine(); if(csPool.length) return;
@@ -246,12 +246,13 @@ function csEnsure(){
 function csRefresh(){ csTex.forEach((t,i)=>{ const x=t.image.getContext('2d'); x.clearRect(0,0,SHINE_PX,SHINE_PX); x.drawImage(shineFrames[Math.min(i,shineFrames.length-1)],0,0); t.needsUpdate=true; }); }   // the png frames have decoded by now
 const _csA=new THREE.Vector3(), _csB=new THREE.Vector3();
 function csSpawn(n){
-  const ground=(blobHome?blobHome.y:0)+0.01*playerH; swHilt.getWorldPosition(_csA); swTip.getWorldPosition(_csB);
+  const ground=(blobHome?blobHome.y:0)+0.01*playerH; swTip.getWorldPosition(_csB);   // they shoot out of the floor right under the blade's point, where the sword lands
   for(let k=0;k<n;k++){
     const p=csPool.find(q=>q.life<=0); if(!p) return;
-    const f=Math.random(), j=playerH*0.12;
-    p.sp.position.set(_csA.x+(_csB.x-_csA.x)*f+(Math.random()-0.5)*j*2, ground, _csA.z+(_csB.z-_csA.z)*f+(Math.random()-0.5)*j*2);
-    p.v.set((Math.random()-0.5)*0.5,1.2+Math.random()*2.2,(Math.random()-0.5)*0.5).multiplyScalar(playerH);
+    const a=Math.random()*Math.PI*2, hs=(0.5+Math.random()*1.4)*playerH, j=playerH*0.03;
+    p.sp.position.set(_csB.x+(Math.random()-0.5)*j*2, ground, _csB.z+(Math.random()-0.5)*j*2);
+    p.v.set(Math.cos(a)*hs,(0.9+Math.random()*1.7)*playerH,Math.sin(a)*hs);   // sprayed out in every direction, then they fall back
+    p.ground=ground;
     p.age=0; p.life=0.7+Math.random()*0.6; p.size=playerH*(0.12+Math.random()*0.14); p.seed=(Math.random()*2)|0;
     p.sp.material.color.setHSL(Math.random(),1,0.55).multiplyScalar(1.8);   // fully saturated and over-bright: very bright tints
     p.sp.scale.set(p.size,p.size,1); p.sp.visible=true; csLive++;
@@ -270,7 +271,7 @@ function updateComboSparks(dt){
   csPool.forEach(p=>{
     if(p.life<=0) return;
     p.age+=dt; if(p.age>=p.life){ p.life=0; p.sp.visible=false; csLive--; return; }
-    p.sp.position.addScaledVector(p.v,dt); p.v.y*=1-0.5*dt;
+    p.v.y-=CS_GRAV*playerH*dt; p.sp.position.addScaledVector(p.v,dt); if(p.sp.position.y<p.ground){ p.life=0; p.sp.visible=false; csLive--; return; }   // arcs up and back down to the floor
     p.sp.material.opacity=Math.min(1,p.age/0.08,(p.life-p.age)/(p.life*0.5));
     p.sp.material.map=csTex[(Math.floor(p.age/0.09)+p.seed)&1];   // flickers between the two glint frames
   });
@@ -3547,8 +3548,7 @@ function playSwishClip(n){
   swishStopAll();
   T.forEach(w=>{ const i=swishNext(); playSwordOld(1,w[0]+0.018); playSwish(i,Math.max(0,w[1]-SWISH_PEAK[i])); });
   if(n==='UAL_Sword_Heavy_Combo'){   // the finishing blow: the bluntflesh hit (as RENDER's) with one of the attack sounds
-    const hs=Math.max(0,HEAVY_COMBO_FINISH_T-RENDER_HIT_PEAK);
-    playSfxSetTracked('render-hit-sfx-data',0,0.9,1,hs); playRenderAttackLayer(hs,true);
+    playSfxSetTracked('combo-sparkle-sfx-data',0,0.9,1,Math.max(0,HEAVY_COMBO_FINISH_T-0.06));   // the sparkle sound replaces the bluntflesh hit + random attack sound (its loudest part is 0.06 s in, so it starts just before the slam)
   }
 }
 const STEP_GAIN=0.8, STEP_CLIP_T=0.09;   // STEP_CLIP_T: clip time of the first footfall in the Walk animation (the clip is 0.636 s long)
@@ -3643,7 +3643,7 @@ function playBlockSfx(){
   }catch(_){}
 }
 function blip(f,len){
-  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('swish-sfx-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['render-swish-sfx-data','render-hit-sfx-data','render-attack-sfx-data','render-charge-sfx-data','golem-atk-sfx-data','golem-pain-sfx-data','golem-spawn-sfx-data'].forEach(loadSfxSet);
+  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('swish-sfx-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['combo-sparkle-sfx-data','render-swish-sfx-data','render-hit-sfx-data','render-attack-sfx-data','render-charge-sfx-data','golem-atk-sfx-data','golem-pain-sfx-data','golem-spawn-sfx-data'].forEach(loadSfxSet);
     ['v2-sword-sfx-data','v2-block-sfx-data','v2-grunt-data','v2-die-data','v2-flaunt-sfx-data','slime-atk-sfx-data','slime-hit-sfx-data','slime-die-sfx-data','slime-win-sfx-data'].forEach(loadSfxSet);   // voice 2 and the slimes too, so their very first play is not lost
     const o=sfx.createOscillator(), g=sfx.createGain(); o.type='square'; o.frequency.value=f; g.gain.value=0.045;
     o.connect(g); g.connect(sfx.destination); const t=sfx.currentTime; g.gain.setValueAtTime(0.045,t); g.gain.exponentialRampToValueAtTime(0.001,t+len); o.start(t); o.stop(t+len+0.02);

@@ -423,5 +423,10 @@
     "id": "ual-data",
     "type": "application/json",
     "url": "ual-data.json"
+  },
+  {
+    "id": "combo-sparkle-sfx-data",
+    "type": "application/json",
+    "url": "combo-sparkle-sfx-data.json"
   }
 ]
