@@ -3548,8 +3548,9 @@ function playSwishClip(n){
   swishStopAll();
   T.forEach(w=>{ const i=swishNext(); playSwordOld(1,w[0]+0.018); playSwish(i,Math.max(0,w[1]-SWISH_PEAK[i])); });
   if(n==='UAL_Sword_Heavy_Combo'){   // the finishing blow: the bluntflesh hit (as RENDER's) with one of the attack sounds
-    playSfxSetTracked('combo-sparkle-sfx-data',0,0.9,1,Math.max(0,HEAVY_COMBO_FINISH_T-0.06));
-    playSfxSetTracked('render-hit-sfx-data',0,0.9,1,Math.max(0,HEAVY_COMBO_FINISH_T-RENDER_HIT_PEAK));   // + the enchanted bluntflesh hit (wpn_hit_bluntflesh_enchanted_02), loudest exactly at the slam, when the sparkle burst goes off   // the sparkle sound replaces the bluntflesh hit + random attack sound (its loudest part is 0.06 s in, so it starts just before the slam)
+    const fd=Math.max(0,HEAVY_COMBO_FINISH_T-0.06);   // (the sparkle's loudest part is 0.06 s in, so it starts just before the slam)
+    playSfxSetTracked('combo-sparkle-sfx-data',0,0.9,1,fd);
+    playSfxSetTracked('render-hit-sfx-data',0,0.9,1,fd);   // the bluntflesh hit (wpn_hit_bluntflesh_enchanted_02) starts at the very same moment as the sparkle sound
   }
 }
 const STEP_GAIN=0.8, STEP_CLIP_T=0.09;   // STEP_CLIP_T: clip time of the first footfall in the Walk animation (the clip is 0.636 s long)
