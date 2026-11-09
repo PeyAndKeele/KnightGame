@@ -10,6 +10,7 @@
 :root{
   --sky:#232a4a; --win-hi:#5568d4; --win-mid:#1a2468; --win-lo:#0a0f38;
   --edge:#d4dbf7; --text:#ffffff; --dim:#97a8ea; --pick:#ffe27a;
+  --ui-edge:var(--ui-edge); --ui-text:#d4ecff; --ui-dim:#9fc9ff; --ui-text2:#bcdcff; --ui-panel:rgba(40,100,230,.30); --ui-hi:rgba(127,196,255,.28); --ui-hover:rgba(70,140,255,.5);   /* the blue panels' colours; main.js repaints all of these (and --win-* / --edge / --dim above) from the armor colour: see uiThemeApply */
   box-sizing:border-box; color-scheme:dark;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -187,14 +188,14 @@ body.mapui #mapyou{opacity:1}
    (body.custscr is set by main.js while the customize screen is showing.) */
 body.custscr .title,body.custscr .sub{display:none}
 body.custscr #ui{left:3vw;top:9vh;transform:none;animation:none;width:min(36vw,500px);max-height:82vh;overflow-y:auto;scrollbar-width:none;box-sizing:border-box;padding:14px 16px 10px;
-  border:3px solid #7fc4ff;background:rgba(40,100,230,.30);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column}
+  border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column}
 body.custscr #ui::-webkit-scrollbar{display:none}
-body.custscr .scr{order:1;font-size:34px;color:#fff;letter-spacing:.14em;border-bottom:2px solid #7fc4ff;margin:0 0 10px;padding-bottom:6px}
+body.custscr .scr{order:1;font-size:34px;color:#fff;letter-spacing:.14em;border-bottom:2px solid var(--ui-edge);margin:0 0 10px;padding-bottom:6px}
 body.custscr #cust{order:2;max-height:none;overflow:visible;padding:0;display:grid;grid-template-columns:1fr 1fr;column-gap:14px;row-gap:5px;align-items:center}
-body.custscr #mm{order:3;margin-top:10px;border-top:2px solid #7fc4ff;padding-top:6px}
+body.custscr #mm{order:3;margin-top:10px;border-top:2px solid var(--ui-edge);padding-top:6px}
 body.custscr #mm .mi{font-size:34px}
 body.custscr #cust .lbl{font-size:22px;letter-spacing:.08em;color:#cfe8ff;margin:6px 0 0}
-body.custscr #cust select.pick{background:rgba(0,0,0,.38);border:2px solid #7fc4ff;margin:0!important}
+body.custscr #cust select.pick{background:rgba(0,0,0,.38);border:2px solid var(--ui-edge);margin:0!important}
 body.custscr #cust .sws{display:flex;flex-wrap:wrap;gap:6px}
 body.custscr #cust .sw{width:28px;height:28px}
 body.custscr #cust .chk{color:#fff}

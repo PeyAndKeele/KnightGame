@@ -196,7 +196,21 @@ function tintMat(m,hex,amt){   // amt: tint strength 0..1 (default: the ARMOR sl
 }
 function tintArmorMat(m){ tintMat(m,armorHex); }
 function applySwordTint(){ swordMats.forEach(m=>tintMat(m,swordMatch?armorHex:swordHex)); }
-function applyArmorTint(){ armorMats.forEach(tintArmorMat); applySwordTint(); }
+/* UI THEME: every window / panel colour in the game (the --win-* / --edge / --dim / --ui-* variables) is a blue by default. With an armor colour picked, the same palette is repainted in that colour's hue
+   (same lightness steps; the saturation follows how colourful the armor is, so grey armor gives grey panels). With no armor colour it stays blue. */
+const UI_THEME=[['--win-hi','#5568d4'],['--win-mid','#1a2468'],['--win-lo','#0a0f38'],['--edge','#d4dbf7'],['--dim','#97a8ea'],
+  ['--ui-edge','#7fc4ff'],['--ui-text','#d4ecff'],['--ui-dim','#9fc9ff'],['--ui-text2','#bcdcff'],
+  ['--ui-panel','rgba(40,100,230,.30)'],['--ui-hi','rgba(127,196,255,.28)'],['--ui-hover','rgba(70,140,255,.5)']];
+function _uiRgb(c){ let m=/^#?([0-9a-f]{6})$/i.exec(c); if(m){ const n=parseInt(m[1],16); return [n>>16&255,n>>8&255,n&255,1]; } m=/rgba\((\d+),(\d+),(\d+),([\d.]+)\)/.exec(c); return m?[+m[1],+m[2],+m[3],+m[4]]:null; }
+function _uiHsl(r,g,b){ r/=255; g/=255; b/=255; const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2; let h=0, s=0; if(mx!==mn){ const d=mx-mn; s=l>0.5?d/(2-mx-mn):d/(mx+mn); h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4; h/=6; } return [h,s,l]; }
+function _uiFromHsl(h,s,l){ const f=(p,q,t)=>{ if(t<0) t+=1; if(t>1) t-=1; return t<1/6?p+(q-p)*6*t:t<1/2?q:t<2/3?p+(q-p)*(2/3-t)*6:p; }; if(s<=0){ const v=Math.round(l*255); return [v,v,v]; } const q=l<0.5?l*(1+s):l+s-l*s, p=2*l-q; return [f(p,q,h+1/3),f(p,q,h),f(p,q,h-1/3)].map(x=>Math.round(x*255)); }
+function uiThemeApply(){
+  const root=document.documentElement.style, c=armorHex&&_uiRgb(armorHex);
+  if(!c){ UI_THEME.forEach(t=>root.removeProperty(t[0])); return; }   // no armor colour: the stylesheet's blues
+  const a=_uiHsl(c[0],c[1],c[2]), k=a[1]<0.1?0:Math.max(0.25,Math.min(1,a[1]/0.6));   // a grey / white / black armor has no hue to follow: neutral grey panels
+  UI_THEME.forEach(t=>{ const b=_uiRgb(t[1]), hs=_uiHsl(b[0],b[1],b[2]), r=_uiFromHsl(a[0],hs[1]*k,hs[2]); root.setProperty(t[0],b[3]<1?'rgba('+r[0]+','+r[1]+','+r[2]+','+b[3]+')':'rgb('+r[0]+','+r[1]+','+r[2]+')'); });
+}
+function applyArmorTint(){ armorMats.forEach(tintArmorMat); applySwordTint(); uiThemeApply(); }
 
 /* ---------- armor shine: now and then a glint fades in and out on a random spot of the knight's body ---------- */
 const bodyMeshes=[]; let shineOn=true, shineSpr=null, shineTex=null, shineCtx=null, shineFrames=null;
@@ -4363,9 +4377,9 @@ function enterShop(){
   if(!shopLbl){
     const st=document.createElement('style'); st.textContent='#shoplbl{position:fixed;left:50%;bottom:calc(34px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);text-align:center;color:#ffd45e;text-shadow:3px 3px 0 #000;font-size:46px;letter-spacing:.14em;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15;line-height:1}#shoplbl small{display:block;margin-top:6px;font-size:22px;letter-spacing:.1em;color:#fff}#shoplbl.on{opacity:1}'; document.head.appendChild(st);
     /* Shop UI on the left with toggleable uShine and Talk controls */
-    const st2=document.createElement('style'); st2.textContent='#shopui{position:fixed;left:3vw;top:9vh;width:min(32vw,440px);height:auto;max-height:74vh;box-sizing:border-box;border:3px solid #7fc4ff;background:rgba(40,100,230,.30);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:24px;gap:12px;font-size:min(34px,5vh);letter-spacing:.14em;color:#d4ecff;text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}#shopui.on{opacity:1;pointer-events:auto}#shopui .shopctl{display:none}#shopui .mi{display:flex;justify-content:space-between}#shopui .shoplist{display:flex;flex-direction:column;gap:12px;flex:0 0 auto}#shopui:not(.buy) .shoplist{display:none}#shopui.buy .shopmain,#shopui.buy .shopctl{display:none}@media (max-aspect-ratio:9/10){#shopui{left:4vw;width:92vw;top:4vh;height:auto;max-height:46vh}}'; document.head.appendChild(st2);
+    const st2=document.createElement('style'); st2.textContent='#shopui{position:fixed;left:3vw;top:9vh;width:min(32vw,440px);height:auto;max-height:74vh;box-sizing:border-box;border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:24px;gap:12px;font-size:min(34px,5vh);letter-spacing:.14em;color:var(--ui-text);text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}#shopui.on{opacity:1;pointer-events:auto}#shopui .shopctl{display:none}#shopui .mi{display:flex;justify-content:space-between}#shopui .shoplist{display:flex;flex-direction:column;gap:12px;flex:0 0 auto}#shopui:not(.buy) .shoplist{display:none}#shopui.buy .shopmain,#shopui.buy .shopctl{display:none}@media (max-aspect-ratio:9/10){#shopui{left:4vw;width:92vw;top:4vh;height:auto;max-height:46vh}}'; document.head.appendChild(st2);
     shopUi=document.createElement('div'); shopUi.id='shopui';
-    shopUi.innerHTML='<div class="shophead" style="border-bottom:2px solid #7fc4ff;padding-bottom:6px;margin-bottom:8px">SHOP</div>'
+    shopUi.innerHTML='<div class="shophead" style="border-bottom:2px solid var(--ui-edge);padding-bottom:6px;margin-bottom:8px">SHOP</div>'
       +'<button class="mi shopmain" data-m="0" type="button"><span>BUY</span><span class="v">&#9654;</span></button>'
       +'<button class="mi shopmain" id="shop-ushine-btn" data-m="1" type="button"><span>USHINE</span><span class="v">'+(shopShineOn?'ON':'OFF')+'</span></button>'
       +'<div class="shoplist">'+shopItems.map((it,k)=>'<button class="mi shopbuy" data-i="'+k+'" type="button"><span>'+it.label+'</span></button>').join('')+'<button class="mi shopbuy" data-i="'+shopItems.length+'" type="button"><span>BACK</span></button></div>'
@@ -4406,7 +4420,7 @@ function enterShop(){
       };
       shopKeeper.mixer.addEventListener('finished',onFin);
     };
-    const stb=document.createElement('style'); stb.textContent='#shopsong{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:16;font:inherit;font-size:22px;letter-spacing:.08em;color:#d4ecff;background:rgba(40,100,230,.30);border:2px solid #7fc4ff;box-shadow:0 0 0 2px #000;padding:4px 12px;opacity:0;pointer-events:none;transition:opacity .6s,background .15s;text-shadow:2px 2px 0 #000;text-align:right;cursor:pointer;user-select:none;-webkit-user-select:none}#shopsong small{display:block;margin-top:2px;font-size:13px;letter-spacing:.1em;color:#9fc9ff}#shopsong:hover{background:rgba(70,140,255,.5)}#shopsong.on{opacity:1;pointer-events:auto}'; document.head.appendChild(stb);
+    const stb=document.createElement('style'); stb.textContent='#shopsong{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:16;font:inherit;font-size:22px;letter-spacing:.08em;color:var(--ui-text);background:var(--ui-panel);border:2px solid var(--ui-edge);box-shadow:0 0 0 2px #000;padding:4px 12px;opacity:0;pointer-events:none;transition:opacity .6s,background .15s;text-shadow:2px 2px 0 #000;text-align:right;cursor:pointer;user-select:none;-webkit-user-select:none}#shopsong small{display:block;margin-top:2px;font-size:13px;letter-spacing:.1em;color:var(--ui-dim)}#shopsong:hover{background:var(--ui-hover)}#shopsong.on{opacity:1;pointer-events:auto}'; document.head.appendChild(stb);
     shopSongBtn=document.createElement('div'); shopSongBtn.id='shopsong'; shopSongLabel(); document.body.appendChild(shopSongBtn);
     shopSongBtn.addEventListener('click',e=>{ e.stopPropagation(); shopSongNext(); }); shopSongBtn.addEventListener('pointerdown',e=>e.stopPropagation());
     shopLbl=document.createElement('div'); shopLbl.id='shoplbl'; shopLbl.innerHTML='SHOP<small>ESC: LEAVE</small>'; document.body.appendChild(shopLbl);
@@ -4472,12 +4486,14 @@ void main(){
 }`,depthTest:false,depthWrite:false});
   const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),mat); m.name='InvBackdrop'; m.frustumCulled=false; m.renderOrder=-1000; m.visible=false; scene.add(m); invBg=m; return m;
 }
+const INV_BG_PALE=0.30;   // the background is the armor colour mixed this far toward white (0 = the armor colour itself, 1 = white); with no armor colour it is the usual fog colour, lightened by INV_FOG_LIGHT
+const _invWhite=new THREE.Color(0xffffff);
 const INV_ZOOM=0.72, INV_PITCH=0.06, INV_TY=0.08, INV_VIEW=0, INV_FOG_LIGHT=0.4;   // zoom (bigger = further away = smaller on screen), tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift; 0 = centred, between the item list on the left and the details on the right)
 function invStep(dt){
   if(!invOn&&invK===0) return;
   if(invOn) invHid.forEach(h=>{ h.o.visible=false; });   // (kept hidden every frame, in case something else switches it back on)
   const goal=invOn?1:0; invK+=(goal-invK)*(1-Math.exp(-dt*4)); if(Math.abs(goal-invK)<0.002) invK=goal;
-  applyAreaFog(); if(invK>0){ _fogB.setHex(0xffffff); _fogC.lerp(_fogB,INV_FOG_LIGHT*invK); renderer.setClearColor(_fogC); U.uFogColor.value.copy(_fogC); }
+  applyAreaFog(); if(invK>0){ if(armorHex){ _fogB.set(armorHex).lerp(_invWhite,INV_BG_PALE); _fogC.lerp(_fogB,invK); } else { _fogB.setHex(0xffffff); _fogC.lerp(_fogB,INV_FOG_LIGHT*invK); } renderer.setClearColor(_fogC); U.uFogColor.value.copy(_fogC); }
   { const bg=invBackdrop(), u=bg.material.uniforms; bg.visible=invK>0; u.uBase.value.copy(_fogC); u.uTime.value+=dt*INV_BG_DRIFT; u.uAsp.value=innerWidth/innerHeight; u.uK.value=invK; }   // the background layer, over that colour   // the background / fog is lightened while the inventory is open (INV_FOG_LIGHT: 0 = as usual, 1 = white) and settles back as it closes
   if(!invPrev) return;
   zoom=mapLerp(invPrev.zoom,INV_ZOOM,invK); pitch=mapLerp(invPrev.pitch,INV_PITCH,invK);
@@ -4566,31 +4582,31 @@ function invActivate(){   // ENTER / click: equip the highlighted weapon
 function invBuild(){
   if(invUi) return;
   const st=document.createElement('style'); st.textContent=`
-#invui{position:fixed;left:3vw;right:3vw;top:4vh;bottom:4vh;display:grid;grid-template-columns:minmax(0,min(31vw,430px)) minmax(0,1fr) minmax(0,min(30vw,420px));grid-template-rows:auto minmax(0,1fr) auto;gap:12px;font-size:min(26px,3.8vh);letter-spacing:.12em;color:#d4ecff;text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}
+#invui{position:fixed;left:3vw;right:3vw;top:4vh;bottom:4vh;display:grid;grid-template-columns:minmax(0,min(31vw,430px)) minmax(0,1fr) minmax(0,min(30vw,420px));grid-template-rows:auto minmax(0,1fr) auto;gap:12px;font-size:min(26px,3.8vh);letter-spacing:.12em;color:var(--ui-text);text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}
 #invui.on{opacity:1}#invui.on>*{pointer-events:auto}
-#invui .ip{box-sizing:border-box;border:3px solid #7fc4ff;background:rgba(40,100,230,.30);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35)}
+#invui .ip{box-sizing:border-box;border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35)}
 #invui button{font:inherit;letter-spacing:inherit;color:inherit;text-shadow:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:left}
 #invtop{grid-column:1/4;display:flex;align-items:center;gap:16px;padding:6px 16px}
 #invtop .ttl{flex:0 0 auto}#invtop #inv-spin{margin-left:auto}#inv-tabs{flex:1;display:flex;justify-content:center;align-items:center;gap:8px}
-#invui .ik{display:inline-block;min-width:1.3em;text-align:center;font-size:.7em;padding:0 4px;border:2px solid #7fc4ff;background:rgba(0,0,0,.4);color:#9fc9ff}
-#invui .it{padding:2px 22px;border:2px solid transparent;color:#9fc9ff}#invui .it.on{color:#fff;border-color:#7fc4ff;background:rgba(127,196,255,.28)}
-#inv-cust,#inv-spin{font-size:.62em!important;padding:2px 10px!important;border:2px solid #7fc4ff!important;background:rgba(0,0,0,.35)!important;letter-spacing:.1em!important;flex:0 0 auto}#inv-tabs{margin-left:0}
+#invui .ik{display:inline-block;min-width:1.3em;text-align:center;font-size:.7em;padding:0 4px;border:2px solid var(--ui-edge);background:rgba(0,0,0,.4);color:var(--ui-dim)}
+#invui .it{padding:2px 22px;border:2px solid transparent;color:var(--ui-dim)}#invui .it.on{color:#fff;border-color:var(--ui-edge);background:var(--ui-hi)}
+#inv-cust,#inv-spin{font-size:.62em!important;padding:2px 10px!important;border:2px solid var(--ui-edge)!important;background:rgba(0,0,0,.35)!important;letter-spacing:.1em!important;flex:0 0 auto}#inv-tabs{margin-left:0}
 #invleft{grid-column:1;grid-row:2;display:flex;flex-direction:column;position:relative;padding:9px;min-height:0}
-#inv-subs{display:flex;align-items:center;gap:6px;padding-bottom:6px;margin-bottom:6px;border-bottom:2px solid #7fc4ff}
-#invui .is{padding:0 14px;border:2px solid transparent;color:#9fc9ff}#invui .is.on{color:#fff;border-color:#7fc4ff;background:rgba(127,196,255,.28)}#invui .ih{padding:0 6px}
-#inv-list{flex:1;min-height:0;overflow-y:auto;position:relative;scrollbar-width:thin;scrollbar-color:#7fc4ff transparent}
+#inv-subs{display:flex;align-items:center;gap:6px;padding-bottom:6px;margin-bottom:6px;border-bottom:2px solid var(--ui-edge)}
+#invui .is{padding:0 14px;border:2px solid transparent;color:var(--ui-dim)}#invui .is.on{color:#fff;border-color:var(--ui-edge);background:var(--ui-hi)}#invui .ih{padding:0 6px}
+#inv-list{flex:1;min-height:0;overflow-y:auto;position:relative;scrollbar-width:thin;scrollbar-color:var(--ui-edge) transparent}
 #invui .ir{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:3px 7px;border:2px solid transparent}
-#invui .ir.on{background:rgba(127,196,255,.28);border-color:#7fc4ff;color:#fff}
-#invui .ii{flex:0 0 auto;width:1.35em;height:1.35em;padding:3px;box-sizing:border-box;border:2px solid #7fc4ff;background:rgba(0,0,0,.4)}
+#invui .ir.on{background:var(--ui-hi);border-color:var(--ui-edge);color:#fff}
+#invui .ii{flex:0 0 auto;width:1.35em;height:1.35em;padding:3px;box-sizing:border-box;border:2px solid var(--ui-edge);background:rgba(0,0,0,.4)}
 #invui .in{flex:1;white-space:nowrap}#invui .iv{flex:0 0 auto}
 #invui .eb{display:inline-block;margin-left:8px;min-width:1.2em;text-align:center;font-size:.75em;line-height:1.2;border:2px solid #ffe27a;color:#ffe27a;background:rgba(0,0,0,.45);font-weight:normal}
-#inv-count{padding-top:6px;margin-top:6px;border-top:2px solid #7fc4ff;font-size:.7em;color:#9fc9ff;text-align:right}
-#invright{grid-column:3;grid-row:2;align-self:start;max-height:100%;overflow:auto;padding:14px;scrollbar-width:thin;scrollbar-color:#7fc4ff transparent}
-#invui .ib{width:min(110px,16vh);height:min(110px,16vh);margin:0 auto 10px;padding:12px;box-sizing:border-box;border:2px solid #7fc4ff;background:rgba(0,0,0,.4)}
-#invui .idn{font-size:1.25em;text-align:center;color:#fff}#invui .idt{text-align:center;font-size:.7em;color:#9fc9ff;padding-bottom:8px;margin-bottom:8px;border-bottom:2px solid #7fc4ff}
+#inv-count{padding-top:6px;margin-top:6px;border-top:2px solid var(--ui-edge);font-size:.7em;color:var(--ui-dim);text-align:right}
+#invright{grid-column:3;grid-row:2;align-self:start;max-height:100%;overflow:auto;padding:14px;scrollbar-width:thin;scrollbar-color:var(--ui-edge) transparent}
+#invui .ib{width:min(110px,16vh);height:min(110px,16vh);margin:0 auto 10px;padding:12px;box-sizing:border-box;border:2px solid var(--ui-edge);background:rgba(0,0,0,.4)}
+#invui .idn{font-size:1.25em;text-align:center;color:#fff}#invui .idt{text-align:center;font-size:.7em;color:var(--ui-dim);padding-bottom:8px;margin-bottom:8px;border-bottom:2px solid var(--ui-edge)}
 #invui .idr{display:flex;justify-content:space-between;gap:12px;font-size:.8em;padding:2px 0}#invui .idr span:last-child{color:#fff;text-align:right}
-#invui .idd{font-size:.75em;line-height:1.25;margin-top:10px;padding-top:8px;border-top:2px solid #7fc4ff;letter-spacing:.06em;color:#bcdcff}
-#invhint{grid-column:1/4;display:flex;justify-content:center;gap:2.2em;flex-wrap:wrap;padding:4px 14px;font-size:.62em;color:#9fc9ff}
+#invui .idd{font-size:.75em;line-height:1.25;margin-top:10px;padding-top:8px;border-top:2px solid var(--ui-edge);letter-spacing:.06em;color:var(--ui-text2)}
+#invhint{grid-column:1/4;display:flex;justify-content:center;gap:2.2em;flex-wrap:wrap;padding:4px 14px;font-size:.62em;color:var(--ui-dim)}
 @media (max-aspect-ratio:9/10){#invui{grid-template-columns:1fr;grid-template-rows:auto minmax(0,40vh) auto;bottom:auto;gap:8px;font-size:min(22px,3.4vh)}#invtop{grid-column:1;flex-wrap:wrap;gap:8px}#invtop .ttl{display:none}#invleft{grid-column:1}#invright,#invhint{display:none}}`;
   document.head.appendChild(st);
   invUi=document.createElement('div'); invUi.id='invui';
@@ -4616,7 +4632,8 @@ function invShowCust(){ invApply(invCommit); invCust=true; invUi.classList.remov
 function invShowInv(){ invCust=false; invGoMenu('main'); document.body.classList.add('map'); invUi.classList.add('on'); invPreview(); invRefresh(); }
 function openInventory(){
   if(invOn||exploring||mapMode) return;
-  invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,clip:current?current.getClip().name:null}; invOn=true; invResetState();
+  invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,night:night,clip:current?current.getClip().name:null}; invOn=true; if(night) setNight(false);   // the inventory is always shown by day (and the time goes back to what it was when it closes)
+  invResetState();
   if(spin) toggleSpin();   // the turntable stays off
   invHid=scene.children.filter(o=>o!==playerRig&&o!==invBg).map(o=>({o:o,v:o.visible})); if(rockMesh) invHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
   play(idleName());        // his proper idle (the axe's with the axe)
@@ -4626,7 +4643,8 @@ function openInventory(){
 function closeInventory(){
   if(!invOn) return;
   invApply(invCommit);   // a weapon that was only previewed goes back to the one he really has equipped
-  invOn=false; invCust=false; invUi.classList.remove('on'); if(invPrev&&invPrev.spin!==spin) toggleSpin();   // the turntable goes back to how it was before the inventory
+  invOn=false; invCust=false; invUi.classList.remove('on'); if(invPrev&&invPrev.night!==undefined&&invPrev.night!==night) setNight(invPrev.night);
+  if(invPrev&&invPrev.spin!==spin) toggleSpin();   // the turntable goes back to how it was before the inventory
   invHid.forEach(h=>{ h.o.visible=h.v; }); invHid=[]; if(invPrev&&invPrev.clip&&actions[invPrev.clip]) play(invPrev.clip);   // the world comes back and he returns to the pose he was in
   document.body.classList.remove('map');
 }
