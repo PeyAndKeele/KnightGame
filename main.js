@@ -235,6 +235,46 @@ function startShine(){
   }
   shine.wait=1;
 }
+/* ---------- HEAVY COMBO SPARKS: for the last CS_LEAD seconds before the Heavy Combo's finishing blow, bright tinted glints (the knight-shine sprite) fly up off the ground under the sword ---------- */
+const CS_LEAD=0.8, CS_RATE=80, CS_BURST=30, CS_POOL=130;   // seconds before the finisher they start, glints per second, the extra burst when the blow lands, sprites in the pool
+const csPool=[], csTex=[null,null]; let csPrevT=-1, csAcc=0, csLive=0;
+function csEnsure(){
+  ensureShine(); if(csPool.length) return;
+  for(let i=0;i<2;i++){ const c=document.createElement('canvas'); c.width=c.height=SHINE_PX; csTex[i]=new THREE.CanvasTexture(c); csTex[i].magFilter=csTex[i].minFilter=THREE.NearestFilter; csTex[i].generateMipmaps=false; }
+  for(let i=0;i<CS_POOL;i++){ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:csTex[0],transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,fog:false})); sp.visible=false; sp.renderOrder=11; scene.add(sp); csPool.push({sp,age:0,life:0,v:new THREE.Vector3(),size:0.1,seed:0}); }
+}
+function csRefresh(){ csTex.forEach((t,i)=>{ const x=t.image.getContext('2d'); x.clearRect(0,0,SHINE_PX,SHINE_PX); x.drawImage(shineFrames[Math.min(i,shineFrames.length-1)],0,0); t.needsUpdate=true; }); }   // the png frames have decoded by now
+const _csA=new THREE.Vector3(), _csB=new THREE.Vector3();
+function csSpawn(n){
+  const ground=(blobHome?blobHome.y:0)+0.01*playerH; swHilt.getWorldPosition(_csA); swTip.getWorldPosition(_csB);
+  for(let k=0;k<n;k++){
+    const p=csPool.find(q=>q.life<=0); if(!p) return;
+    const f=Math.random(), j=playerH*0.12;
+    p.sp.position.set(_csA.x+(_csB.x-_csA.x)*f+(Math.random()-0.5)*j*2, ground, _csA.z+(_csB.z-_csA.z)*f+(Math.random()-0.5)*j*2);
+    p.v.set((Math.random()-0.5)*0.5,1.2+Math.random()*2.2,(Math.random()-0.5)*0.5).multiplyScalar(playerH);
+    p.age=0; p.life=0.7+Math.random()*0.6; p.size=playerH*(0.12+Math.random()*0.14); p.seed=(Math.random()*2)|0;
+    p.sp.material.color.setHSL(Math.random(),1,0.55).multiplyScalar(1.8);   // fully saturated and over-bright: very bright tints
+    p.sp.scale.set(p.size,p.size,1); p.sp.visible=true; csLive++;
+  }
+}
+function updateComboSparks(dt){
+  const c=current&&current.getClip(), cn=c&&(c.ualSrc||c.name);
+  if(cn==='UAL_Sword_Heavy_Combo'&&swTip&&swHilt&&playerRig&&playerRig.visible){
+    csEnsure(); const t=current.time, a=HEAVY_COMBO_FINISH_T-CS_LEAD;
+    if(csPrevT<0||t<csPrevT){ csAcc=0; csRefresh(); }   // (re)started or looped
+    if(t>=a&&t<=HEAVY_COMBO_FINISH_T){ csAcc+=CS_RATE*dt; const n=Math.floor(csAcc); csAcc-=n; csSpawn(n); }
+    if(csPrevT>=0&&csPrevT<HEAVY_COMBO_FINISH_T&&t>=HEAVY_COMBO_FINISH_T) csSpawn(CS_BURST);
+    csPrevT=t;
+  } else csPrevT=-1;
+  if(!csLive) return;
+  csPool.forEach(p=>{
+    if(p.life<=0) return;
+    p.age+=dt; if(p.age>=p.life){ p.life=0; p.sp.visible=false; csLive--; return; }
+    p.sp.position.addScaledVector(p.v,dt); p.v.y*=1-0.5*dt;
+    p.sp.material.opacity=Math.min(1,p.age/0.08,(p.life-p.age)/(p.life*0.5));
+    p.sp.material.map=csTex[(Math.floor(p.age/0.09)+p.seed)&1];   // flickers between the two glint frames
+  });
+}
 function updateShine(dt){
   if(shine.active){
     if(!shine.obj.visible) shine.t=Math.max(shine.t,shine.dur-0.2);   // e.g. the helmet it was on got swapped out
@@ -2982,7 +3022,7 @@ function playRenderAttackLayer(hitStart,track){   // hitStart: seconds from now 
   const d=hitStart+Math.max(0,RENDER_HIT_PEAK-RENDER_ATK_PEAK[i]);
   if(track) playSfxSetTracked('render-attack-sfx-data',i,RENDER_ATK_GAIN,1,d); else playSfxSet('render-attack-sfx-data',i,RENDER_ATK_GAIN,1,d);
 }
-const RENDER_GUARD=0.10, RENDER_DAMAGE=25;   // RENDER: the share of each enemy hit it blocks (10%), and what the heavy swing does to EVERY enemy
+const RENDER_GUARD=0.20, RENDER_DAMAGE=25;   // RENDER: the share of each enemy hit it blocks (20%), and what the heavy swing does to EVERY enemy
 function startRender(){
   if(!actions.SwingHeavyWindUp||!actions.SwingHeavyTurnHold||!actions.SwingHeavyRelease){ bmToast('NO RENDER ANIMATION'); return; }
   btBegin('render'); bt.heading=-Math.PI/2; bt.stage=0;
@@ -3390,7 +3430,7 @@ function frame(now){
     if(swingDone){ swingDone=false; endSwing(); }
     if(flauntDone){ flauntDone=false; if(current===actions.AxeFlaunt) play(FLAUNT_IDLE); }   // AxeFlaunt has played through: carry on into its idle instead of freezing on the last frame
   }
-  if(!paused){ updateShine(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); updateMapRuins(); applyFogThickness(); updateMagma(dt); inspectStep(dt); applyAreaFog(); }
+  if(!paused){ updateShine(dt); updateComboSparks(dt); updateSky(dt); updateNight(dt); updateHelm6Face(dt); updateSnow(dt); updateLeaves(dt); updateSwoosh(dt); updateFire(dt); footstepStep(); updateShopLamp(); updateMapRuins(); applyFogThickness(); updateMagma(dt); inspectStep(dt); applyAreaFog(); }
   shopSync(); if(mapMode) mapStep(dt);   // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
   if(!mapMode){
     invStep(dt);   // the inventory zoom
