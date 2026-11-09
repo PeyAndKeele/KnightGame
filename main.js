@@ -4443,12 +4443,42 @@ function exitShop(){
 /* ---------- INVENTORY (main menu > INVENTORY) ----------
    The camera eases in on the knight (closer, a little above the middle of him) with the picture pushed right to leave room for the panel on the left - the same layout as the shop -
    he is put in his idle pose and everything except him is hidden, so the fog/sky colour is the background (the turntable stays off). The panel mocks the shop's: SWORD / HATCHET / AXE equip that weapon, POTION is only listed. */
+/* The inventory's background: a layer drawn behind the knight, over the (lightened) fog colour: a soft glow behind him, a gentle vignette, and a few big blurred specks drifting slowly upward,
+   all low in contrast so it adds depth without pulling the eye. INV_BG_GLOW / _VIGNETTE / _BOKEH = how strong each is (0 = off); INV_BG_DRIFT = how fast the specks move. */
+const INV_BG_GLOW=0.30, INV_BG_VIGNETTE=0.16, INV_BG_BOKEH=0.10, INV_BG_DRIFT=1.0;
+let invBg=null;
+function invBackdrop(){
+  if(invBg) return invBg;
+  const mat=new THREE.ShaderMaterial({
+    uniforms:{uBase:{value:new THREE.Color()},uTime:{value:0},uAsp:{value:1},uK:{value:0},uGlow:{value:INV_BG_GLOW},uVig:{value:INV_BG_VIGNETTE},uBokeh:{value:INV_BG_BOKEH}},
+    vertexShader:'varying vec2 vP; void main(){ vP=position.xy; gl_Position=vec4(position.xy,1.0,1.0); }',
+    fragmentShader:`uniform vec3 uBase; uniform float uTime,uAsp,uK,uGlow,uVig,uBokeh; varying vec2 vP;
+float hsh(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+void main(){
+  vec2 q=vec2(vP.x*uAsp,vP.y); vec3 c=uBase;
+  vec2 d0=q-vec2(0.0,-0.08); c+=(vec3(1.0)-c)*uGlow*exp(-dot(d0,d0)*1.5);                    // a soft glow where he stands
+  c*=1.0-uVig*smoothstep(0.6,1.8,length(q));                                                  // darker toward the corners
+  for(int i=0;i<2;i++){                                                                       // two layers of big, soft specks drifting up and sideways
+    float fi=float(i), sc=5.0+fi*5.0;
+    vec2 uv=q*sc+vec2(uTime*0.04*(fi+1.0),-uTime*0.07*(fi+1.0));
+    vec2 id=floor(uv), f=fract(uv)-0.5; float h=hsh(id+fi*17.0);
+    if(h>0.78){
+      vec2 o=(vec2(hsh(id*1.7),hsh(id*2.3))-0.5)*0.6; float r=0.14+0.16*hsh(id*3.1);
+      float a=smoothstep(r,r*0.3,length(f-o))*(0.55+0.45*sin(uTime*0.5+h*40.0));
+      c+=(vec3(1.0)-c)*uBokeh*a*(1.0-0.3*fi);
+    }
+  }
+  gl_FragColor=vec4(mix(uBase,c,uK),1.0);
+}`,depthTest:false,depthWrite:false});
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),mat); m.name='InvBackdrop'; m.frustumCulled=false; m.renderOrder=-1000; m.visible=false; scene.add(m); invBg=m; return m;
+}
 const INV_ZOOM=0.72, INV_PITCH=0.06, INV_TY=0.08, INV_VIEW=0, INV_FOG_LIGHT=0.4;   // zoom (bigger = further away = smaller on screen), tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift; 0 = centred, between the item list on the left and the details on the right)
 function invStep(dt){
   if(!invOn&&invK===0) return;
   if(invOn) invHid.forEach(h=>{ h.o.visible=false; });   // (kept hidden every frame, in case something else switches it back on)
   const goal=invOn?1:0; invK+=(goal-invK)*(1-Math.exp(-dt*4)); if(Math.abs(goal-invK)<0.002) invK=goal;
-  applyAreaFog(); if(invK>0){ _fogB.setHex(0xffffff); _fogC.lerp(_fogB,INV_FOG_LIGHT*invK); renderer.setClearColor(_fogC); U.uFogColor.value.copy(_fogC); }   // the background / fog is lightened while the inventory is open (INV_FOG_LIGHT: 0 = as usual, 1 = white) and settles back as it closes
+  applyAreaFog(); if(invK>0){ _fogB.setHex(0xffffff); _fogC.lerp(_fogB,INV_FOG_LIGHT*invK); renderer.setClearColor(_fogC); U.uFogColor.value.copy(_fogC); }
+  { const bg=invBackdrop(), u=bg.material.uniforms; bg.visible=invK>0; u.uBase.value.copy(_fogC); u.uTime.value+=dt*INV_BG_DRIFT; u.uAsp.value=innerWidth/innerHeight; u.uK.value=invK; }   // the background layer, over that colour   // the background / fog is lightened while the inventory is open (INV_FOG_LIGHT: 0 = as usual, 1 = white) and settles back as it closes
   if(!invPrev) return;
   zoom=mapLerp(invPrev.zoom,INV_ZOOM,invK); pitch=mapLerp(invPrev.pitch,INV_PITCH,invK);
   target.set(invPrev.tx,mapLerp(invPrev.ty,homeTarget.y+playerH*INV_TY,invK),invPrev.tz);
@@ -4456,7 +4486,7 @@ function invStep(dt){
   if(!invOn&&invK===0){ invPrev=null; mapViewK=1; applyView(); applyAreaFog(); }
 }
 /* The inventory is laid out like Elden Ring's: TABS along the top (WEAPONS, ITEMS; Q / E switch them), under them the TYPES inside a tab (WEAPONS: LIGHT / HEAVY; A / D or the left / right arrows switch them),
-   the list of what you hold on the left (the equipped one wears an E), and the highlighted item's details on the right. ENTER on a weapon opens a little menu next to it (EQUIP / BACK).
+   the list of what you hold on the left (the equipped one wears an E), and the highlighted item's details on the right. Hovering a weapon shows it on the knight; clicking it (or ENTER) equips it.
    The knight stands between the two columns and wears whatever you equip. To add a weapon, add a row to the WEAPONS tab's items (cls: 'light' or 'heavy'); a new tab or type is one more entry in INV_TABS.
    Light = the one-handed weapons (his 'sword' slot: sword, hatchet, hammer, knightly sword); heavy = the two-handed ones (his 'axe' slot: axe, shovel), the ones RENDER needs. */
 const INV_ICONS={
@@ -4469,32 +4499,41 @@ const INV_ICONS={
   potion:'<path d="M9 3 H15 M10 3 V8 L5.5 17 A2 2 0 0 0 7.5 20 H16.5 A2 2 0 0 0 18.5 17 L14 8 V3"/><path d="M8.5 14 H15.5"/>'
 };
 function invIcon(k){ return '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">'+(INV_ICONS[k]||'')+'</svg>'; }
-const invLightEq=st=>()=>weapon==='sword'&&swordStyle===st, invHeavyEq=st=>()=>weapon==='axe'&&axeStyle===st;
 const invLightStats=()=>[['DAMAGE',''+SWING_DAMAGE],['GRIP','ONE-HANDED'],['SWING','SWING'],['SPECIAL','NONE']];
 const invHeavyStats=()=>[['DAMAGE',''+SWING_DAMAGE],['GRIP','TWO-HANDED'],['SWING','AXE SWING'],['SPECIAL','RENDER ('+RENDER_DAMAGE+' TO ALL)']];
+/* A weapon row says which weapon slot it fills (w: 'sword' = light, 'axe' = heavy) and which style (ss: swordStyle, or as: axeStyle). */
 const INV_TABS=[
   {t:'WEAPONS',subs:[{t:'LIGHT',cls:'light'},{t:'HEAVY',cls:'heavy'}],items:[
-    {t:'SWORD',cls:'light',icon:'sword',kind:'LIGHT WEAPON',eq:invLightEq('sword'),equip:()=>{ swordStyle='sword'; setWeapon('sword'); refreshAnim(); },stats:invLightStats,desc:'A plain, balanced blade. Quick to swing and easy to trust.'},
-    {t:'HATCHET',cls:'light',icon:'hatchet',kind:'LIGHT WEAPON',eq:invLightEq('hatchet'),equip:()=>{ swordStyle='hatchet'; setWeapon('sword'); refreshAnim(); },stats:invLightStats,desc:'A woodcutter\'s hatchet on a short haft. Light enough to swing all day.'},
-    {t:'HAMMER',cls:'light',icon:'hammer',kind:'LIGHT WEAPON',eq:invLightEq('hammer'),equip:()=>{ swordStyle='hammer'; setWeapon('sword'); refreshAnim(); },stats:invLightStats,desc:'A blunt hammer. It lands with a thud instead of a slash.'},
-    {t:'KNIGHTLY SWORD',cls:'light',icon:'knightly',kind:'LIGHT WEAPON',eq:invLightEq('knightly'),equip:()=>{ swordStyle='knightly'; setWeapon('sword'); refreshAnim(); },stats:invLightStats,desc:'A knight\'s sword with gems set in the blade. Its swing leaves a trail of every colour.'},
-    {t:'AXE',cls:'heavy',icon:'axe',kind:'HEAVY WEAPON',eq:invHeavyEq('axe'),equip:()=>{ axeStyle='axe'; setWeapon('axe'); showWeapons(); refreshAnim(); },stats:invHeavyStats,desc:'A two-handed axe. It takes both hands to bring around, and it is the kind of weapon that can RENDER.'},
-    {t:'SHOVEL',cls:'heavy',icon:'shovel',kind:'HEAVY WEAPON',eq:invHeavyEq('shovel'),equip:()=>{ axeStyle='shovel'; setWeapon('axe'); showWeapons(); refreshAnim(); },stats:invHeavyStats,desc:'A digger\'s shovel put to work as a weapon. It swings like the axe and can RENDER too.'}]},
+    {t:'SWORD',cls:'light',icon:'sword',kind:'LIGHT WEAPON',w:'sword',ss:'sword',stats:invLightStats,desc:'A plain, balanced blade. Quick to swing and easy to trust.'},
+    {t:'HATCHET',cls:'light',icon:'hatchet',kind:'LIGHT WEAPON',w:'sword',ss:'hatchet',stats:invLightStats,desc:'A woodcutter\'s hatchet on a short haft. Light enough to swing all day.'},
+    {t:'HAMMER',cls:'light',icon:'hammer',kind:'LIGHT WEAPON',w:'sword',ss:'hammer',stats:invLightStats,desc:'A blunt hammer. It lands with a thud instead of a slash.'},
+    {t:'KNIGHTLY SWORD',cls:'light',icon:'knightly',kind:'LIGHT WEAPON',w:'sword',ss:'knightly',stats:invLightStats,desc:'A knight\'s sword with gems set in the blade. Its swing leaves a trail of every colour.'},
+    {t:'AXE',cls:'heavy',icon:'axe',kind:'HEAVY WEAPON',w:'axe',as:'axe',stats:invHeavyStats,desc:'A two-handed axe. It takes both hands to bring around, and it is the kind of weapon that can RENDER.'},
+    {t:'SHOVEL',cls:'heavy',icon:'shovel',kind:'HEAVY WEAPON',w:'axe',as:'shovel',stats:invHeavyStats,desc:'A digger\'s shovel put to work as a weapon. It swings like the axe and can RENDER too.'}]},
   {t:'ITEMS',subs:null,items:[
     {t:'POTION',icon:'potion',kind:'CONSUMABLE',qty:()=>'x'+POTION_COUNT,stats:()=>[['HEALS',POTION_HEAL+' HP'],['STOCK',POTION_COUNT+' PER BATTLE']],desc:'A small flask of healing draught. Drink it from the ITEMS menu in battle.'}]}
 ];
-let invTab=0, invSub=[0,0], invCurs={}, invMenuOn=false, invMenuCur=0;
+/* HOVER shows a weapon on the knight, CLICK (or ENTER) equips it. invCommit is what he really has equipped (what the E badge marks, and what he goes back to when the inventory closes or the cursor
+   rests on something that is not a weapon); whatever is highlighted is only previewed on him. */
+let invTab=0, invSub=[0,0], invCurs={}, invCommit={w:'sword',ss:'sword',as:'axe'};
+const invIsEq=it=>!!it.w&&invCommit.w===it.w&&(it.ss?invCommit.ss===it.ss:invCommit.as===it.as);
+function invApply(c){   // put this weapon on him (skipped when he already has it)
+  if(weapon===c.w&&swordStyle===c.ss&&axeStyle===c.as) return;
+  swordStyle=c.ss; axeStyle=c.as; setWeapon(c.w); if(c.w==='axe') showWeapons(); refreshAnim();
+}
+function invPreview(){ const it=invList()[invCur]; invApply(it&&it.w?{w:it.w,ss:it.ss||invCommit.ss,as:it.as||invCommit.as}:invCommit); }
 function invList(){ const T=INV_TABS[invTab]; return T.subs?T.items.filter(i=>i.cls===T.subs[invSub[invTab]].cls):T.items; }
 function invKey(){ return invTab+':'+invSub[invTab]; }
 function invResetState(){   // opening: the WEAPONS tab, on the type he is holding, with the equipped weapon highlighted (as Elden Ring does)
-  invTab=0; invSub=[weapon==='axe'?1:0,0]; invCurs={}; invMenuOn=false; invCur=0;
-  const i=invList().findIndex(it=>it.eq&&it.eq()); if(i>=0) invCur=i;
+  invCommit={w:weapon,ss:swordStyle,as:axeStyle};
+  invTab=0; invSub=[weapon==='axe'?1:0,0]; invCurs={}; invCur=0;
+  const i=invList().findIndex(it=>invIsEq(it)); if(i>=0) invCur=i;
 }
 function invGoto(tab,sub,sound){   // switch tab / type, remembering where the cursor was in the one we leave
   invCurs[invKey()]=invCur;
   if(tab!==undefined) invTab=((tab%INV_TABS.length)+INV_TABS.length)%INV_TABS.length;
   const T=INV_TABS[invTab]; if(sub!==undefined&&T.subs) invSub[invTab]=((sub%T.subs.length)+T.subs.length)%T.subs.length;
-  invCur=Math.min(invCurs[invKey()]||0,invList().length-1); invMenuOn=false; if(sound) blip(620,0.06); invRefresh();
+  invCur=Math.min(invCurs[invKey()]||0,invList().length-1); if(sound) blip(620,0.06); invPreview(); invRefresh();
 }
 function invRefresh(){
   if(!invUi) return;
@@ -4502,38 +4541,27 @@ function invRefresh(){
   invUi.querySelector('#inv-tabs').innerHTML='<span class="ik">Q</span>'+INV_TABS.map((t,i)=>'<button type="button" class="it'+(i===invTab?' on':'')+'" data-tab="'+i+'">'+t.t+'</button>').join('')+'<span class="ik">E</span>';
   invUi.querySelector('#inv-subs').innerHTML=T.subs?('<span class="ik">A</span>'+T.subs.map((t,i)=>'<button type="button" class="is'+(i===invSub[invTab]?' on':'')+'" data-sub="'+i+'">'+t.t+'</button>').join('')+'<span class="ik">D</span>'):'<span class="ih">'+T.t+'</span>';
   const list=invUi.querySelector('#inv-list');
-  list.innerHTML=L.map((it,i)=>'<button type="button" class="ir'+(i===invCur?' on':'')+'" data-i="'+i+'"><span class="ii">'+invIcon(it.icon)+'</span><span class="in">'+it.t+'</span><span class="iv">'+(it.eq?(it.eq()?'<b class="eb">E</b>':''):(it.qty?it.qty():''))+'</span></button>').join('');
+  list.innerHTML=L.map((it,i)=>'<button type="button" class="ir'+(i===invCur?' on':'')+'" data-i="'+i+'"><span class="ii">'+invIcon(it.icon)+'</span><span class="in">'+it.t+'</span><span class="iv">'+(it.w?(invIsEq(it)?'<b class="eb">E</b>':''):(it.qty?it.qty():''))+'</span></button>').join('');
   invUi.querySelector('#inv-count').textContent=(T.subs?T.subs[invSub[invTab]].t+' ':'')+L.length;
-  invDetail(); invMenuDraw(); invSpinLabel();
+  invDetail(); invSpinLabel();
 }
 function invSpinLabel(){ if(invUi) invUi.querySelector('#inv-spin').textContent='TURNTABLE: '+(spin?'ON':'OFF'); }
 function invDetail(){
   const it=invList()[invCur], box=invUi.querySelector('#inv-det'); if(!it){ box.innerHTML=''; return; }
-  box.innerHTML='<div class="ib">'+invIcon(it.icon)+'</div><div class="idn">'+it.t+'</div><div class="idt">'+it.kind+(it.eq&&it.eq()?'<b class="eb">E</b>':'')+'</div>'
+  box.innerHTML='<div class="ib">'+invIcon(it.icon)+'</div><div class="idn">'+it.t+'</div><div class="idt">'+it.kind+(invIsEq(it)?'<b class="eb">E</b>':'')+'</div>'
     +it.stats().map(r=>'<div class="idr"><span>'+r[0]+'</span><span>'+r[1]+'</span></div>').join('')+'<div class="idd">'+it.desc+'</div>';
 }
-function invSelect(i,sound){
+function invSelect(i,sound){   // the cursor / pointer is on a row: highlight it and show that weapon on the knight
   const L=invList(); if(!L.length) return; i=((i%L.length)+L.length)%L.length; if(i===invCur) return; invCur=i; if(sound) blip(520,0.05);
   [...invUi.querySelectorAll('#inv-list .ir')].forEach((b,k)=>b.classList.toggle('on',k===invCur));
   const row=invUi.querySelector('#inv-list .ir.on'); if(row&&row.scrollIntoView) row.scrollIntoView({block:'nearest'});
-  invDetail();
+  invDetail(); invPreview();
 }
-function invMenuRows(){ const it=invList()[invCur]; return [{t:it.eq()?'EQUIPPED':'EQUIP',off:it.eq(),run:()=>it.equip()},{t:'BACK',run:()=>{}}]; }
-function invMenuDraw(){
-  const m=invUi.querySelector('#inv-menu'), list=invUi.querySelector('#inv-list'); invUi.classList.toggle('menu',invMenuOn);
-  if(!invMenuOn){ m.style.display='none'; return; }
-  const row=list.children[invCur]; m.style.display='block'; m.style.top=Math.max(0,(row?row.offsetTop-list.scrollTop+list.offsetTop+row.offsetHeight:0))+'px';
-  m.innerHTML=invMenuRows().map((r,i)=>'<button type="button" class="im'+(i===invMenuCur?' on':'')+(r.off?' off':'')+'" data-m="'+i+'">'+r.t+'</button>').join('');
-}
-function invActivate(){   // ENTER / click on the highlighted item
+function invActivate(){   // ENTER / click: equip the highlighted weapon
   const it=invList()[invCur]; if(!it) return;
-  if(!it.equip){ blip(300,0.05); return; }
-  blip(880,0.09); invMenuOn=true; invMenuCur=0; invMenuDraw();
-}
-function invMenuGo(){
-  const r=invMenuRows()[invMenuCur]; if(!r) return;
-  if(r.off){ blip(300,0.05); return; }
-  blip(880,0.09); r.run(); invMenuOn=false; invRefresh();
+  if(!it.w||invIsEq(it)){ blip(300,0.05); return; }
+  invPreview(); invCommit.w=it.w; if(it.ss) invCommit.ss=it.ss; else invCommit.as=it.as;
+  blip(880,0.09); invRefresh();
 }
 function invBuild(){
   if(invUi) return;
@@ -4552,13 +4580,11 @@ function invBuild(){
 #invui .is{padding:0 14px;border:2px solid transparent;color:#9fc9ff}#invui .is.on{color:#fff;border-color:#7fc4ff;background:rgba(127,196,255,.28)}#invui .ih{padding:0 6px}
 #inv-list{flex:1;min-height:0;overflow-y:auto;position:relative;scrollbar-width:thin;scrollbar-color:#7fc4ff transparent}
 #invui .ir{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:3px 7px;border:2px solid transparent}
-#invui .ir.on{background:rgba(127,196,255,.28);border-color:#7fc4ff;color:#fff}#invui.menu .ir:not(.on){opacity:.45}
+#invui .ir.on{background:rgba(127,196,255,.28);border-color:#7fc4ff;color:#fff}
 #invui .ii{flex:0 0 auto;width:1.35em;height:1.35em;padding:3px;box-sizing:border-box;border:2px solid #7fc4ff;background:rgba(0,0,0,.4)}
 #invui .in{flex:1;white-space:nowrap}#invui .iv{flex:0 0 auto}
 #invui .eb{display:inline-block;margin-left:8px;min-width:1.2em;text-align:center;font-size:.75em;line-height:1.2;border:2px solid #ffe27a;color:#ffe27a;background:rgba(0,0,0,.45);font-weight:normal}
 #inv-count{padding-top:6px;margin-top:6px;border-top:2px solid #7fc4ff;font-size:.7em;color:#9fc9ff;text-align:right}
-#inv-menu{display:none;position:absolute;right:20px;z-index:3;min-width:9em;border:3px solid #7fc4ff;background:rgba(8,20,60,.96);box-shadow:0 0 0 3px #000;padding:6px}
-#invui .im{display:block;width:100%;box-sizing:border-box;padding:3px 12px;border:2px solid transparent}#invui .im.on{background:rgba(127,196,255,.28);border-color:#7fc4ff;color:#fff}#invui .im.off{color:#6f8fb4}
 #invright{grid-column:3;grid-row:2;align-self:start;max-height:100%;overflow:auto;padding:14px;scrollbar-width:thin;scrollbar-color:#7fc4ff transparent}
 #invui .ib{width:min(110px,16vh);height:min(110px,16vh);margin:0 auto 10px;padding:12px;box-sizing:border-box;border:2px solid #7fc4ff;background:rgba(0,0,0,.4)}
 #invui .idn{font-size:1.25em;text-align:center;color:#fff}#invui .idt{text-align:center;font-size:.7em;color:#9fc9ff;padding-bottom:8px;margin-bottom:8px;border-bottom:2px solid #7fc4ff}
@@ -4569,38 +4595,37 @@ function invBuild(){
   document.head.appendChild(st);
   invUi=document.createElement('div'); invUi.id='invui';
   invUi.innerHTML='<div id="invtop" class="ip"><span class="ttl">INVENTORY</span><div id="inv-tabs"></div><button type="button" id="inv-spin">TURNTABLE: OFF</button><button type="button" id="inv-cust">CUSTOMIZE</button></div>'
-    +'<div id="invleft" class="ip"><div id="inv-subs"></div><div id="inv-list"></div><div id="inv-count"></div><div id="inv-menu"></div></div>'
+    +'<div id="invleft" class="ip"><div id="inv-subs"></div><div id="inv-list"></div><div id="inv-count"></div></div>'
     +'<div id="invright" class="ip"><div id="inv-det"></div></div>'
-    +'<div id="invhint" class="ip"><span>Q / E: TABS</span><span>A / D: TYPE</span><span>W / S: SELECT</span><span>ENTER: CONFIRM</span><span>T: TURNTABLE</span><span>C: CUSTOMIZE</span><span>ESC: BACK</span></div>';
+    +'<div id="invhint" class="ip"><span>Q / E: TABS</span><span>A / D: TYPE</span><span>W / S: SELECT</span><span>ENTER / CLICK: EQUIP</span><span>T: TURNTABLE</span><span>C: CUSTOMIZE</span><span>ESC: BACK</span></div>';
   invUi.addEventListener('click',e=>{
     const b=e.target.closest('button'); if(!b||!invUi.contains(b)) return;
     if(b.id==='inv-cust'){ blip(880,0.09); invShowCust(); }
     else if(b.id==='inv-spin'){ blip(620,0.06); toggleSpin(); invSpinLabel(); }
     else if(b.dataset.tab!==undefined) invGoto(+b.dataset.tab,undefined,true);
     else if(b.dataset.sub!==undefined) invGoto(undefined,+b.dataset.sub,true);
-    else if(b.dataset.m!==undefined){ invMenuCur=+b.dataset.m; invMenuGo(); }
-    else if(b.dataset.i!==undefined){ if(invMenuOn){ invMenuOn=false; invMenuDraw(); } invSelect(+b.dataset.i,false); invActivate(); }
+    else if(b.dataset.i!==undefined){ invSelect(+b.dataset.i,false); invActivate(); }
   });
   invUi.addEventListener('mouseover',e=>{   // the pointer highlights what it is over, as the arrow keys do
     const b=e.target.closest('button'); if(!b) return;
-    if(b.dataset.i!==undefined&&!invMenuOn) invSelect(+b.dataset.i,true);
-    else if(b.dataset.m!==undefined&&invMenuCur!==+b.dataset.m){ invMenuCur=+b.dataset.m; blip(520,0.05); invMenuDraw(); }
+    if(b.dataset.i!==undefined) invSelect(+b.dataset.i,true);
   });
   document.body.appendChild(invUi);
 }
-function invShowCust(){ invCust=true; invUi.classList.remove('on'); document.body.classList.remove('map'); invGoMenu('custom'); }   // the customize window takes the inventory's place, same camera
-function invShowInv(){ invCust=false; invGoMenu('main'); document.body.classList.add('map'); invUi.classList.add('on'); invRefresh(); }
+function invShowCust(){ invApply(invCommit); invCust=true; invUi.classList.remove('on'); document.body.classList.remove('map'); invGoMenu('custom'); }   // the customize window takes the inventory's place, same camera
+function invShowInv(){ invCust=false; invGoMenu('main'); document.body.classList.add('map'); invUi.classList.add('on'); invPreview(); invRefresh(); }
 function openInventory(){
   if(invOn||exploring||mapMode) return;
   invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,clip:current?current.getClip().name:null}; invOn=true; invResetState();
   if(spin) toggleSpin();   // the turntable stays off
-  invHid=scene.children.filter(o=>o!==playerRig).map(o=>({o:o,v:o.visible})); if(rockMesh) invHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
+  invHid=scene.children.filter(o=>o!==playerRig&&o!==invBg).map(o=>({o:o,v:o.visible})); if(rockMesh) invHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
   play(idleName());        // his proper idle (the axe's with the axe)
   document.body.classList.add('map');   // the menu window steps aside, as it does for the map
   invBuild(); invRefresh(); requestAnimationFrame(()=>invUi.classList.add('on'));
 }
 function closeInventory(){
   if(!invOn) return;
+  invApply(invCommit);   // a weapon that was only previewed goes back to the one he really has equipped
   invOn=false; invCust=false; invUi.classList.remove('on'); if(invPrev&&invPrev.spin!==spin) toggleSpin();   // the turntable goes back to how it was before the inventory
   invHid.forEach(h=>{ h.o.visible=h.v; }); invHid=[]; if(invPrev&&invPrev.clip&&actions[invPrev.clip]) play(invPrev.clip);   // the world comes back and he returns to the pose he was in
   document.body.classList.remove('map');
@@ -4608,12 +4633,6 @@ function closeInventory(){
 addEventListener('keydown',e=>{
   if(!invOn||invCust) return; const k=e.key;
   e.stopImmediatePropagation();   // this key is the inventory's alone: otherwise, once it closes the inventory, the main menu's own handler sees the same key press (Escape = back to the START SCREEN, Enter = a menu item)
-  if(invMenuOn){   // the little menu beside an item
-    if(k==='Escape'||k==='Backspace'){ e.preventDefault(); blip(300,0.08); invMenuOn=false; invMenuDraw(); }
-    else if(k==='ArrowDown'||k==='s'||k==='S'||k==='ArrowUp'||k==='w'||k==='W'){ e.preventDefault(); const n=invMenuRows().length; invMenuCur=(invMenuCur+((k==='ArrowDown'||k==='s'||k==='S')?1:n-1))%n; blip(520,0.05); invMenuDraw(); }
-    else if(k==='Enter'||k===' '){ e.preventDefault(); invMenuGo(); }
-    return;
-  }
   if(k==='c'||k==='C'){ e.preventDefault(); invShowCust(); return; }
   if(k==='t'||k==='T'){ e.preventDefault(); blip(620,0.06); toggleSpin(); invSpinLabel(); return; }
   if(k==='Escape'||k==='Backspace'){ e.preventDefault(); blip(300,0.08); closeInventory(); }
