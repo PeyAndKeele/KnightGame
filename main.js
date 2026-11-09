@@ -4442,7 +4442,7 @@ function exitShop(){
 /* ---------- INVENTORY (main menu > INVENTORY) ----------
    The camera eases in on the knight (closer, a little above the middle of him) with the picture pushed right to leave room for the panel on the left - the same layout as the shop -
    he is put in his idle pose and everything except him is hidden, so the fog/sky colour is the background (the turntable stays off). The panel mocks the shop's: SWORD / HATCHET / AXE equip that weapon, POTION is only listed. */
-const INV_ZOOM=0.5, INV_PITCH=0.06, INV_TY=0.1, INV_VIEW=1.25;   // zoom, tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift)
+const INV_ZOOM=0.5, INV_PITCH=0.06, INV_TY=0.1, INV_VIEW=0;   // zoom, tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift; 0 = centred, between the item list on the left and the details on the right)
 function invStep(dt){
   if(!invOn&&invK===0) return;
   if(invOn) invHid.forEach(h=>{ h.o.visible=false; });   // (kept hidden every frame, in case something else switches it back on)
@@ -4453,32 +4453,142 @@ function invStep(dt){
   mapViewK=mapLerp(1,INV_VIEW,invK); applyView();
   if(!invOn&&invK===0){ invPrev=null; mapViewK=1; applyView(); }
 }
-const INV_ROWS=[
-  {t:'SWORD',  v:()=>(weapon==='sword'&&swordStyle==='sword')?'EQUIPPED':'', run:()=>{ swordStyle='sword'; setWeapon('sword'); refreshAnim(); }},
-  {t:'HATCHET',v:()=>(weapon==='sword'&&swordStyle==='hatchet')?'EQUIPPED':'', run:()=>{ swordStyle='hatchet'; setWeapon('sword'); refreshAnim(); }},
-  {t:'AXE',    v:()=>(weapon==='axe'&&axeStyle==='axe')?'EQUIPPED':'', run:()=>{ axeStyle='axe'; setWeapon('axe'); showWeapons(); refreshAnim(); }},
-  {t:'SHOVEL', v:()=>(weapon==='axe'&&axeStyle==='shovel')?'EQUIPPED':'', run:()=>{ axeStyle='shovel'; setWeapon('axe'); showWeapons(); refreshAnim(); }},
-  {t:'HAMMER', v:()=>(weapon==='sword'&&swordStyle==='hammer')?'EQUIPPED':'', run:()=>{ swordStyle='hammer'; setWeapon('sword'); refreshAnim(); }},
-  {t:'KNIGHTLY SWORD', v:()=>(weapon==='sword'&&swordStyle==='knightly')?'EQUIPPED':'', run:()=>{ swordStyle='knightly'; setWeapon('sword'); refreshAnim(); }},
-  {t:'POTION', v:()=>'x1', run:()=>{}},
-  {t:'BACK',   v:()=>'', run:()=>closeInventory()}];
-function invRefresh(){ if(!invUi) return; [...invUi.querySelectorAll('.mi')].forEach((b,i)=>{ b.classList.toggle('on',i===invCur); b.lastChild.textContent=INV_ROWS[i].v(); }); }
-function invSelect(i,sound){ i=((i%INV_ROWS.length)+INV_ROWS.length)%INV_ROWS.length; if(i===invCur) return; invCur=i; if(sound) blip(520,0.05); invRefresh(); }
-function invActivate(){ blip(880,0.09); INV_ROWS[invCur].run(); invRefresh(); }
+/* The inventory is laid out like Elden Ring's: TABS along the top (WEAPONS, ITEMS; Q / E switch them), under them the TYPES inside a tab (WEAPONS: LIGHT / HEAVY; A / D or the left / right arrows switch them),
+   the list of what you hold on the left (the equipped one wears an E), and the highlighted item's details on the right. ENTER on a weapon opens a little menu next to it (EQUIP / BACK).
+   The knight stands between the two columns and wears whatever you equip. To add a weapon, add a row to the WEAPONS tab's items (cls: 'light' or 'heavy'); a new tab or type is one more entry in INV_TABS.
+   Light = the one-handed weapons (his 'sword' slot: sword, hatchet, hammer, knightly sword); heavy = the two-handed ones (his 'axe' slot: axe, shovel), the ones RENDER needs. */
+const INV_ICONS={
+  sword:'<path d="M19 5 L8 16 M5 13 L11 19 M8 16 L4 20"/>',
+  knightly:'<path d="M19 5 L8 16 M5 13 L11 19 M8 16 L4 20"/><path d="M15 8 l1.5 1.5 -1.5 1.5 -1.5 -1.5 z"/>',
+  hatchet:'<path d="M6 20 L15 7"/><path d="M12 5 L19 8 L16 14 Z"/>',
+  hammer:'<path d="M5 20 L14 10"/><path d="M12 4 L20 12 L17 15 L9 7 Z"/>',
+  axe:'<path d="M5 20 L16 4"/><path d="M11 3 L21 8 L17 13 Z"/><path d="M9 10 L3 13 L7 16 Z"/>',
+  shovel:'<path d="M5 4 L15 14"/><path d="M13 12 L19 18 L16 21 L10 15 Z"/><path d="M3 6 L7 2"/>',
+  potion:'<path d="M9 3 H15 M10 3 V8 L5.5 17 A2 2 0 0 0 7.5 20 H16.5 A2 2 0 0 0 18.5 17 L14 8 V3"/><path d="M8.5 14 H15.5"/>'
+};
+function invIcon(k){ return '<svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">'+(INV_ICONS[k]||'')+'</svg>'; }
+const invLightEq=st=>()=>weapon==='sword'&&swordStyle===st, invHeavyEq=st=>()=>weapon==='axe'&&axeStyle===st;
+const invLightStats=()=>[['DAMAGE',''+SWING_DAMAGE],['GRIP','ONE-HANDED'],['SWING','SWING'],['SPECIAL','NONE']];
+const invHeavyStats=()=>[['DAMAGE',''+SWING_DAMAGE],['GRIP','TWO-HANDED'],['SWING','AXE SWING'],['SPECIAL','RENDER ('+RENDER_DAMAGE+' TO ALL)']];
+const INV_TABS=[
+  {t:'WEAPONS',subs:[{t:'LIGHT',cls:'light'},{t:'HEAVY',cls:'heavy'}],items:[
+    {t:'SWORD',cls:'light',icon:'sword',kind:'LIGHT WEAPON',eq:invLightEq('sword'),equip:()=>{ swordStyle='sword'; setWeapon('sword'); refreshAnim(); },stats:invLightStats,desc:'A plain, balanced blade. Quick to swing and easy to trust.'},
+    {t:'HATCHET',cls:'light',icon:'hatchet',kind:'LIGHT WEAPON',eq:invLightEq('hatchet'),equip:()=>{ swordStyle='hatchet'; setWeapon('sword'); refreshAnim(); },stats:invLightStats,desc:'A woodcutter\'s hatchet on a short haft. Light enough to swing all day.'},
+    {t:'HAMMER',cls:'light',icon:'hammer',kind:'LIGHT WEAPON',eq:invLightEq('hammer'),equip:()=>{ swordStyle='hammer'; setWeapon('sword'); refreshAnim(); },stats:invLightStats,desc:'A blunt hammer. It lands with a thud instead of a slash.'},
+    {t:'KNIGHTLY SWORD',cls:'light',icon:'knightly',kind:'LIGHT WEAPON',eq:invLightEq('knightly'),equip:()=>{ swordStyle='knightly'; setWeapon('sword'); refreshAnim(); },stats:invLightStats,desc:'A knight\'s sword with gems set in the blade. Its swing leaves a trail of every colour.'},
+    {t:'AXE',cls:'heavy',icon:'axe',kind:'HEAVY WEAPON',eq:invHeavyEq('axe'),equip:()=>{ axeStyle='axe'; setWeapon('axe'); showWeapons(); refreshAnim(); },stats:invHeavyStats,desc:'A two-handed axe. It takes both hands to bring around, and it is the kind of weapon that can RENDER.'},
+    {t:'SHOVEL',cls:'heavy',icon:'shovel',kind:'HEAVY WEAPON',eq:invHeavyEq('shovel'),equip:()=>{ axeStyle='shovel'; setWeapon('axe'); showWeapons(); refreshAnim(); },stats:invHeavyStats,desc:'A digger\'s shovel put to work as a weapon. It swings like the axe and can RENDER too.'}]},
+  {t:'ITEMS',subs:null,items:[
+    {t:'POTION',icon:'potion',kind:'CONSUMABLE',qty:()=>'x'+POTION_COUNT,stats:()=>[['HEALS',POTION_HEAL+' HP'],['STOCK',POTION_COUNT+' PER BATTLE']],desc:'A small flask of healing draught. Drink it from the ITEMS menu in battle.'}]}
+];
+let invTab=0, invSub=[0,0], invCurs={}, invMenuOn=false, invMenuCur=0;
+function invList(){ const T=INV_TABS[invTab]; return T.subs?T.items.filter(i=>i.cls===T.subs[invSub[invTab]].cls):T.items; }
+function invKey(){ return invTab+':'+invSub[invTab]; }
+function invResetState(){   // opening: the WEAPONS tab, on the type he is holding, with the equipped weapon highlighted (as Elden Ring does)
+  invTab=0; invSub=[weapon==='axe'?1:0,0]; invCurs={}; invMenuOn=false; invCur=0;
+  const i=invList().findIndex(it=>it.eq&&it.eq()); if(i>=0) invCur=i;
+}
+function invGoto(tab,sub,sound){   // switch tab / type, remembering where the cursor was in the one we leave
+  invCurs[invKey()]=invCur;
+  if(tab!==undefined) invTab=((tab%INV_TABS.length)+INV_TABS.length)%INV_TABS.length;
+  const T=INV_TABS[invTab]; if(sub!==undefined&&T.subs) invSub[invTab]=((sub%T.subs.length)+T.subs.length)%T.subs.length;
+  invCur=Math.min(invCurs[invKey()]||0,invList().length-1); invMenuOn=false; if(sound) blip(620,0.06); invRefresh();
+}
+function invRefresh(){
+  if(!invUi) return;
+  const T=INV_TABS[invTab], L=invList(); if(invCur>=L.length) invCur=Math.max(0,L.length-1);
+  invUi.querySelector('#inv-tabs').innerHTML='<span class="ik">Q</span>'+INV_TABS.map((t,i)=>'<button type="button" class="it'+(i===invTab?' on':'')+'" data-tab="'+i+'">'+t.t+'</button>').join('')+'<span class="ik">E</span>';
+  invUi.querySelector('#inv-subs').innerHTML=T.subs?('<span class="ik">A</span>'+T.subs.map((t,i)=>'<button type="button" class="is'+(i===invSub[invTab]?' on':'')+'" data-sub="'+i+'">'+t.t+'</button>').join('')+'<span class="ik">D</span>'):'<span class="ih">'+T.t+'</span>';
+  const list=invUi.querySelector('#inv-list');
+  list.innerHTML=L.map((it,i)=>'<button type="button" class="ir'+(i===invCur?' on':'')+'" data-i="'+i+'"><span class="ii">'+invIcon(it.icon)+'</span><span class="in">'+it.t+'</span><span class="iv">'+(it.eq?(it.eq()?'<b class="eb">E</b>':''):(it.qty?it.qty():''))+'</span></button>').join('');
+  invUi.querySelector('#inv-count').textContent=(T.subs?T.subs[invSub[invTab]].t+' ':'')+L.length;
+  invDetail(); invMenuDraw();
+}
+function invDetail(){
+  const it=invList()[invCur], box=invUi.querySelector('#inv-det'); if(!it){ box.innerHTML=''; return; }
+  box.innerHTML='<div class="ib">'+invIcon(it.icon)+'</div><div class="idn">'+it.t+'</div><div class="idt">'+it.kind+(it.eq&&it.eq()?'<b class="eb">E</b>':'')+'</div>'
+    +it.stats().map(r=>'<div class="idr"><span>'+r[0]+'</span><span>'+r[1]+'</span></div>').join('')+'<div class="idd">'+it.desc+'</div>';
+}
+function invSelect(i,sound){
+  const L=invList(); if(!L.length) return; i=((i%L.length)+L.length)%L.length; if(i===invCur) return; invCur=i; if(sound) blip(520,0.05);
+  [...invUi.querySelectorAll('#inv-list .ir')].forEach((b,k)=>b.classList.toggle('on',k===invCur));
+  const row=invUi.querySelector('#inv-list .ir.on'); if(row&&row.scrollIntoView) row.scrollIntoView({block:'nearest'});
+  invDetail();
+}
+function invMenuRows(){ const it=invList()[invCur]; return [{t:it.eq()?'EQUIPPED':'EQUIP',off:it.eq(),run:()=>it.equip()},{t:'BACK',run:()=>{}}]; }
+function invMenuDraw(){
+  const m=invUi.querySelector('#inv-menu'), list=invUi.querySelector('#inv-list'); invUi.classList.toggle('menu',invMenuOn);
+  if(!invMenuOn){ m.style.display='none'; return; }
+  const row=list.children[invCur]; m.style.display='block'; m.style.top=Math.max(0,(row?row.offsetTop-list.scrollTop+list.offsetTop+row.offsetHeight:0))+'px';
+  m.innerHTML=invMenuRows().map((r,i)=>'<button type="button" class="im'+(i===invMenuCur?' on':'')+(r.off?' off':'')+'" data-m="'+i+'">'+r.t+'</button>').join('');
+}
+function invActivate(){   // ENTER / click on the highlighted item
+  const it=invList()[invCur]; if(!it) return;
+  if(!it.equip){ blip(300,0.05); return; }
+  blip(880,0.09); invMenuOn=true; invMenuCur=0; invMenuDraw();
+}
+function invMenuGo(){
+  const r=invMenuRows()[invMenuCur]; if(!r) return;
+  if(r.off){ blip(300,0.05); return; }
+  blip(880,0.09); r.run(); invMenuOn=false; invRefresh();
+}
 function invBuild(){
   if(invUi) return;
-  const st=document.createElement('style'); st.textContent='#invui{position:fixed;left:3vw;top:9vh;width:min(32vw,440px);max-height:74vh;box-sizing:border-box;border:3px solid #7fc4ff;background:rgba(40,100,230,.30);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:12px;padding:24px;font-size:min(34px,5vh);letter-spacing:.14em;color:#d4ecff;text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}#invui.on{opacity:1;pointer-events:auto}#invui .mi{display:flex;justify-content:space-between}@media (max-aspect-ratio:9/10){#invui{left:4vw;width:92vw;top:4vh;max-height:46vh}}'; document.head.appendChild(st);
+  const st=document.createElement('style'); st.textContent=`
+#invui{position:fixed;left:3vw;right:3vw;top:4vh;bottom:4vh;display:grid;grid-template-columns:minmax(0,min(34vw,470px)) minmax(0,1fr) minmax(0,min(30vw,420px));grid-template-rows:auto minmax(0,1fr) auto;gap:12px;font-size:min(26px,3.8vh);letter-spacing:.12em;color:#d4ecff;text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}
+#invui.on{opacity:1}#invui.on>*{pointer-events:auto}
+#invui .ip{box-sizing:border-box;border:3px solid #7fc4ff;background:rgba(40,100,230,.30);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35)}
+#invui button{font:inherit;letter-spacing:inherit;color:inherit;text-shadow:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:left}
+#invtop{grid-column:1/4;display:flex;align-items:center;gap:16px;padding:6px 16px}
+#invtop .ttl{flex:0 0 auto}#inv-tabs{flex:1;display:flex;justify-content:center;align-items:center;gap:8px}
+#invui .ik{display:inline-block;min-width:1.3em;text-align:center;font-size:.7em;padding:0 4px;border:2px solid #7fc4ff;background:rgba(0,0,0,.4);color:#9fc9ff}
+#invui .it{padding:2px 22px;border:2px solid transparent;color:#9fc9ff}#invui .it.on{color:#fff;border-color:#7fc4ff;background:rgba(127,196,255,.28)}
+#inv-cust{font-size:.62em!important;padding:2px 10px!important;border:2px solid #7fc4ff!important;background:rgba(0,0,0,.35)!important;letter-spacing:.1em!important}
+#invleft{grid-column:1;grid-row:2;display:flex;flex-direction:column;position:relative;padding:12px;min-height:0}
+#inv-subs{display:flex;align-items:center;gap:8px;padding-bottom:8px;margin-bottom:8px;border-bottom:2px solid #7fc4ff}
+#invui .is{padding:0 14px;border:2px solid transparent;color:#9fc9ff}#invui .is.on{color:#fff;border-color:#7fc4ff;background:rgba(127,196,255,.28)}#invui .ih{padding:0 6px}
+#inv-list{flex:1;min-height:0;overflow-y:auto;position:relative;scrollbar-width:thin;scrollbar-color:#7fc4ff transparent}
+#invui .ir{display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;padding:5px 8px;border:2px solid transparent}
+#invui .ir.on{background:rgba(127,196,255,.28);border-color:#7fc4ff;color:#fff}#invui.menu .ir:not(.on){opacity:.45}
+#invui .ii{flex:0 0 auto;width:1.5em;height:1.5em;padding:3px;box-sizing:border-box;border:2px solid #7fc4ff;background:rgba(0,0,0,.4)}
+#invui .in{flex:1;white-space:nowrap}#invui .iv{flex:0 0 auto}
+#invui .eb{display:inline-block;margin-left:8px;min-width:1.2em;text-align:center;font-size:.75em;line-height:1.2;border:2px solid #ffe27a;color:#ffe27a;background:rgba(0,0,0,.45);font-weight:normal}
+#inv-count{padding-top:8px;margin-top:8px;border-top:2px solid #7fc4ff;font-size:.7em;color:#9fc9ff;text-align:right}
+#inv-menu{display:none;position:absolute;right:20px;z-index:3;min-width:9em;border:3px solid #7fc4ff;background:rgba(8,20,60,.96);box-shadow:0 0 0 3px #000;padding:6px}
+#invui .im{display:block;width:100%;box-sizing:border-box;padding:3px 12px;border:2px solid transparent}#invui .im.on{background:rgba(127,196,255,.28);border-color:#7fc4ff;color:#fff}#invui .im.off{color:#6f8fb4}
+#invright{grid-column:3;grid-row:2;align-self:start;max-height:100%;overflow:auto;padding:14px;scrollbar-width:thin;scrollbar-color:#7fc4ff transparent}
+#invui .ib{width:min(110px,16vh);height:min(110px,16vh);margin:0 auto 10px;padding:12px;box-sizing:border-box;border:2px solid #7fc4ff;background:rgba(0,0,0,.4)}
+#invui .idn{font-size:1.25em;text-align:center;color:#fff}#invui .idt{text-align:center;font-size:.7em;color:#9fc9ff;padding-bottom:8px;margin-bottom:8px;border-bottom:2px solid #7fc4ff}
+#invui .idr{display:flex;justify-content:space-between;gap:12px;font-size:.8em;padding:2px 0}#invui .idr span:last-child{color:#fff;text-align:right}
+#invui .idd{font-size:.75em;line-height:1.25;margin-top:10px;padding-top:8px;border-top:2px solid #7fc4ff;letter-spacing:.06em;color:#bcdcff}
+#invhint{grid-column:1/4;display:flex;justify-content:center;gap:2.2em;flex-wrap:wrap;padding:4px 14px;font-size:.62em;color:#9fc9ff}
+@media (max-aspect-ratio:9/10){#invui{grid-template-columns:1fr;grid-template-rows:auto minmax(0,40vh) auto;bottom:auto;gap:8px;font-size:min(22px,3.4vh)}#invtop{grid-column:1;flex-wrap:wrap;gap:8px}#invtop .ttl{display:none}#invleft{grid-column:1}#invright,#invhint{display:none}}`;
+  document.head.appendChild(st);
   invUi=document.createElement('div'); invUi.id='invui';
-  invUi.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #7fc4ff;padding-bottom:6px;margin-bottom:8px"><span>INVENTORY</span><button type="button" id="inv-cust" style="font:inherit;font-size:.62em;color:#d4ecff;background:rgba(0,0,0,.35);border:2px solid #7fc4ff;padding:2px 10px;letter-spacing:.1em;cursor:pointer;text-shadow:inherit">CUSTOMIZE</button></div>'+INV_ROWS.map(r=>'<button class="mi" type="button"><span>'+r.t+'</span><span class="v"></span></button>').join('');
-  [...invUi.querySelectorAll('.mi')].forEach((b,i)=>{ b.onmouseenter=()=>invSelect(i,true); b.onclick=()=>{ invSelect(i,false); invActivate(); }; });
-  invUi.querySelector('#inv-cust').onclick=()=>{ blip(880,0.09); invShowCust(); };   // (invUi is not in the page yet, so document.getElementById would find nothing)
+  invUi.innerHTML='<div id="invtop" class="ip"><span class="ttl">INVENTORY</span><div id="inv-tabs"></div><button type="button" id="inv-cust">CUSTOMIZE</button></div>'
+    +'<div id="invleft" class="ip"><div id="inv-subs"></div><div id="inv-list"></div><div id="inv-count"></div><div id="inv-menu"></div></div>'
+    +'<div id="invright" class="ip"><div id="inv-det"></div></div>'
+    +'<div id="invhint" class="ip"><span>Q / E: TABS</span><span>A / D: TYPE</span><span>W / S: SELECT</span><span>ENTER: CONFIRM</span><span>C: CUSTOMIZE</span><span>ESC: BACK</span></div>';
+  invUi.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b||!invUi.contains(b)) return;
+    if(b.id==='inv-cust'){ blip(880,0.09); invShowCust(); }
+    else if(b.dataset.tab!==undefined) invGoto(+b.dataset.tab,undefined,true);
+    else if(b.dataset.sub!==undefined) invGoto(undefined,+b.dataset.sub,true);
+    else if(b.dataset.m!==undefined){ invMenuCur=+b.dataset.m; invMenuGo(); }
+    else if(b.dataset.i!==undefined){ if(invMenuOn){ invMenuOn=false; invMenuDraw(); } invSelect(+b.dataset.i,false); invActivate(); }
+  });
+  invUi.addEventListener('mouseover',e=>{   // the pointer highlights what it is over, as the arrow keys do
+    const b=e.target.closest('button'); if(!b) return;
+    if(b.dataset.i!==undefined&&!invMenuOn) invSelect(+b.dataset.i,true);
+    else if(b.dataset.m!==undefined&&invMenuCur!==+b.dataset.m){ invMenuCur=+b.dataset.m; blip(520,0.05); invMenuDraw(); }
+  });
   document.body.appendChild(invUi);
 }
 function invShowCust(){ invCust=true; invUi.classList.remove('on'); document.body.classList.remove('map'); invGoMenu('custom'); }   // the customize window takes the inventory's place, same camera
 function invShowInv(){ invCust=false; invGoMenu('main'); document.body.classList.add('map'); invUi.classList.add('on'); invRefresh(); }
 function openInventory(){
   if(invOn||exploring||mapMode) return;
-  invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,clip:current?current.getClip().name:null}; invOn=true; invCur=0;
+  invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,clip:current?current.getClip().name:null}; invOn=true; invResetState();
   if(spin) toggleSpin();   // the turntable stays off
   invHid=scene.children.filter(o=>o!==playerRig).map(o=>({o:o,v:o.visible})); if(rockMesh) invHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
   play(idleName());        // his proper idle (the axe's with the axe)
@@ -4494,10 +4604,20 @@ function closeInventory(){
 addEventListener('keydown',e=>{
   if(!invOn||invCust) return; const k=e.key;
   e.stopImmediatePropagation();   // this key is the inventory's alone: otherwise, once it closes the inventory, the main menu's own handler sees the same key press (Escape = back to the START SCREEN, Enter = a menu item)
-  if(k==='c'||k==='C'||k==='Tab'){ e.preventDefault(); invShowCust(); return; }
+  if(invMenuOn){   // the little menu beside an item
+    if(k==='Escape'||k==='Backspace'){ e.preventDefault(); blip(300,0.08); invMenuOn=false; invMenuDraw(); }
+    else if(k==='ArrowDown'||k==='s'||k==='S'||k==='ArrowUp'||k==='w'||k==='W'){ e.preventDefault(); const n=invMenuRows().length; invMenuCur=(invMenuCur+((k==='ArrowDown'||k==='s'||k==='S')?1:n-1))%n; blip(520,0.05); invMenuDraw(); }
+    else if(k==='Enter'||k===' '){ e.preventDefault(); invMenuGo(); }
+    return;
+  }
+  if(k==='c'||k==='C'){ e.preventDefault(); invShowCust(); return; }
   if(k==='Escape'||k==='Backspace'){ e.preventDefault(); blip(300,0.08); closeInventory(); }
-  else if(k==='ArrowDown'||k==='s'){ e.preventDefault(); invSelect(invCur+1,true); }
-  else if(k==='ArrowUp'||k==='w'){ e.preventDefault(); invSelect(invCur-1,true); }
+  else if(k==='q'||k==='Q'||k==='PageUp'){ e.preventDefault(); invGoto(invTab-1,undefined,true); }       // tabs
+  else if(k==='e'||k==='E'||k==='PageDown'||k==='Tab'){ e.preventDefault(); invGoto(invTab+1,undefined,true); }
+  else if(k==='ArrowLeft'||k==='a'||k==='A'){ e.preventDefault(); if(INV_TABS[invTab].subs) invGoto(undefined,invSub[invTab]-1,true); }   // types within the tab
+  else if(k==='ArrowRight'||k==='d'||k==='D'){ e.preventDefault(); if(INV_TABS[invTab].subs) invGoto(undefined,invSub[invTab]+1,true); }
+  else if(k==='ArrowDown'||k==='s'||k==='S'){ e.preventDefault(); invSelect(invCur+1,true); }
+  else if(k==='ArrowUp'||k==='w'||k==='W'){ e.preventDefault(); invSelect(invCur-1,true); }
   else if(k==='Enter'||k===' '){ e.preventDefault(); invActivate(); }
 });
 function initMainMenu(){
