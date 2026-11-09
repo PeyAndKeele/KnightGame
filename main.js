@@ -1011,11 +1011,11 @@ function initKnightly(parent){
       geo.setIndex(p.i);
       const tex=new THREE.Texture(imgs[k]); tex.flipY=false;
       let kmat;
-      if(p.name==='blade'||p.name==='blade_tip'){
+      if(p.name!=='crossguard'){
         kmat=ps1Mat(tex,1); shineMat(kmat); kmat.uniforms.uGem.value=1; kmat.uniforms.uBladeGlow.value=0;   // 0: no white wash on the steel any more (the gems still glow, uGem)
         if(p.name==='blade') knightlyBladeMat=kmat;
         kmat.userData.tintAmt=1; swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);   // it follows the weapon colour like the other swords, at full strength
-      } else {   // the hilt (guard, pommel, grip) is the normal sword's own, copied into knightly-sword-data: built exactly as initSword builds it (no glow, no shine, the normal sword's tint)
+      } else {   // the guard is the normal sword's own, copied into knightly-sword-data: built exactly as initSword builds it (no glow, no shine, the normal sword's tint). The pommel and grip are still the knightly sword's
         kmat=ps1Mat(tex,1); swordMats.push(kmat); tintMat(kmat,swordMatch?armorHex:swordHex);
       }
       const m=new THREE.Mesh(geo,kmat); m.name='knightly_'+p.name;
