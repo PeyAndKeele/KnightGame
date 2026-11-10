@@ -272,7 +272,7 @@ function csSpawn(n){
 }
 function updateComboSparks(dt){
   const c=current&&current.getClip(), cn=c&&(c.ualSrc||c.name);
-  if(cn==='UAL_Sword_Heavy_Combo'&&swTip&&swHilt&&playerRig&&playerRig.visible){
+  if(cn==='HeavyCombo'&&swTip&&swHilt&&playerRig&&playerRig.visible){
     csEnsure(); const t=current.time, a=HEAVY_COMBO_FINISH_T-CS_LEAD;
     if(csPrevT<0||t<csPrevT){ csAcc=0; csRefresh(); }   // (re)started or looped
     if(t>=a&&t<=HEAVY_COMBO_FINISH_T){ csAcc+=CS_RATE*dt; const n=Math.floor(csAcc); csAcc-=n; csSpawn(n); }
@@ -437,7 +437,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
     const el=document.getElementById('ual-data'); if(!el) return;
     const U=JSON.parse(el.textContent), base={};
     gltf.animations.forEach(a=>a.tracks.forEach(t=>{ const b=t.name.slice(0,t.name.lastIndexOf('.')); base[b.replace(/_\d+$/,'')]=b; }));
-    U.clips.forEach(D=>{ const tr=D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); }); gltf.animations.push(new THREE.AnimationClip(D.name,-1,tr)); });
+    U.clips.forEach(D=>{ const tr=D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); }); gltf.animations.push(new THREE.AnimationClip(D.name==='UAL_Sword_Heavy_Combo'?'HeavyCombo':D.name,-1,tr)); });   // (the heavy combo is just called HeavyCombo: it is not one of the hidden UAL_ clips)
   })();
   { [START_CLIP,'ShopIdle','ShopIdleAnimation1','ShopIdleAnimationIntoTalk','ShopIdleAnimationOutroTalk','ShopIdleAnimationWhileTalking'].forEach(cn=>{ const p3=gltf.animations.find(a=>a.name===cn); if(p3) setLeftShin(p3,LEFT_SHIN_DEG); }); }   // Pose3 shares Pose2's legs, so it gets the same tweak and sits on the same rock. Its head is left as authored; the occasional look at the sky is added on top, see headLook()
   /* AxeFlaunt is the rig's own "animation" clip, played exactly as authored (arms, body, legs and head are not touched). Only the axe moves: it rests on his back, see AXE_STOW_CLIPS. */
@@ -449,6 +449,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   { const gi={enemies:0,self:1,shop:2}; menuNames=menuNames.map((n,i)=>[n,i]).sort((a,b)=>gi[animGroup(a[0])]-gi[animGroup(b[0])]||a[1]-b[1]).map(x=>x[0]); }   // grouped in the order the ANIMATIONS menu shows them (so the cycle keys follow it too)
   if(SNAP_ON) gltf.animations.forEach(a=>{ if(SNAP_CLIPS.includes(a.name)) snapClip(a); });   // see SNAP
   gltf.animations.forEach(a=>{actions[a.name]=mixer.clipAction(a);});
+  try{ ualApply(); }catch(e){ console.error(e); }   // the default ANIM SET (IDEAL) takes effect from the start
   mixer.addEventListener('finished',e=>{ if(e.action===actions[EVT_CLIP]) evtDone=true; else if(e.action===actions.Swing||e.action===actions.AxeSwing) swingDone=true; else if(e.action===actions.AxeFlaunt&&e.action===current) flauntDone=true; else if(e.action===actions.Chestopen&&chestScene) chestDone=true; });
   mixer.addEventListener('loop',e=>{ if(evtDue&&e.action===current&&e.action.getClip().name===SEAT_CLIP) evtGo=true; });
   mixer.addEventListener('loop',e=>{ const n=e.action.getClip().name; if(e.action===current&&ANIM_SFX_LOOPS[n]) ANIM_SFX[n](); });
@@ -1754,7 +1755,7 @@ function danceStep(){
 }
 /* The UAL heavy combos lift his whole body off the floor (the hips' height comes straight from the mocap), so while one plays his height is controlled: every frame the rig is moved up or
    down so his lowest foot is exactly on the ground, and put back to its normal height as soon as the clip is over. */
-let ualY0=null; const _ugB=new THREE.Box3(), UAL_GROUND=/^UAL_.*Heavy/;
+let ualY0=null; const _ugB=new THREE.Box3(), UAL_GROUND=/^(UAL_.*Heavy|HeavyCombo)/;
 function ualGround(){
   if(!playerRig||!current) return;
   const c=current.getClip(), src=c.ualSrc||c.name;
@@ -2211,6 +2212,7 @@ function play(n){
   if(n==='GolemAttack'){ playGolem(); return; }
   if(golemOn) golemShow(false);
   if(n==='Flaunt'&&weapon==='axe'&&actions.AxeFlaunt) n='AxeFlaunt';   // the axe has its own flaunt (heavy weapons class)
+  if(animSet==='ideal'&&n==='Swing') idealPickSwing();
   if(!actions[n]) return;
   if((n==='AxeIdle'||n==='AxeSwing'||n==='AxeFlaunt'||n===FLAUNT_IDLE)&&weapon!=='axe') setWeapon('axe');   // these are the axe's own clips, so choosing one brings the axe out
   else if((n==='Idle'||n==='Swing')&&weapon==='axe') setWeapon('sword');   // and these are the sword's, so choosing one puts the sword back (the game itself always asks for idleName())
@@ -2273,17 +2275,28 @@ const UAL_ALT={Idle:'UAL_Idle_Shield_Loop',AxeIdle:'UAL_Idle_Shield_Loop',Walk:'
 let ualOn=false; const ualOrig={}, ualAl={};
 /* The game finds its clips by NAME (the swing's sword trail, the sounds that repeat every loop, the footsteps ...). So the UAL clip that replaces Swing is a copy that is itself called 'Swing' (Idle, Walk, Hit ... likewise): everything keyed on those names keeps working. */
 function ualAlias(k,sn){ const key=k+'|'+sn; if(!ualAl[key]){ const c=actions[sn].getClip().clone(); c.name=k; c.ualSrc=sn; ualAl[key]=mixer.clipAction(c); } return ualAl[key]; }
+/* ANIM SET: IDEAL (the default) = the UAL Idle and Hit, plus a different random UAL Sword_Regular_A / B / C for every swing; everything else is the knight's own. KNIGHT = all the knight's own.
+   UNIVERSAL = every clip in UAL_ALT from the UAL library. While IDEAL is on, the UAL_ clips are hidden from the ANIMATIONS menus (HeavyCombo is not one of them, so it stays). */
+let animSet='ideal'; const IDEAL_ALT={Idle:1,AxeIdle:1,Hit:1}, IDEAL_SWINGS=['UAL_Sword_Regular_A','UAL_Sword_Regular_B','UAL_Sword_Regular_C']; let idealSwingLast=-1;
+const animVisible=n=>!(animSet==='ideal'&&/^UAL_/.test(n));
+function idealPickSwing(){   // called every time a Swing starts: a different one of the three each time
+  const o=ualOrig.Swing; if(!o) return;
+  let i; do{ i=(Math.random()*IDEAL_SWINGS.length)|0; }while(i===idealSwingLast);
+  idealSwingLast=i; const alt=ualAlias('Swing',IDEAL_SWINGS[i]); alt.setEffectiveTimeScale(1); alt.setDuration(o.getClip().duration); actions.Swing=alt;   // stretched to the knight's swing length, as in UNIVERSAL
+}
 function ualApply(){
+  const U=animSet==='universal', I=animSet==='ideal';
   Object.keys(UAL_ALT).forEach(k=>{
-    const sn=(k==='Block'&&weapon==='axe')?'UALX_Sword_Block':UAL_ALT[k], alt=actions[sn]&&ualAlias(k,sn); if(!ualOrig[k]&&actions[k]&&actions[k]!==alt) ualOrig[k]=actions[k];   // (Block with the axe: the game turns the model round again for it, so that one uses the clip in its original hand)
+    const sn=(k==='Block'&&weapon==='axe')?'UALX_Sword_Block':UAL_ALT[k], alt=actions[sn]&&ualAlias(k,sn); if(!ualOrig[k]&&actions[k]&&!actions[k].getClip().ualSrc) ualOrig[k]=actions[k];   // (Block with the axe: the game turns the model round again for it, so that one uses the clip in its original hand)
     const o=ualOrig[k]; if(!o||!alt) return;
     alt.setEffectiveTimeScale(1);
-    if(ualOn){ actions[k]=alt; if(!/Idle|Walk|Hit/.test(k)) alt.setDuration(o.getClip().duration); } else actions[k]=o;   // Hit plays at its own speed: squeezed into the knight's 0.26 s it looked wrong
+    if(U||(I&&IDEAL_ALT[k])){ actions[k]=alt; if(!/Idle|Walk|Hit/.test(k)) alt.setDuration(o.getClip().duration); } else actions[k]=o;   // Hit plays at its own speed: squeezed into the knight's 0.26 s it looked wrong
   });
+  if(I) idealPickSwing();
 }
 function toggleUal(){
   let base=null; Object.keys(UAL_ALT).forEach(k=>{ if(current&&(current===actions[k]||current===ualOrig[k]||current===actions[UAL_ALT[k]]||current===actions.UALX_Sword_Block&&k==='Block')) base=k; });
-  ualOn=!ualOn; ualApply(); if(base) play(base);
+  animSet=animSet==='ideal'?'knight':animSet==='knight'?'universal':'ideal'; ualOn=animSet==='universal'; ualApply(); if(base) play(base);
 }
 function animGroup(n){ return n==='GolemAttack'?'enemies':(/^Shop/.test(n)?'shop':'self'); }
 function buildMenu(){
@@ -2293,7 +2306,7 @@ function buildMenu(){
     b.addEventListener('click',()=>menuPlay(n)); box.appendChild(b);
   });
 }
-function cycle(d){ const c=golemOn?'GolemAttack':(current&&current.getClip().name), i=menuNames.indexOf(AXE_BASE[c]||c); menuPlay(menuNames[(i+d+menuNames.length)%menuNames.length]); }
+function cycle(d){ const L=menuNames.filter(animVisible), c=golemOn?'GolemAttack':(current&&current.getClip().name), i=L.indexOf(AXE_BASE[c]||c); menuPlay(L[(i+d+L.length)%L.length]); }
 
 /* ---------- toggles ---------- */
 function setSwitch(id,on,label){ const b=document.getElementById(id); b.setAttribute('aria-checked',on); b.querySelector('.v').textContent=label; }
@@ -3554,14 +3567,14 @@ function playSword(ts){   // every swing: the original sounds, with the class sw
 const SWISH_COMBO={
   UAL_Sword_Regular_A:[[0.167,0.267]], UAL_Sword_Regular_B:[[0.208,0.242]], UAL_Sword_Regular_C:[[0.22,0.283],[0.558,0.742]], UAL_Melee_Hook:[[0.15,0.233]],
   UAL_Sword_Regular_Combo:[[0.167,0.267],[0.667,0.742],[1.1,1.267],[1.483,1.533]],
-  UAL_Sword_Heavy_Combo:[[0.333,0.517],[0.967,1.017],[1.108,1.192],[1.692,1.742],[1.82,1.9],[2.0,2.108]]
+  HeavyCombo:[[0.333,0.517],[0.967,1.017],[1.108,1.192],[1.692,1.742],[1.82,1.9],[2.0,2.108]]
 };
 const HEAVY_COMBO_FINISH_T=2.66;   // clip time the Heavy Combo's finishing blow slams the sword into the floor (after the stab at ~2.17 he leaps and brings it down; the lowest point of the blade drops from 0.5 above the floor at 2.62 to 0.2 at 2.66 and stays there): the bluntflesh hit and one of the four attack sounds land here. The clip carries on with ~1.7 s of recovery after it
 function playSwishClip(n){
   const T=SWISH_COMBO[n]; if(!T){ playSword(1); return; }
   swishStopAll();
   T.forEach(w=>{ const i=swishNext(); playSwordOld(1,w[0]+0.018); playSwish(i,Math.max(0,w[1]-SWISH_PEAK[i])); });
-  if(n==='UAL_Sword_Heavy_Combo'){   // the finishing blow: the bluntflesh hit (as RENDER's) with one of the attack sounds
+  if(n==='HeavyCombo'){   // the finishing blow: the bluntflesh hit (as RENDER's) with one of the attack sounds
     const fd=Math.max(0,HEAVY_COMBO_FINISH_T-0.06);   // (the sparkle's loudest part is 0.06 s in, so it starts just before the slam)
     playSfxSetTracked('combo-sparkle-sfx-data',0,0.9,1,fd);
     playSfxSetTracked('render-hit-sfx-data',0,0.9,1,fd);   // the bluntflesh hit (wpn_hit_bluntflesh_enchanted_02) starts at the very same moment as the sparkle sound
@@ -3590,7 +3603,7 @@ const ANIM_SFX={
   Death:()=>playGrunt(DEATH_GRUNT)
 };
 const ANIM_SFX_LOOPS={Swing:1,AxeSwing:1,Hit:1,Block:1};
-['UAL_Sword_Regular_A','UAL_Sword_Regular_B','UAL_Sword_Regular_C','UAL_Sword_Regular_Combo','UAL_Sword_Heavy_Combo','UAL_Melee_Hook'].forEach(n=>{ ANIM_SFX[n]=()=>playSwishClip(n); ANIM_SFX_LOOPS[n]=1; });   // the UAL clips in the ANIMATIONS menu get the same sounds
+['UAL_Sword_Regular_A','UAL_Sword_Regular_B','UAL_Sword_Regular_C','UAL_Sword_Regular_Combo','HeavyCombo','UAL_Melee_Hook'].forEach(n=>{ ANIM_SFX[n]=()=>playSwishClip(n); ANIM_SFX_LOOPS[n]=1; });   // the UAL clips in the ANIMATIONS menu get the same sounds
 ANIM_SFX.UAL_Sword_Block=ANIM_SFX.Block; ANIM_SFX_LOOPS.UAL_Sword_Block=1; ANIM_SFX.UAL_Hit_Stagger=ANIM_SFX.Hit; ANIM_SFX_LOOPS.UAL_Hit_Stagger=1;   // clips that loop in the test screen get their sound again every loop (Death plays once)
 const DEATH_GRUNT=2;   // which of the three grunts Death uses (the longest one); a hit picks one at random
 function playGrunt(i){
@@ -4667,13 +4680,13 @@ function initMainMenu(){
   let tt=0; window.toast=toast; function toast(t){ toastEl.textContent=t; toastEl.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>toastEl.classList.remove('show'),1700); }
   const BACK={t:'BACK',go:'main'}, BACK_OPT={t:'BACK',go:'options'};   // BACK_OPT: from a group of options back to OPTIONS
   const BACK_ANIM={t:'BACK',go:'anims'};   // from an ANIMATIONS sub-menu back to the ANIMATIONS list
-  const animRows=g=>menuNames.filter(n=>animGroup(n)===g).map(n=>({t:n.toUpperCase(),v:()=>(n==='GolemAttack'?golemOn:(!golemOn&&current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n))?'PLAYING':'',run:()=>menuPlay(n)}));
+  const animRows=g=>menuNames.filter(n=>animGroup(n)===g&&animVisible(n)).map(n=>({t:n.toUpperCase(),v:()=>(n==='GolemAttack'?golemOn:(!golemOn&&current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n))?'PLAYING':'',run:()=>menuPlay(n)}));
   const SCREENS={
     start:{name:'PRESS START',items:[{t:'START',run:startGame}]},
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
-    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':swordStyle==='knightly'?'KNIGHTLY':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>ualOn?'UNIVERSAL':'KNIGHT',run:toggleUal},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
+    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':swordStyle==='knightly'?'KNIGHTLY':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>animSet.toUpperCase(),run:toggleUal},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
     anims_enemies:{name:'ANIMATIONS: ENEMIES',up:'anims',get items(){ return animRows('enemies').concat([BACK_ANIM]); }},
     anims_self:{name:'ANIMATIONS: SELF',up:'anims',get items(){ return animRows('self').concat([BACK_ANIM]); }},
     anims_shop:{name:'ANIMATIONS: SHOPKEEPER',up:'anims',get items(){ return animRows('shop').concat([BACK_ANIM]); }},
@@ -4695,7 +4708,7 @@ function initMainMenu(){
       {t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},BACK_OPT]},
     opt_knight:{name:'KNIGHT',up:'options',items:[
       {t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},
-      {t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':swordStyle==='knightly'?'KNIGHTLY':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>ualOn?'UNIVERSAL':'KNIGHT',run:toggleUal},
+      {t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':swordStyle==='knightly'?'KNIGHTLY':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>animSet.toUpperCase(),run:toggleUal},
       {t:'SWOOSH',v:()=>swooshOn?'ON':'OFF',run:toggleSwoosh},
       {t:'TURNTABLE',v:()=>spin?'ON':'OFF',run:toggleSpin},BACK_OPT]},
     /* Attribution: This work is based on "Low Poly Campfire" (https://sketchfab.com/3d-models/low-poly-campfire-695c62069ac44614acbfc6effcf7499d) by MrE_Sauce (https://sketchfab.com/MrE_Sauce) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Glint and falling-leaf sprites by Kaessis. */
