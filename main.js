@@ -1770,7 +1770,6 @@ function ualGround(){
   if(lo<1e8){ const ground=(blobHome?blobHome.y:0)-0.002*playerH; playerRig.position.y=ualY0+(ground-lo); }
 }
 function stepMixer(dt){
-  if(pizzaAt!==null&&sfx&&sfx.currentTime>=pizzaAt){ pizzaAt=null; pizzaFire(); }
   if(golemOn&&golemMixer){ golemPlace(); const p=golemAct.time; golemMixer.update(dt); if(p<GOLEM_HIT_AT&&golemAct.time>=GOLEM_HIT_AT) playGolemSfx('atk'); }
   const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease'||/^UAL_(Sword_Regular|Sword_Heavy|Melee_Hook)/.test(cn));
   if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); ualGround(); return; }
@@ -2214,27 +2213,21 @@ function playGolem(){
   document.querySelectorAll('#anims .item').forEach(b=>b.setAttribute('aria-checked',b.dataset.n==='GolemAttack'));
 }
 /* ---------- PIZZA: the Soccer Trip (a running trip and tumble, retargeted from Mixamo, done in place) with the "Ayo, the pizza here" meme.
-   The meme's SNAP is 3.965 s into the sound; his foot catches the ground 0.54 s into the clip. Picking Pizza starts the sound, he stands idle through the line, and the clip starts so that the trip
-   lands on the snap (the clip also runs PIZZA_SPEED times faster than it was made). Picking anything else cuts it all off. ---------- */
-const PIZZA_SNAP=3.965, PIZZA_TRIP=0.54, PIZZA_SPEED=1.35;
-let pizzaAt=null, pizzaTok=0, pizzaLive=false;
-function pizzaCancel(){ pizzaTok++; pizzaAt=null; if(pizzaLive){ pizzaLive=false; swishStopAll(); } }
+   The animation just starts. The meme's SNAP is 3.965 s into the sound and his foot catches the ground 0.54 s into the clip, so the sound is played faster (and higher) by the ratio that puts the snap on the trip:
+   rate = PIZZA_SNAP / (PIZZA_TRIP / PIZZA_SPEED). PIZZA_SPEED = how fast the clip itself plays. Picking anything else cuts the sound off. ---------- */
+const PIZZA_SNAP=3.965, PIZZA_TRIP=0.54, PIZZA_SPEED=1;
+let pizzaGo=false, pizzaLive=false;
+function pizzaCancel(){ if(pizzaLive){ pizzaLive=false; swishStopAll(); } }
 function pizzaStart(){
-  play(idleName()); const tok=++pizzaTok;   // (play() cancels any earlier run first)
+  pizzaGo=true; play('Pizza'); pizzaGo=false;   // the normal path (menus, golem, ground...), then once-through at its own speed
+  const a=actions.Pizza; if(a){ a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.timeScale=PIZZA_SPEED; }
   try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); }catch(e){}
-  Promise.resolve(loadSfxSet('pizza-sfx-data')).then(()=>{
-    const st=SFX_SETS['pizza-sfx-data']; if(tok!==pizzaTok||!st||!st.bufs||!sfx) return;
-    pizzaLive=true; playSfxSetTracked('pizza-sfx-data',0,1,1,0.05); pizzaAt=sfx.currentTime+0.05+PIZZA_SNAP-PIZZA_TRIP/PIZZA_SPEED;
-  });
-}
-function pizzaFire(){   // the trip starts now (checked against the sound's own clock every frame)
-  const a=actions.Pizza; if(!a) return;
-  if(current&&current!==a) current.fadeOut(0.08);
-  a.reset().setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.timeScale=PIZZA_SPEED; a.fadeIn(0.08).play(); current=a;
+  const rate=PIZZA_SNAP/(PIZZA_TRIP/PIZZA_SPEED), go=()=>{ const st=SFX_SETS['pizza-sfx-data']; if(st&&st.bufs){ pizzaLive=true; playSfxSetTracked('pizza-sfx-data',0,1,rate,0); } };
+  const st=SFX_SETS['pizza-sfx-data']; if(st&&st.bufs) go(); else Promise.resolve(loadSfxSet('pizza-sfx-data')).then(go);
 }
 function play(n){
-  if(n==='Pizza'){ pizzaStart(); return; }
-  pizzaCancel();
+  if(n==='Pizza'&&!pizzaGo){ pizzaStart(); return; }
+  if(n!=='Pizza') pizzaCancel();
   if(n==='GolemAttack'){ playGolem(); return; }
   if(golemOn) golemShow(false);
   if(n==='Flaunt'&&weapon==='axe'&&actions.AxeFlaunt) n='AxeFlaunt';   // the axe has its own flaunt (heavy weapons class)
@@ -3698,7 +3691,7 @@ function playBlockSfx(){
   }catch(_){}
 }
 function blip(f,len){
-  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('swish-sfx-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['combo-sparkle-sfx-data','render-swish-sfx-data','render-hit-sfx-data','render-attack-sfx-data','render-charge-sfx-data','golem-atk-sfx-data','golem-pain-sfx-data','golem-spawn-sfx-data'].forEach(loadSfxSet);
+  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); loadGrunts(); loadBlockSfx(); loadSfxSet('step-data'); loadSfxSet('swish-sfx-data'); loadSfxSet('sword-sfx-data'); loadSfxSet('knife-sfx-data'); loadSfxSet('defeat-sfx-data'); loadSfxSet('flaunt-sfx-data'); loadSfxSet('potion-sfx-data'); ['pizza-sfx-data','combo-sparkle-sfx-data','render-swish-sfx-data','render-hit-sfx-data','render-attack-sfx-data','render-charge-sfx-data','golem-atk-sfx-data','golem-pain-sfx-data','golem-spawn-sfx-data'].forEach(loadSfxSet);
     ['v2-sword-sfx-data','v2-block-sfx-data','v2-grunt-data','v2-die-data','v2-flaunt-sfx-data','slime-atk-sfx-data','slime-hit-sfx-data','slime-die-sfx-data','slime-win-sfx-data'].forEach(loadSfxSet);   // voice 2 and the slimes too, so their very first play is not lost
     const o=sfx.createOscillator(), g=sfx.createGain(); o.type='square'; o.frequency.value=f; g.gain.value=0.045;
     o.connect(g); g.connect(sfx.destination); const t=sfx.currentTime; g.gain.setValueAtTime(0.045,t); g.gain.exponentialRampToValueAtTime(0.001,t+len); o.start(t); o.stop(t+len+0.02);
