@@ -415,7 +415,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   })();
   /* AxeIdle (the axe's idle) and AxeSwing (its swing, the rig's Swing3): embedded as axeidle-data / axeswing-data and added exactly like Death above.
      They are used whenever the Axe is the chosen weapon; the sword keeps Idle and Swing. */
-  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','dance-data','dance2-data','pizza-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data','swingheavywindup-data','swingheavyturnhold-data','swingheavyrelease-data','swing2-data'].forEach(function(id){
+  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','dance-data','dance2-data','dance3-data','pizza-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data','swingheavywindup-data','swingheavyturnhold-data','swingheavyrelease-data','swing2-data'].forEach(function(id){
     const el=document.getElementById(id); if(!el) return;
     const D=JSON.parse(el.textContent), base={};
     if((id==='axeswing-data'&&AXE_SWING_REVERSE)||D.rev){   // play the swing backwards: keyframes in reverse order, times counted from the end
@@ -1749,11 +1749,12 @@ const DANCE_BPM=147, DANCE_BEATS=16, DANCE_OFFSET=0.33;
 /* DANCE2: the Dancing Twerk (a Mixamo dance, 15.17 s at 24 fps, retargeted onto this rig) on the 'Smash Bros' song, whose beat falls on 0.58 s + n * 0.6654 s (90.18 BPM). The dance bounces at about 102 BPM
    by itself, so it is slowed 14 percent to bounce once per beat: 26 beats = 17.30 s, the clip's whole length. Same arrangement as Dance: its time is slaved to the song. `beats` = the clip's length in beats
    (Dance uses DANCE_BEATS); `shift` = seconds added to the clip's time so the dance's downward bounces land ON the beat, not between them. */
-const DANCE_SETS={Dance:{key:'dance',bpm:147,offset:0.33},Dance2:{key:'dance2',bpm:90.18,offset:0.58,beats:26,shift:0.5716}};
+const DANCE_SETS={Dance:{key:'dance',bpm:147,offset:0.33},Dance2:{key:'dance2',bpm:90.18,offset:0.58,beats:26,shift:0.5716},
+  Dance3:{key:'dance3',free:true}};   // Dance3 (Wave Hip Hop Dance + 'Egyptian Swag'): no syncing - the clip just loops and the song just plays
 let danceKey='dance';
 function danceStep(){
   const n=current&&current.getClip().name, D=DANCE_SETS[n];
-  if(!danceWant||!D||!xtra[D.key].src||current!==actions[n]) return;
+  if(!danceWant||!D||D.free||!xtra[D.key].src||current!==actions[n]) return;   // (free = not slaved to the song)
   const L=(D.beats||DANCE_BEATS)*60/D.bpm, t=trackPos(xtra[D.key].src)-D.offset-0.03+(D.shift||0);   // (0.03: the pose shown lags a little behind the clock)
   actions[n].time=((t%L)+L)%L;
 }
@@ -2097,7 +2098,7 @@ function loadBattle(){
 function setBattleMusic(on){ if(battleWant===on) return; battleWant=on; if(!on) battleResume=0; syncAudio(); }
 /* shop song (Sacrifice of Saint Dell, FM Skyline) plays in the shop; frost song (Ice, slowed, ZERTAL) plays once you travel to The Veiled Frost (on the map, from the transition between the areas) and stays while you are there.
    Priority: Flaunt song, battle song, shop song, frost song, main song. Same fades as every track, and they go through cz() so the BITCRUSH switch applies. */
-const xtra={shop:{id:'shop-song-data',buf:null,src:null,loading:null},shop2:{id:'shop-song2-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null},ignis:{id:'ignis-song-data',buf:null,src:null,loading:null},dance:{id:'dance-song-data',buf:null,src:null,loading:null},dance2:{id:'dance2-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false, ignisWant=false, danceWant=false;   // dance: the song for the Dance animation (top priority)
+const xtra={shop:{id:'shop-song-data',buf:null,src:null,loading:null},shop2:{id:'shop-song2-data',buf:null,src:null,loading:null},frost:{id:'frost-song-data',buf:null,src:null,loading:null},ignis:{id:'ignis-song-data',buf:null,src:null,loading:null},dance:{id:'dance-song-data',buf:null,src:null,loading:null},dance2:{id:'dance2-song-data',buf:null,src:null,loading:null},dance3:{id:'dance3-song-data',buf:null,src:null,loading:null}}; let shopWant=false, frostWant=false, ignisWant=false, danceWant=false;   // dance: the song for the Dance animation (top priority)
 /* The shop song's name tag (bottom right of the shop view) is also the switch between the shop's songs: click it to swap (shopSong is 'shop' or 'shop2'; the choice is kept for later visits).
    To add another shop song: add it to xtra above (+ manifest.json), to SHOP_SONG_NAMES here and to SHOP_SONGS (the order they cycle in). */
 let shopSong='shop', shopSongBtn=null; const SHOP_SONG_NAMES={shop:'SACRIFICE OF SAINT DELL',shop2:'ASSHOLE PARTY'}, SHOP_SONGS=['shop','shop2'];

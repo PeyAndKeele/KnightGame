@@ -440,6 +440,16 @@
     "url": "dance2-song-data.txt"
   },
   {
+    "id": "dance3-data",
+    "type": "application/json",
+    "url": "dance3-data.json"
+  },
+  {
+    "id": "dance3-song-data",
+    "type": "text/plain",
+    "url": "dance3-song-data.txt"
+  },
+  {
     "id": "pizza-data",
     "type": "application/json",
     "url": "pizza-data.json"
