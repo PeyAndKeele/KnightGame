@@ -1658,8 +1658,8 @@ function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   let alt=null; if(o.alt){ alt=new THREE.Object3D(); alt.position.set(o.alt[0],o.alt[1],o.alt[2]); grp.add(alt); }
   swRigs[key]={tip,hilt,alt,pivot,len:tip.position.distanceTo(hilt.position),width:o.width,start:o.start,stop:o.stop,flag:o.flag||0};
 }
-/* The Knightly Sword's swing trail is a bright, sharp RGB fade: the trail is painted in pure rainbow colours, running along its length from the tail (oldest) to the tip (newest), and the whole
-   spectrum rolls along it as the swing goes (the shader's uRainbow / uHue). SWOOSH_RAINBOW_CYCLES = how many times the full spectrum repeats along the trail; SWOOSH_RAINBOW_SPEED = how fast it rolls (spectra per second);
+/* The Knightly Sword's swing trail is a bright fade through the colours of the gems set in its blade (red, orange, yellow, green, teal, pink - the shader's gem list): the trail is painted in them, running along its length from the tail (oldest) to the tip (newest), and the whole
+   palette rolls along it as the swing goes (the shader's uRainbow / uHue). SWOOSH_RAINBOW_CYCLES = how many times the full palette repeats along the trail; SWOOSH_RAINBOW_SPEED = how fast it rolls (spectra per second);
    SWOOSH_RAINBOW_BRIGHT = brightness boost on the picture's own light and dark (above 1 = punchier). Every other weapon keeps the plain trail. */
 const SWOOSH_RAINBOW_CYCLES=1.0, SWOOSH_RAINBOW_SPEED=2.5, SWOOSH_RAINBOW_BRIGHT=1.35;
 let swTintOn=false;   // (the Knightly Sword is held)
@@ -1687,9 +1687,12 @@ void main(){
   vec4 tx=texture2D(map,vec2((uFrame+clamp(vUv.x,0.002,0.998))/uFrames,clamp(vUv.y,0.002,0.998)));
   if(tx.a<0.5) discard;
   vec3 col=tx.rgb;
-  if(uRainbow>0.5){   // the Knightly Sword: pure, fully saturated spectrum (red > green > blue) along the trail, rolling with uHue; the picture's own lights and darks shape how bright it is
-    float h=fract(vUv.y*uCycles+uHue);
-    vec3 rgb=clamp(abs(fract(h+vec3(0.0,2.0/3.0,1.0/3.0))*6.0-3.0)-1.0,0.0,1.0);
+  if(uRainbow>0.5){   // the Knightly Sword: the colours of its own gems (red, orange, yellow, green, teal, pink) fade into one another along the trail, rolling with uHue; the picture's own lights and darks shape how bright it is
+    float h=fract(vUv.y*uCycles+uHue)*6.0, gi=floor(h), gf=smoothstep(0.0,1.0,h-gi);
+    vec3 g0=vec3(0.925,0.157,0.204), g1=vec3(0.957,0.533,0.094), g2=vec3(0.980,0.839,0.220), g3=vec3(0.251,0.886,0.408), g4=vec3(0.220,0.847,0.722), g5=vec3(0.973,0.329,0.471);
+    vec3 ga=gi<0.5?g0:(gi<1.5?g1:(gi<2.5?g2:(gi<3.5?g3:(gi<4.5?g4:g5))));
+    vec3 gb=gi<0.5?g1:(gi<1.5?g2:(gi<2.5?g3:(gi<3.5?g4:(gi<4.5?g5:g0))));
+    vec3 rgb=mix(ga,gb,gf);
     float l=dot(tx.rgb,vec3(0.299,0.587,0.114));
     col=clamp(rgb*(0.45+l*uBright),0.0,1.0);
     col=mix(col,vec3(1.0),smoothstep(0.9,1.0,l)*0.35);   // only the very brightest core of the picture goes hot white
