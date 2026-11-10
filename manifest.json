@@ -428,5 +428,15 @@
     "id": "combo-sparkle-sfx-data",
     "type": "application/json",
     "url": "combo-sparkle-sfx-data.json"
+  },
+  {
+    "id": "dance2-data",
+    "type": "application/json",
+    "url": "dance2-data.json"
+  },
+  {
+    "id": "dance2-song-data",
+    "type": "text/plain",
+    "url": "dance2-song-data.txt"
   }
 ]
