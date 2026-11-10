@@ -287,6 +287,16 @@ body.custscr #smatch{grid-area:12/1/auto/-1}
   const box=document.createElement('pre');
   box.style.cssText='position:fixed;left:8px;bottom:8px;right:8px;max-height:45vh;overflow:auto;margin:0;padding:10px;background:#300;color:#fdd;font:12px/1.4 monospace;z-index:99999;white-space:pre-wrap;display:none';
   function say(m){box.textContent+=m+'\n';box.style.display='block';if(!box.parentNode)document.body.appendChild(box);}
+  /* loading screen: covers the page until every data file is in AND the game has built the knight / golem, however long that takes */
+  const ov=document.createElement('div'); ov.id='loading';
+  ov.style.cssText='position:fixed;inset:0;z-index:99998;background:#0b0d1a;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;font-family:"VT323","Courier New",monospace;transition:opacity .35s';
+  ov.innerHTML='<div style="font-size:44px;letter-spacing:.3em;color:#ffe27a">LOADING</div>'
+    +'<div style="width:min(420px,70vw);height:14px;border:2px solid #d4dbf7;padding:2px"><div id="lbar" style="height:100%;width:0;background:#ffe27a;transition:width .15s"></div></div>'
+    +'<div id="lmsg" style="font-size:22px;color:#97a8ea;letter-spacing:.1em">READING FILES</div>';
+  document.body.appendChild(ov);
+  const lbar=ov.querySelector('#lbar'), lmsg=ov.querySelector('#lmsg');
+  function prog(f,m){ lbar.style.width=Math.min(100,Math.round(f*100))+'%'; if(m) lmsg.textContent=m; }
+  function loadDone(){ ov.style.opacity='0'; setTimeout(()=>ov.remove(),400); }
   window.addEventListener('error',e=>say('JS error: '+e.message+(e.filename?'  ('+e.filename.split('/').pop()+':'+e.lineno+')':'')));
   window.addEventListener('unhandledrejection',e=>say('Promise error: '+(e.reason&&e.reason.message||e.reason)));
   async function get(u){const r=await fetch(u,{cache:'no-cache'});if(!r.ok)throw new Error(r.status+' '+u);return r;}
@@ -297,17 +307,26 @@ body.custscr #smatch{grid-area:12/1/auto/-1}
       try{ list=await (await get('manifest.json')).json(); mainUrl='main.js'; }
       catch(e2){ say('Could not find manifest.json (tried assets/manifest.json and manifest.json).\nThe data files did not upload to the right place.'); return; }
     }
-    const failed=[];
+    const failed=[]; let done=0;
     await Promise.all(list.map(async a=>{
       try{
         const el=document.createElement('script');
         el.type=a.type; el.id=a.id; el.textContent=await (await get(a.url)).text();
         document.body.appendChild(el);
       }catch(e){failed.push(e.message);}
+      done++; prog(done/list.length*0.8,'LOADING FILES '+done+' / '+list.length);
     }));
-    if(failed.length){ say('Missing '+failed.length+' file(s) (404):\n  '+failed.join('\n  ')); return; }
+    if(failed.length){ loadDone(); say('Missing '+failed.length+' file(s) (404):\n  '+failed.join('\n  ')); return; }
+    prog(0.85,'STARTING GAME');
     const s=document.createElement('script'); s.src=mainUrl+'?t='+Date.now();
-    s.onerror=()=>say('Could not load '+mainUrl+' (404). Is it uploaded?');
+    s.onerror=()=>{ loadDone(); say('Could not load '+mainUrl+' (404). Is it uploaded?'); };
+    s.onload=()=>{   // the script has run; now wait for the models it parses asynchronously (knight, golem) before lifting the screen
+      prog(0.92,'BUILDING MODELS'); const t0=Date.now();
+      (function wait(){
+        let ok=false; try{ ok=!!(playerRig&&golemReady()); }catch(e){}
+        if(ok||Date.now()-t0>20000){ prog(1,'READY'); setTimeout(loadDone,150); } else setTimeout(wait,100);
+      })();
+    };
     document.body.appendChild(s);
   })();
 })();
