@@ -2214,7 +2214,7 @@ function playGolem(){
 }
 /* ---------- PIZZA: the Soccer Trip (a running trip and tumble, retargeted from Mixamo, done in place) with the "Ayo, the pizza here" meme.
    The animation starts the moment it is picked, at its own speed. The sound plays at its own speed too, starting PIZZA_AUDIO_START seconds into the meme (at the bump). Picking anything else cuts it off. ---------- */
-const PIZZA_AUDIO_START=1.0, PIZZA_SPEED=1;
+const PIZZA_AUDIO_START=1.815, PIZZA_SPEED=1;   // the crack: the first loud, broadband burst in the meme, starting at 1.82 s (silence before it)
 let pizzaGo=false, pizzaLive=false;
 function pizzaCancel(){ if(pizzaLive){ pizzaLive=false; swishStopAll(); } }
 function pizzaStart(){
