@@ -415,7 +415,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   })();
   /* AxeIdle (the axe's idle) and AxeSwing (its swing, the rig's Swing3): embedded as axeidle-data / axeswing-data and added exactly like Death above.
      They are used whenever the Axe is the chosen weapon; the sword keeps Idle and Swing. */
-  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','dance-data','dance2-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data','swingheavywindup-data','swingheavyturnhold-data','swingheavyrelease-data','swing2-data'].forEach(function(id){
+  ['axeidle-data','axeswing-data','axeflaunt-data','flauntidleaxe-data','drinkpotion-data','pose3-data','dance-data','dance2-data','pizza-data','shopidle-data','shopidleanimation1-data','shopintotalk-data','shopoutrotalk-data','shopwhiletalking-data','block-data','blockidle-data','swingheavywindup-data','swingheavyturnhold-data','swingheavyrelease-data','swing2-data'].forEach(function(id){
     const el=document.getElementById(id); if(!el) return;
     const D=JSON.parse(el.textContent), base={};
     if((id==='axeswing-data'&&AXE_SWING_REVERSE)||D.rev){   // play the swing backwards: keyframes in reverse order, times counted from the end
@@ -1770,6 +1770,7 @@ function ualGround(){
   if(lo<1e8){ const ground=(blobHome?blobHome.y:0)-0.002*playerH; playerRig.position.y=ualY0+(ground-lo); }
 }
 function stepMixer(dt){
+  if(pizzaAt!==null&&sfx&&sfx.currentTime>=pizzaAt){ pizzaAt=null; pizzaFire(); }
   if(golemOn&&golemMixer){ golemPlace(); const p=golemAct.time; golemMixer.update(dt); if(p<GOLEM_HIT_AT&&golemAct.time>=GOLEM_HIT_AT) playGolemSfx('atk'); }
   const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease'||/^UAL_(Sword_Regular|Sword_Heavy|Melee_Hook)/.test(cn));
   if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); ualGround(); return; }
@@ -2212,7 +2213,28 @@ function playGolem(){
   golemShow(true); golemAct.reset().play();
   document.querySelectorAll('#anims .item').forEach(b=>b.setAttribute('aria-checked',b.dataset.n==='GolemAttack'));
 }
+/* ---------- PIZZA: the Soccer Trip (a running trip and tumble, retargeted from Mixamo, done in place) with the "Ayo, the pizza here" meme.
+   The meme's SNAP is 3.965 s into the sound; his foot catches the ground 0.54 s into the clip. Picking Pizza starts the sound, he stands idle through the line, and the clip starts so that the trip
+   lands on the snap (the clip also runs PIZZA_SPEED times faster than it was made). Picking anything else cuts it all off. ---------- */
+const PIZZA_SNAP=3.965, PIZZA_TRIP=0.54, PIZZA_SPEED=1.35;
+let pizzaAt=null, pizzaTok=0, pizzaLive=false;
+function pizzaCancel(){ pizzaTok++; pizzaAt=null; if(pizzaLive){ pizzaLive=false; swishStopAll(); } }
+function pizzaStart(){
+  play(idleName()); const tok=++pizzaTok;   // (play() cancels any earlier run first)
+  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); }catch(e){}
+  Promise.resolve(loadSfxSet('pizza-sfx-data')).then(()=>{
+    const st=SFX_SETS['pizza-sfx-data']; if(tok!==pizzaTok||!st||!st.bufs||!sfx) return;
+    pizzaLive=true; playSfxSetTracked('pizza-sfx-data',0,1,1,0.05); pizzaAt=sfx.currentTime+0.05+PIZZA_SNAP-PIZZA_TRIP/PIZZA_SPEED;
+  });
+}
+function pizzaFire(){   // the trip starts now (checked against the sound's own clock every frame)
+  const a=actions.Pizza; if(!a) return;
+  if(current&&current!==a) current.fadeOut(0.08);
+  a.reset().setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.timeScale=PIZZA_SPEED; a.fadeIn(0.08).play(); current=a;
+}
 function play(n){
+  if(n==='Pizza'){ pizzaStart(); return; }
+  pizzaCancel();
   if(n==='GolemAttack'){ playGolem(); return; }
   if(golemOn) golemShow(false);
   if(n==='Flaunt'&&weapon==='axe'&&actions.AxeFlaunt) n='AxeFlaunt';   // the axe has its own flaunt (heavy weapons class)

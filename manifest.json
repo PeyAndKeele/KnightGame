@@ -438,5 +438,15 @@
     "id": "dance2-song-data",
     "type": "text/plain",
     "url": "dance2-song-data.txt"
+  },
+  {
+    "id": "pizza-data",
+    "type": "application/json",
+    "url": "pizza-data.json"
+  },
+  {
+    "id": "pizza-sfx-data",
+    "type": "application/json",
+    "url": "pizza-sfx-data.json"
   }
 ]
