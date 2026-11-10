@@ -78,7 +78,7 @@ select.pick option{background:var(--win-lo); color:var(--text); text-shadow:none
 @keyframes fade{from{opacity:0;transform:translateY(-46%)}to{opacity:1;transform:translateY(-50%)}}
 .title{margin:0;font-size:clamp(64px,11vw,132px);line-height:.82;font-weight:400;letter-spacing:.04em;color:#fff;
   text-shadow:0 4px 0 var(--t-hi),0 8px 0 var(--t-mid),0 12px 0 var(--t-lo),6px 14px 0 #000,0 0 30px var(--t-glow)}
-.sub{margin:18px 0 22px;font-size:24px;letter-spacing:.3em;color:var(--pick)}
+.sub{margin:18px 0 22px;font-size:24px;letter-spacing:.1em;color:var(--pick);max-width:92vw}   /* the tagline: a random phrase each load, so a tighter tracking than the old PS1 EDITION */
 .scr{font-size:22px;color:var(--dim);letter-spacing:.2em;margin:0 0 6px;border-bottom:2px solid var(--t-rule);padding-bottom:4px}
 .mi{display:flex;justify-content:space-between;gap:14px;width:100%;text-align:left;background:none;border:0;margin:0;padding:3px 0 3px 30px;position:relative;
   font:inherit;font-size:clamp(30px,4.2vw,42px);line-height:1.08;color:var(--dim);text-shadow:inherit;cursor:pointer}
@@ -242,7 +242,8 @@ body.custscr #smatch{grid-area:12/1/auto/-1}
 </aside>
 <div id="ui" role="navigation" aria-label="Main menu">
   <h1 class="title">KNIGHT</h1>
-  <div class="sub">PS1 EDITION</div>
+  <div class="sub" id="tagline"></div>
+  <script>(function(){var p=["I love RNG!","Believe in yourself!","Christmas is coming!","Dev Note: Actually Make the Game","Ooh, Shiny!","Robert Loggia","W Eats or L Nibbles","Everybody thank Kaessis for drawing","I did not care for The Godfather","Inspired by DogOnline"];document.getElementById("tagline").textContent=p[Math.floor(Math.random()*p.length)];})();</script>
   <div class="scr" id="scr"></div>
   <div id="mm"></div>
   <div id="cust" hidden></div>
