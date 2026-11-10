@@ -1746,14 +1746,15 @@ function swooshSample(h){
 /* DANCE: a 16-beat loop at 147 BPM (6.531 s) whose first beat is the song's beat at 0.33 s. While it plays, its time is slaved to the song's position, so it stays on the beat
    whatever the frame rate and through every loop of the song (the song itself is shorter than a whole number of beats). */
 const DANCE_BPM=147, DANCE_BEATS=16, DANCE_OFFSET=0.33;
-/* DANCE2: The Whip (8 beats, one arm lassoing overhead and the other on the hip, then the other arm) into The Nae Nae (8 beats, leaning side to side with the hands sweeping), 16 beats at 90.18 BPM
-   (10.645 s) on the 'Smash Bros' song, whose beat falls on 0.58 s + n * 0.6654 s. Same arrangement as Dance: its time is slaved to the song. */
-const DANCE_SETS={Dance:{key:'dance',bpm:147,offset:0.33},Dance2:{key:'dance2',bpm:90.18,offset:0.58}};
+/* DANCE2: the Dancing Twerk (a Mixamo dance, 15.17 s at 24 fps, retargeted onto this rig) on the 'Smash Bros' song, whose beat falls on 0.58 s + n * 0.6654 s (90.18 BPM). The dance bounces at about 102 BPM
+   by itself, so it is slowed 14 percent to bounce once per beat: 26 beats = 17.30 s, the clip's whole length. Same arrangement as Dance: its time is slaved to the song. `beats` = the clip's length in beats
+   (Dance uses DANCE_BEATS); `shift` = seconds added to the clip's time so the dance's downward bounces land ON the beat, not between them. */
+const DANCE_SETS={Dance:{key:'dance',bpm:147,offset:0.33},Dance2:{key:'dance2',bpm:90.18,offset:0.58,beats:26,shift:0.5716}};
 let danceKey='dance';
 function danceStep(){
   const n=current&&current.getClip().name, D=DANCE_SETS[n];
   if(!danceWant||!D||!xtra[D.key].src||current!==actions[n]) return;
-  const L=DANCE_BEATS*60/D.bpm, t=trackPos(xtra[D.key].src)-D.offset-0.03;   // (0.03: the pose shown lags a little behind the clock)
+  const L=(D.beats||DANCE_BEATS)*60/D.bpm, t=trackPos(xtra[D.key].src)-D.offset-0.03+(D.shift||0);   // (0.03: the pose shown lags a little behind the clock)
   actions[n].time=((t%L)+L)%L;
 }
 /* The UAL heavy combos lift his whole body off the floor (the hips' height comes straight from the mocap), so while one plays his height is controlled: every frame the rig is moved up or
