@@ -2213,16 +2213,17 @@ function playGolem(){
   document.querySelectorAll('#anims .item').forEach(b=>b.setAttribute('aria-checked',b.dataset.n==='GolemAttack'));
 }
 /* ---------- PIZZA: the Soccer Trip (a running trip and tumble, retargeted from Mixamo, done in place) with the "Ayo, the pizza here" meme.
-   The animation just starts. The meme's SNAP is 3.965 s into the sound and his foot catches the ground 0.54 s into the clip, so the sound is played faster (and higher) by the ratio that puts the snap on the trip:
-   rate = PIZZA_SNAP / (PIZZA_TRIP / PIZZA_SPEED). PIZZA_SPEED = how fast the clip itself plays. Picking anything else cuts the sound off. ---------- */
-const PIZZA_SNAP=3.965, PIZZA_TRIP=0.54, PIZZA_SPEED=1;
+   The animation starts the moment it is picked, at its own speed. The sound plays at its own speed too, starting PIZZA_AUDIO_START seconds into the meme (at the bump). Picking anything else cuts it off. ---------- */
+const PIZZA_AUDIO_START=1.0, PIZZA_SPEED=1;
 let pizzaGo=false, pizzaLive=false;
 function pizzaCancel(){ if(pizzaLive){ pizzaLive=false; swishStopAll(); } }
 function pizzaStart(){
-  pizzaGo=true; play('Pizza'); pizzaGo=false;   // the normal path (menus, golem, ground...), then once-through at its own speed
+  pizzaGo=true; play('Pizza'); pizzaGo=false;   // the normal path (menus, golem, ground...), then once-through
   const a=actions.Pizza; if(a){ a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.timeScale=PIZZA_SPEED; }
   try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); }catch(e){}
-  const rate=PIZZA_SNAP/(PIZZA_TRIP/PIZZA_SPEED), go=()=>{ const st=SFX_SETS['pizza-sfx-data']; if(st&&st.bufs){ pizzaLive=true; playSfxSetTracked('pizza-sfx-data',0,1,rate,0); } };
+  const go=()=>{ const st=SFX_SETS['pizza-sfx-data']; if(!st||!st.bufs||!sfx) return;
+    const src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=cz(st.bufs[0]); g.gain.value=1; src.connect(g); g.connect(sfx.destination);
+    src.start(sfx.currentTime,PIZZA_AUDIO_START); pizzaLive=true; swishLive.push(src); src.onended=()=>{ const k=swishLive.indexOf(src); if(k>=0) swishLive.splice(k,1); }; };
   const st=SFX_SETS['pizza-sfx-data']; if(st&&st.bufs) go(); else Promise.resolve(loadSfxSet('pizza-sfx-data')).then(go);
 }
 function play(n){
