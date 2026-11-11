@@ -1782,7 +1782,7 @@ function ualGround(){
 }
 function stepMixer(dt){
   if(golemOn&&golemMixer){ golemPlace(); const p=golemAct.time; golemMixer.update(dt); if(p<GOLEM_HIT_AT&&golemAct.time>=GOLEM_HIT_AT) playGolemSfx('atk'); }
-  const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease'||/^UAL_(Sword_Regular|Sword_Heavy|Melee_Hook)/.test(cn));
+  const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease'||cn==='HeavyCombo'||/^UAL_(Sword_Regular|Sword_Heavy|Melee_Hook)/.test(cn));
   if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); ualGround(); return; }
   const n=Math.max(1,Math.ceil(dt/SWOOSH_STEP-1e-6)), h=dt/n;
   for(let i=0;i<n;i++){ mixer.update(h); swooshSample(h); }
@@ -2075,7 +2075,7 @@ function loadSong(){
 async function startMusic(){
   try{
     const p=loadSong(); ac.resume(); await p;
-    if(!musicOn) return;
+    if(!musicOn||editOn) return;   // (EDIT plays its own song: the main one must not start up under it, e.g. when it finished loading just after EDIT began)
     if(!srcNode&&!flauntWant&&!battleWant&&!shopWant&&!frostWant&&!ignisWant){ srcNode=playTrack(songBuf); }
     await ac.resume();
   }catch(e){ console.error(e); musicOn=false; setSwitch('music',false,'N/A'); }
@@ -2462,8 +2462,10 @@ document.getElementById('hudmenu').onclick=leaveMode;
 
 /* ---------- click / tap to swing (explore mode) ---------- */
 function swing(){
-  const sw=actions[swingName()]; if(!sw||!exploring||dungeon||paused) return;
-  if(swinging){ swingQueued=true; return; }          // one click is buffered, so mashing chains swings
+  if(!actions[swingName()]||!exploring||dungeon||paused) return;
+  if(swinging){ swingQueued=true; return; }
+  if(animSet==='ideal'&&swingName()==='Swing') idealPickSwing();   // IDEAL: a random A / B / C for every swing
+  const sw=actions[swingName()];          // one click is buffered, so mashing chains swings
   swinging=true; swingQueued=false;
   if(current&&current!==sw) current.fadeOut(0.06);   // cross-fade, never stop(): stopping the last action snaps the skeleton to the T-pose
   sw.reset().setLoop(THREE.LoopOnce,1); sw.clampWhenFinished=true; sw.timeScale=1.25; sw.fadeIn(0.06).play();
@@ -2989,7 +2991,7 @@ addEventListener('keydown',e=>{
    ACTIONS > FLAUNT : the Flaunt animation (with its song). ACTIONS > BLOCK : the Block animation with two sound effects (see playBlockSfx). FLEE leaves the ruins. ITEMS > POTION : drink a potion (Drinking_Potion animation) and heal POTION_HEAL hit points, see the battle section. */
 const BM_MENUS={
   root:{title:'BATTLE',items:['ATTACK','ITEMS','ACTIONS','FLEE']},
-  attack:{title:'ATTACK',items:['CARVE','BACK']},
+  attack:{title:'ATTACK',get items(){ return klActive()?['CARVE',klReady()?'KNIGHT LIGHT':'KNIGHT LIGHT '+kl.n+'/'+KL_MAX,'BACK']:['CARVE','BACK']; }},   // KNIGHT LIGHT: only with the Knightly Sword, once its gauge is full
   actions:{title:'ACTIONS',get items(){ return weapon==='axe'?['FLAUNT','BLOCK','RENDER','BACK']:['FLAUNT','BLOCK','BACK']; }},   // RENDER only while a heavy weapon (axe / shovel) is held
 
   items:{title:'ITEMS',get items(){ return ['POTION x'+potions,'BACK']; }}   // the label shows how many are left
@@ -3040,11 +3042,27 @@ function bmChoose(){
   else if(it.indexOf('POTION')===0) startPotion();
   else if(it==='FLEE'){ bmClose(true); leaveDungeon(); }
   else if(it==='CARVE') startCarve();
+  else if(it.indexOf('KNIGHT LIGHT')===0) startKnightLight();
   else if(it==='FLAUNT') startFlaunt();
   else if(it==='BLOCK') startBlock();
   else if(it==='RENDER') startRender();
 }
-function btBegin(act){ bmClose(true); bt.act=act; bt.t=0; bt.stage=0; hudSet(HINT_BUSY); }
+function btBegin(act){ bmClose(true); bt.act=act; bt.t=0; bt.stage=0; hudSet(HINT_BUSY); klTurn(act); }
+/* ---------- KNIGHT LIGHT (the Knightly Sword's special): the Heavy Combo, with the Knightly Sword's coloured swing. Its gauge (bottom of the screen, in the KNIGHTLY colours: gold frame, the gem colours when full)
+   gains one notch for every command you use; at KL_MAX notches it is full and KNIGHT LIGHT (ATTACK menu) can be used, which empties it again. ---------- */
+const KL_MAX=3, KL_DAMAGE=60; const kl={n:0};
+function klActive(){ return weapon==='sword'&&swordStyle==='knightly'; }
+function klReady(){ return kl.n>=KL_MAX; }
+function klTurn(act){ if(!klActive()) return; if(act==='knightlight') kl.n=0; else if(act==='carve'||act==='flaunt'||act==='block'||act==='render'||act==='potion') kl.n=Math.min(KL_MAX,kl.n+1); }
+function startKnightLight(){
+  const e=enemies[enSel], a=actions.HeavyCombo; if(!e||e.dead||!a){ bmToast('NOT READY'); return; }
+  if(!klReady()){ bmToast('NOT CHARGED'); return; }
+  btBegin('knightlight'); bt.en=e; bt.heading=-Math.PI/2;
+  const c=homeTarget; heading=Math.atan2(e.x-c.x,e.z-c.z); playerRig.rotation.y=heading;   // faces the one it is about to hit
+  if(current&&current!==a) current.fadeOut(0.06);
+  a.reset().setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.timeScale=1; a.fadeIn(0.06).play(); current=a;
+  playSwishClip('HeavyCombo');   // the swishes, the sparkle and the bluntflesh hit of the finishing blow
+}
 function btEnd(noTurn){
   if(bt.en&&bt.en.idle&&bt.en.hit&&bt.en.hit.isRunning()===false&&bt.en.hit.weight>0){ /* still holding Hit: hand back to Idle below */ }
   bt.act=null; bt.en=null; playerRig.rotation.y=bt.heading; heading=bt.heading;   // face west again
@@ -3055,6 +3073,7 @@ function startCarve(){
   const e=enemies[enSel]; if(!e||e.dead||!actions[swingName()]||!actions.Hit) { bmToast('NOT READY'); return; }
   btBegin('carve'); bt.en=e; bt.heading=-Math.PI/2;
   const c=homeTarget; heading=Math.atan2(e.x-c.x,e.z-c.z); playerRig.rotation.y=heading;   // turn to face the one he is about to cut
+  if(animSet==='ideal'&&swingName()==='Swing') idealPickSwing();   // IDEAL: a random A / B / C for every swing in battle too
   const sw=actions[swingName()]; swinging=true; swingQueued=false;
   if(current&&current!==sw) current.fadeOut(0.06);
   sw.reset().setLoop(THREE.LoopOnce,1); sw.clampWhenFinished=true; sw.timeScale=SWING_SPEED; sw.fadeIn(0.06).play(); current=sw;   // when it ends the usual swing hand-off puts him back to Idle
@@ -3161,11 +3180,23 @@ let turn='player', ep=null, endT=0, endKind=null, endDone=false; const pl={hp:PL
   '#turn{position:fixed;left:50%;bottom:calc(46px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-size:30px;letter-spacing:.14em;color:#ffe27a;text-shadow:3px 3px 0 #000;display:none;z-index:15;pointer-events:none;white-space:nowrap}'+
   'body.dungeon #turn.on{display:block}#turn.foe{color:#ff8a7a}#turn.big{z-index:50;bottom:auto;top:38%;font-size:clamp(54px,9vw,96px);letter-spacing:.08em;color:#fff;text-shadow:0 4px 0 #8fa4ff,0 8px 0 #4558c8,5px 10px 0 #000}#turn.big.lose{color:#ffb0a0;text-shadow:0 4px 0 #e8604f,0 8px 0 #8a2a20,5px 10px 0 #000}'+
   '.tg-s.dead{opacity:.35}'+
+  '#klg{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(340px,62vw);display:none;z-index:15;pointer-events:none;text-align:center;font-size:22px;letter-spacing:.18em;line-height:1;color:#FFD966;text-shadow:2px 2px 0 #000}'+
+  'body.dungeon #klg.on{display:block}#klg .kb{display:flex;gap:4px;margin-top:4px;padding:4px;background:#1a1405;border:2px solid #000;box-shadow:0 0 0 2px #FFD966,0 0 0 4px #000}'+
+  '#klg .ks{flex:1;height:14px;background:#2a210a;box-shadow:inset 0 0 0 1px #000}#klg .ks.f{background:linear-gradient(180deg,#fff0b0,#FFD966 55%,#b8902a)}'+
+  '#klg.rdy .ks{background:linear-gradient(90deg,#ec2834,#f48818,#fad638,#40e268,#38d8b8,#f85478,#ec2834);background-size:200% 100%;animation:klrb 1.1s linear infinite}#klg.rdy{color:#fff}#klg.rdy .kb{box-shadow:0 0 0 2px #fff,0 0 0 4px #000,0 0 14px 2px #FFD966}'+
+  '@keyframes klrb{to{background-position:-200% 0}}'+
   '#dfeat{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;transition:opacity .7s linear;z-index:40;display:none;align-items:center;justify-content:center}#dfeat.show{opacity:1}'+
   '#dfeat img{width:min(62vmin,520px);height:min(62vmin,520px);image-rendering:pixelated;opacity:0;transition:opacity .35s linear .6s}#dfeat.show img{opacity:1}';
   document.head.appendChild(st); })();
 const hpLayer=document.createElement('div'); hpLayer.id='hpl'; document.body.appendChild(hpLayer);
 const turnEl=document.createElement('div'); turnEl.id='turn'; document.body.appendChild(turnEl);
+const klEl=document.createElement('div'); klEl.id='klg'; klEl.innerHTML='<span></span><div class="kb"><i class="ks"></i><i class="ks"></i><i class="ks"></i></div>'; document.body.appendChild(klEl); let klShown='';
+function klUpdate(){
+  const on=!!dungeon&&klActive()&&turn!=='over'&&dgState==='idle'&&!dgBusy, key=on?kl.n+'|'+KL_MAX:'';
+  klEl.classList.toggle('on',on); if(key===klShown) return; klShown=key; if(!on) return;
+  klEl.classList.toggle('rdy',klReady()); klEl.firstChild.textContent=klReady()?'KNIGHT LIGHT READY':'KNIGHT LIGHT '+kl.n+'/'+KL_MAX;
+  [].forEach.call(klEl.querySelectorAll('.ks'),(el,i)=>el.classList.toggle('f',i<kl.n));
+}
 /* The defeat picture: the screen fades to black and the 2-frame gif plays on it (red on black) for as long as the defeat sound plays; the DEFEATED text stays on top of it (see #turn.big). It is removed when you leave the ruins. */
 const dfEl=document.createElement('div'); dfEl.id='dfeat'; dfEl.innerHTML='<img alt="">'; document.body.appendChild(dfEl);
 function defeatScreen(on){
@@ -3182,6 +3213,7 @@ function barsBuild(){
 }
 function headPos(b,out){ const H=playerH, y=(b.ent&&b.ent.isSlime?(blobHome.y+0.42*H):(homeTarget.y+H/2))+0.07*H; if(b.isPl){ const p=playerRig.position; return out.set(homeTarget.x+p.x,y,homeTarget.z+p.z); } return out.set(b.ent.x,y,b.ent.z); }
 function barsUpdate(dt){
+  klUpdate();
   const W=innerWidth, Hh=innerHeight, vis=dgState==='idle'&&!dgBusy;
   bars.forEach(b=>{
     const e=b.ent; if(b.shown!==e.hp){ b.shown=e.hp; b.fill.style.width=Math.max(0,e.hp/e.max*100)+'%'; const f=e.hp/e.max; b.fill.style.background=f>0.5?'#58b868':f>0.25?'#e8b830':'#e8604f'; b.txt.textContent=b.name+' '+e.hp; }
@@ -3196,7 +3228,7 @@ function barsUpdate(dt){
 function popup(text,pos,cls){ const el=document.createElement('div'); el.className='dmg '+(cls||''); el.textContent=text; hpLayer.appendChild(el); popups.push({el,pos:pos.clone(),t:0}); }
 function setTurnLabel(txt,cls){ turnEl.textContent=txt||''; turnEl.className=cls||''; }
 function battleReset(){
-  pl.hp=pl.max=PLAYER_HP; pl.guard=false; pl.render=false; pl.buf=false; pl.dead=false; potions=POTION_COUNT; turn='player'; ep=null; endDone=false; endKind=null;
+  kl.n=0; klShown=''; pl.hp=pl.max=PLAYER_HP; pl.guard=false; pl.render=false; pl.buf=false; pl.dead=false; potions=POTION_COUNT; turn='player'; ep=null; endDone=false; endKind=null;
   barsBuild(); setTurnLabel('YOUR TURN');
 }
 function hurtEnemy(e,dmg){
@@ -3355,6 +3387,12 @@ function updateBattle(dt){
                                                // Hit has played through; its last frame stays on screen
     else if(bt.stage===2){ bt.hold+=dt; if(bt.hold>=(e.dead?DEATH_HOLD:HIT_HOLD)){ bt.stage=3; if(!e.dead){ e.idle.reset().fadeIn(0.12).play(); e.hit.fadeOut(0.12); } } }
     else if(bt.stage===3&&bt.t>=0.02&&!swinging){ btEnd(); }                                             // back to Idle on both sides
+  } else if(bt.act==='knightlight'){
+    const e=bt.en, a=actions.HeavyCombo, dur=a?a.getClip().duration:0;
+    if(bt.stage===0&&bt.t>=HEAVY_COMBO_FINISH_T){ bt.stage=1; bt.hitT=bt.t; hurtEnemy(e,KL_DAMAGE); }                  // the blade comes down: the finishing blow lands
+    else if(bt.stage===1&&((e.dead?e.deathDone:e.hitDone)||bt.t-bt.hitT>4)){ bt.stage=2; bt.hold=0; }
+    else if(bt.stage===2){ bt.hold+=dt; if(bt.hold>=(e.dead?DEATH_HOLD:HIT_HOLD)){ bt.stage=3; if(!e.dead){ e.idle.reset().fadeIn(0.12).play(); e.hit.fadeOut(0.12); } } }
+    else if(bt.stage===3&&bt.t>=dur-0.05){ play(idleName()); btEnd(); }                                                  // the clip has finished its recovery
   } else if(bt.act==='flaunt'){
     if(bt.t>=FLAUNT_TIME){ play(idleName()); btEnd(); }
   } else if(bt.act==='block'){
@@ -4780,6 +4818,7 @@ function editBegin(buf){
   editHid=scene.children.filter(o=>o!==playerRig&&o!==invBg).map(o=>({o:o,v:o.visible})); if(rockMesh) editHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
   document.body.classList.add('map');   // the menu steps aside
   editBlack(true); showWeapons(); syncAudio();   // black, no weapon, and the menu music out
+  [srcNode,flauntSrc,battleSrc].concat(Object.keys(xtra).map(k=>xtra[k].src)).forEach(t=>{ if(t) stopTrack(t); }); srcNode=flauntSrc=battleSrc=null; for(const k in xtra) xtra[k].src=null;   // and straight away, whatever was still starting up
   editBeat0=-99; editBag=[]; editPoseLast=-1; editShotLast=-1; editBg=0; editPunch=editShake=editFlash=editInvert=editBlur=editVisor=0;
   editYawGoal=yaw; editRoll=editRollGoal=0; editPitchGoal=0.04; editZoomGoal=0.8; editYGoal=0; editPoseNext();
   const src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=buf; src.loop=true; src.loopStart=EDIT_START; src.loopEnd=buf.duration;   // starts at 0:57 and loops from there
