@@ -1001,7 +1001,7 @@ function setVoice(v){
   const b=document.getElementById('voice'); if(b) setSwitch('voice',true,voice==='voice2'?'Voice 2':'Voice 1');
   const sel=document.getElementById('voicesel'); if(sel) sel.value=voice;
 }
-function toggleVoice(){ setVoice(voice==='voice1'?'voice2':'voice1'); }
+function toggleVoice(){ setVoice(voice==='voice1'?'voice2':'voice1'); try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); }catch(e){} playFlauntSfx(); }   // preview: one of the voice's flaunt lines
 let hatchetGrp=null, hammerGrp=null, knightlyGrp=null, swordStyle='sword';   // swordStyle: 'sword' or 'hatchet' (only shows while the weapon is the light one)
 function showWeapons(){ applyAxeStyle();
   if(swordGrp) swordGrp.visible=(weapon==='sword'&&swordStyle==='sword');
@@ -2350,7 +2350,7 @@ document.getElementById('look').onclick=toggleLook;
 document.getElementById('pause').onclick=togglePause;
 document.getElementById('sword').onclick=toggleWeapon;
 const vBtn=document.getElementById('voice'); if(vBtn) vBtn.onclick=toggleVoice;
-const vSel=document.getElementById('voicesel'); if(vSel) vSel.onchange=()=>{ setVoice(vSel.value); vSel.blur(); blip(520,0.05); };
+const vSel=document.getElementById('voicesel'); if(vSel) vSel.onchange=()=>{ setVoice(vSel.value); vSel.blur(); try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); }catch(e){} playFlauntSfx(); };   // picking a voice previews its flaunt line
 addEventListener('keydown',e=>{
   if(e.target.tagName==='SELECT'||e.target.tagName==='INPUT') return;
   if(e.target.tagName==='BUTTON'&&e.key===' ') return;
@@ -4788,7 +4788,7 @@ function editPoseNext(){   // the next of the poses (EDIT_POSE_N of them), from 
 }
 /* The 7th pose (Walk3 from the Blockbench file: the dislocated idle). It lasts two beats: on the first he holds the sword in his hand; it then shoots up his arm, so fast that it lands on his face exactly on the next beat,
    where the visor flashes and the RDR2 low-honor sting hits (its loudest part, EDIT_SWORD_PEAK s into the file, is put on that beat). edSw.st: 0 = no sword, 1 = in his hand / flying, 2 = landed on his face. */
-const EDIT_POSE_N=7, EDIT_SWORD_POSE=6, EDIT_SWORD_FLY=0.09, EDIT_SWORD_GAIN=1.0, EDIT_SWORD_PEAK=0.16;
+const EDIT_POSE_N=6, EDIT_SWORD_POSE=-1, EDIT_SWORD_FLY=0.09, EDIT_SWORD_GAIN=1.0, EDIT_SWORD_PEAK=0.16;
 const EDIT_SWORD_FACE=[0,0.15,0.36], EDIT_SWORD_CY=1.1;   // where the middle of the blade lands (in the head's own space: just in front of the visor), and where the middle of the blade is along the sword's own axis
 const edSw={st:0,grp:null,fore:null,head:null,shoulder:null,p0:null,q0:null,s0:null,snd:false};
 const _e1=new THREE.Vector3(),_e2=new THREE.Vector3(),_e3=new THREE.Vector3(),_e4=new THREE.Vector3(),_eq1=new THREE.Quaternion(),_eq2=new THREE.Quaternion(),_eq3=new THREE.Quaternion(),_em1=new THREE.Matrix4(),_em2=new THREE.Matrix4(),_es=new THREE.Vector3(),_eqz=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2);
