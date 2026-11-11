@@ -2143,6 +2143,7 @@ async function syncAudio(){
       if(flauntSrc){ stopTrack(flauntSrc); flauntSrc=null; }
       if(battleSrc){ stopTrack(battleSrc); battleSrc=null; }
       stopX('');
+      if(!want&&srcNode){ stopTrack(srcNode); srcNode=null; }                          // no music wanted (EDIT is playing its own song): the main music fades out too
       if(want==='main') startMusic();                                                  // the main music comes back
     }
   }catch(e){ console.error(e); }
