@@ -2309,11 +2309,11 @@ let ualOn=false; const ualOrig={}, ualAl={};
 function ualAlias(k,sn){ const key=k+'|'+sn; if(!ualAl[key]){ const c=actions[sn].getClip().clone(); c.name=k; c.ualSrc=sn; ualAl[key]=mixer.clipAction(c); } return ualAl[key]; }
 /* ANIM SET: IDEAL (the default) = the UAL Idle and Hit, plus a different random UAL Sword_Regular_A / B / C for every swing; everything else is the knight's own. KNIGHT = all the knight's own.
    UNIVERSAL = every clip in UAL_ALT from the UAL library. While IDEAL is on, the UAL_ clips are hidden from the ANIMATIONS menus (HeavyCombo is not one of them, so it stays). */
-let animSet='ideal'; const IDEAL_ALT={Idle:1,AxeIdle:1,Hit:1}, IDEAL_SWINGS=['UAL_Sword_Regular_A','UAL_Sword_Regular_B','UAL_Sword_Regular_C']; let idealSwingLast=-1;
+let animSet='ideal'; const IDEAL_ALT={Idle:1,AxeIdle:1,Hit:1}, IDEAL_SWINGS=['UAL_Sword_Regular_A','UAL_Sword_Regular_B']; let idealSwingLast=-1;   // (Sword_Regular_C is left out: it looked buggy)
 const animVisible=n=>!(animSet==='ideal'&&/^UAL_/.test(n));
 function idealPickSwing(){   // called every time a Swing starts: a different one of the three each time
   const o=ualOrig.Swing; if(!o) return;
-  let i; do{ i=(Math.random()*IDEAL_SWINGS.length)|0; }while(i===idealSwingLast);
+  let i; do{ i=(Math.random()*IDEAL_SWINGS.length)|0; }while(i===idealSwingLast&&IDEAL_SWINGS.length>2);   // (with only two swings left they are picked purely at random)
   idealSwingLast=i; const alt=ualAlias('Swing',IDEAL_SWINGS[i]); alt.setEffectiveTimeScale(1); alt.setDuration(o.getClip().duration); actions.Swing=alt;   // stretched to the knight's swing length, as in UNIVERSAL
 }
 function ualApply(){
