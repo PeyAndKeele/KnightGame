@@ -60,7 +60,7 @@ void main(){
   }
 }`;
 const FS=`
-uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform float uBlackGrey; uniform float uMaskNoShine;
+uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float uDither; uniform float uLevels; uniform vec3 uFogColor; uniform vec3 uNight; uniform float uShine; uniform float uBlackNoShine; uniform float uBlackGrey; uniform float uMaskNoShine; uniform float uBlackFlash;
 uniform vec3 uLampCol; uniform float uEmit; varying float vLampD; varying float vLampS;
 uniform float uMagma; uniform float uGem; uniform float uBladeGlow; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
 uniform vec3 uLamp2Col; varying float vLamp2D; varying float vLamp2S;
@@ -105,6 +105,7 @@ void main(){
   lit=mix(lit,tx.rgb*(1.85+0.7*uMagmaPulse)+0.12,gem);   // (the gems keep their own colours: the sword's tint does not touch them)
   lit=mix(lit,base,uEmit);                                                                      // uEmit: 1 on the lantern's bulb itself - it glows instead of being lit
   vec3 c=mix(lit*mix(uNight,vec3(1.0),max(max(uEmit,mgm),gem))+lampT,uFogColor,vFog);                    // (night does not dim a glow)
+  c=mix(c,vec3(1.0),uBlackFlash*(1.0-smoothstep(0.03,0.09,max(tx.r,max(tx.g,tx.b)))));   // uBlackFlash (EDIT mode, helmet only): the pure-black texels (the visor) flash white, glowing: no lighting, no fog
   if(uDither>0.5){
     vec2 p=floor(gl_FragCoord.xy);
     float b=(4.0*b2(p)+b2(floor(p*0.5)))/16.0-0.47;
@@ -173,7 +174,7 @@ function ps1Mat(tex,uvScale){
   tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false;
   tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true;
   return new THREE.ShaderMaterial({vertexShader:VS,fragmentShader:FS,side:THREE.DoubleSide,
-    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uMaskNoShine:{value:0},uEmit:{value:0},uMagma:{value:0},uGem:{value:0},uBladeGlow:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
+    uniforms:Object.assign({map:{value:tex},uUvScale:{value:uvScale||1},uTint:{value:new THREE.Vector3(1,1,1)},uShine:{value:0},uBlackNoShine:{value:0},uBlackGrey:{value:0},uMaskNoShine:{value:0},uBlackFlash:{value:0},uEmit:{value:0},uMagma:{value:0},uGem:{value:0},uBladeGlow:{value:0},uOccOn:{value:0}},U)});   // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
 }
 function ps1FloorMat(texG,texF,texI,uvScale,H){
   [texG,texF,texI].forEach(tex=>{ tex.encoding=THREE.LinearEncoding; tex.generateMipmaps=false; tex.minFilter=tex.magFilter=THREE.NearestFilter; tex.needsUpdate=true; });
@@ -4719,16 +4720,19 @@ addEventListener('keydown',e=>{
 const EDIT_START=57.0, EDIT_FIRST=57.844, EDIT_PERIOD=0.4488, EDIT_LEAD=0.035, EDIT_GAIN=0.9;   // EDIT_LEAD: the picture is changed a hair before the beat (the sound reaches the ear a little later than the frame is drawn)
 const EDIT_BG=['#ececec','#d3121f'];   // the background: light, then red, a new one every bar
 const EDIT_SHOTS=[   // camera shots: zoom (bigger = further), pitch (negative = from below), height he is looked at (fraction of his height from the middle), roll (tilt)
-  {z:0.85,p:-0.18,y:0.00,r:0},{z:0.34,p:0.03,y:0.34,r:0},{z:0.52,p:0.08,y:0.10,r:0},{z:0.80,p:0.60,y:-0.05,r:0},{z:0.50,p:-0.25,y:-0.32,r:0},
-  {z:0.62,p:0.04,y:0.05,r:0.22},{z:0.62,p:0.04,y:0.05,r:-0.22},{z:1.05,p:0.00,y:0.00,r:0},{z:0.40,p:0.10,y:0.15,r:0.30}];
+  {z:0.85,p:-0.18,y:0.00,r:0},{z:0.50,p:0.03,y:0.30,r:0},{z:0.60,p:0.08,y:0.10,r:0},{z:0.80,p:0.60,y:-0.05,r:0},{z:0.58,p:-0.25,y:-0.30,r:0},
+  {z:0.62,p:0.04,y:0.05,r:0.22},{z:0.62,p:0.04,y:0.05,r:-0.22},{z:1.05,p:0.00,y:0.00,r:0},{z:0.58,p:0.10,y:0.12,r:0.30}];
 const EDIT_POSE_Y=[0,0,-0.18,-0.08,0,-0.42];   // per pose: look lower at the crouch, the dance and (a lot) the pose lying down
 let editBusy=false, editBuf=null, editLoading=null, editSrc=null, editGain=null, editT0=0, editPrev=null, editHid=[], editBeat0=-99, editBag=[], editPoseLast=-1, editPoseNow=0, editShotLast=-1;
-let editRollGoal=0, editYawGoal=0, editDir=1, editPitchGoal=0, editZoomGoal=1, editYGoal=0, editPunch=0, editShake=0, editFlash=0, editInvert=0, editBlur=0, editBg=0, editFx=null, editExitOk=0;
+let editVisor=0, editRollGoal=0, editYawGoal=0, editDir=1, editPitchGoal=0, editZoomGoal=1, editYGoal=0, editPunch=0, editShake=0, editFlash=0, editInvert=0, editBlur=0, editBg=0, editFx=null, editExitOk=0;
 const _edC=new THREE.Color();
 function editLoad(){
   if(editBuf) return Promise.resolve(editBuf); if(editLoading) return editLoading;
   const t=atob(document.getElementById('edit-song-data').textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i);
   return editLoading=new Promise((res,rej)=>sfx.decodeAudioData(u.buffer,res,rej)).then(b=>{ editBuf=b; return b; });
+}
+function editVisorSet(v){   // the helmet's materials (every helmet set, never the plume): the black visor texels flash white by v (0..1)
+  helmetSets.forEach(set=>set.forEach(m=>{ const u=m.material&&m.material.uniforms; if(u&&u.uBlackFlash&&!/plume/i.test(m.name||'')) u.uBlackFlash.value=v; }));
 }
 function editBlack(on){   // the armor: every armor material's tint pulled to (nearly) black; the plume: its darkest colour
   armorMats.forEach((m,i)=>{ const v=m.uniforms.uTint.value; if(on) v.set(0.035,0.035,0.04); else if(editPrev&&editPrev.tints[i]) v.copy(editPrev.tints[i]); });
@@ -4749,7 +4753,7 @@ function editOnBeat(idx){
   let k; do{ k=Math.floor(Math.random()*EDIT_SHOTS.length); }while(k===editShotLast); if(drop) k=1; editShotLast=k;   // the drop is always the close-up
   const sh=EDIT_SHOTS[k]; editZoomGoal=sh.z; editPitchGoal=sh.p; editYGoal=sh.y+EDIT_POSE_Y[editPoseNow]; editRollGoal=sh.r;
   editDir=Math.random()<0.5?-1:1; editYawGoal+=editDir*(0.9+Math.random()*1.5)*(bar===0?1.4:1);   // the sharp turn: a big jump round him
-  editPunch=1; editShake=bar===0?1:0.45; editBlur=1;
+  editPunch=1; editShake=bar===0?1:0.45; editBlur=1; editVisor=1;   // editVisor: the visor flashes white on every beat (it only shows when his face is turned to the camera)
   if(bar===0){ editFlash=0.85; editBg=(editBg+1)%EDIT_BG.length; }
   if(drop){ editFlash=1; editInvert=0.14; editShake=2.2; }
   else if(bar===0&&((idx%8)+8)%8===0) editInvert=0.07;
@@ -4776,7 +4780,7 @@ function editBegin(buf){
   editHid=scene.children.filter(o=>o!==playerRig&&o!==invBg).map(o=>({o:o,v:o.visible})); if(rockMesh) editHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
   document.body.classList.add('map');   // the menu steps aside
   editBlack(true); showWeapons(); syncAudio();   // black, no weapon, and the menu music out
-  editBeat0=-99; editBag=[]; editPoseLast=-1; editShotLast=-1; editBg=0; editPunch=editShake=editFlash=editInvert=editBlur=0;
+  editBeat0=-99; editBag=[]; editPoseLast=-1; editShotLast=-1; editBg=0; editPunch=editShake=editFlash=editInvert=editBlur=editVisor=0;
   editYawGoal=yaw; editRoll=editRollGoal=0; editPitchGoal=0.04; editZoomGoal=0.8; editYGoal=0; editPoseNext();
   const src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=buf; src.loop=true; src.loopStart=EDIT_START; src.loopEnd=buf.duration;   // starts at 0:57 and loops from there
   g.gain.value=EDIT_GAIN; src.connect(g); g.connect(sfx.destination); editT0=sfx.currentTime+0.05; src.start(editT0,EDIT_START); editSrc=src; editGain=g;
@@ -4786,7 +4790,7 @@ function editBegin(buf){
 function editEnd(){
   if(!editOn) return; editOn=false;
   try{ const t=sfx.currentTime; editGain.gain.cancelScheduledValues(t); editGain.gain.setValueAtTime(editGain.gain.value,t); editGain.gain.linearRampToValueAtTime(0,t+0.25); editSrc.stop(t+0.3); }catch(_){}
-  editSrc=null; editGain=null; editBlack(false); showWeapons();
+  editSrc=null; editGain=null; editBlack(false); editVisorSet(0); showWeapons();
   editHid.forEach(h=>{ h.o.visible=h.v; }); editHid=[];
   if(invBg){ invBg.visible=false; const u=invBg.material.uniforms; u.uGlow.value=INV_BG_GLOW; u.uVig.value=INV_BG_VIGNETTE; u.uBokeh.value=INV_BG_BOKEH; }
   if(editFx){ editFx.remove(); editFx=null; } renderer.domElement.style.filter='';
@@ -4804,7 +4808,7 @@ function editStep(dt){
   const b=(pos+EDIT_LEAD-EDIT_FIRST)/EDIT_PERIOD, idx=Math.floor(b), ph=b-idx;
   if(el>=0&&idx!==editBeat0){ editBeat0=idx; editOnBeat(idx); }
   // the camera: eased VERY fast, so each cut is a whip, with a slow drift in between
-  editYawGoal+=dt*0.22*editDir; editPunch*=Math.exp(-dt*6); editShake*=Math.exp(-dt*9); editFlash*=Math.exp(-dt*7); editBlur*=Math.exp(-dt*11); editInvert=Math.max(0,editInvert-dt);
+  editYawGoal+=dt*0.22*editDir; editPunch*=Math.exp(-dt*6); editVisor*=Math.exp(-dt*8); editShake*=Math.exp(-dt*9); editFlash*=Math.exp(-dt*7); editBlur*=Math.exp(-dt*11); editInvert=Math.max(0,editInvert-dt);
   const k=(r)=>1-Math.exp(-dt*r);
   yaw+=(editYawGoal-yaw)*k(26); pitch+=(editPitchGoal-pitch)*k(22); editRoll+=(editRollGoal-editRoll)*k(18);
   const zg=editZoomGoal*(1-0.1*ph)*(1-0.22*editPunch); zoom+=(zg-zoom)*k(24);   // a slow push in across each beat, and a punch on it
@@ -4814,6 +4818,7 @@ function editStep(dt){
   // the picture: background colour, glow and vignette behind him
   _edC.set(EDIT_BG[editBg]); renderer.setClearColor(_edC); U.uFogColor.value.copy(_edC);
   { const bg=invBackdrop(), u=bg.material.uniforms; bg.visible=true; u.uBase.value.copy(_edC); u.uTime.value+=dt; u.uAsp.value=innerWidth/innerHeight; u.uK.value=1; u.uGlow.value=0.4; u.uVig.value=0.55; u.uBokeh.value=0; }
+  editVisorSet(editVisor>0.02?editVisor:0);
   if(editFx){ editFx.querySelector('.efl').style.opacity=Math.min(1,editFlash).toFixed(3); }
   const blur=editBlur>0.05?'blur('+(editBlur*5).toFixed(1)+'px)':'', inv=editInvert>0?'invert(1)':'';
   renderer.domElement.style.filter=(inv+' '+blur).trim();
