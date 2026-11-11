@@ -4573,6 +4573,7 @@ void main(){
 }
 const INV_BG_PALE=0.30;   // the background is the armor colour mixed this far toward white (0 = the armor colour itself, 1 = white); with no armor colour it is the usual fog colour, lightened by INV_FOG_LIGHT
 const _invWhite=new THREE.Color(0xffffff);
+const INV_CUST_VIEW=0.85; let invCustK=0;   // INV_CUST_VIEW: on the CUSTOMIZE screen the picture slides right (1 = the menu's usual shift, 0 = centred) so he sits in the free space beside the panel
 const INV_ZOOM=0.72, INV_PITCH=0.06, INV_TY=0.08, INV_VIEW=0, INV_FOG_LIGHT=0.4;   // zoom (bigger = further away = smaller on screen), tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift; 0 = centred, between the item list on the left and the details on the right)
 function invStep(dt){
   if(!invOn&&invK===0) return;
@@ -4583,7 +4584,8 @@ function invStep(dt){
   if(!invPrev) return;
   zoom=mapLerp(invPrev.zoom,INV_ZOOM,invK); pitch=mapLerp(invPrev.pitch,INV_PITCH,invK);
   target.set(invPrev.tx,mapLerp(invPrev.ty,homeTarget.y+playerH*INV_TY,invK),invPrev.tz);
-  mapViewK=mapLerp(1,INV_VIEW,invK); applyView();
+  invCustK+=((invCust?1:0)-invCustK)*(1-Math.exp(-dt*6)); if(Math.abs((invCust?1:0)-invCustK)<0.002) invCustK=invCust?1:0;
+  mapViewK=mapLerp(1,INV_VIEW+(INV_CUST_VIEW-INV_VIEW)*invCustK,invK); applyView();
   if(!invOn&&invK===0){ invPrev=null; mapViewK=1; applyView(); applyAreaFog(); }
 }
 /* The inventory is laid out like Elden Ring's: TABS along the top (WEAPONS, ITEMS; Q / E switch them), under them the TYPES inside a tab (WEAPONS: LIGHT / HEAVY; A / D or the left / right arrows switch them),
