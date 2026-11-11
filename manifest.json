@@ -468,5 +468,10 @@
     "id": "pizza-sfx-data",
     "type": "application/json",
     "url": "pizza-sfx-data.json"
+  },
+  {
+    "id": "honor-sfx-data",
+    "type": "application/json",
+    "url": "honor-sfx-data.json"
   }
 ]

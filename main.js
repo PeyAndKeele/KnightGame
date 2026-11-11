@@ -2920,7 +2920,8 @@ function clearEnemies(){
   enemies.forEach(e=>{ e.mixer.stopAllAction(); e.mixer.uncacheRoot(e.root); scene.remove(e.rig); scene.remove(e.blob); e.blob.geometry.dispose(); e.blob.material.dispose(); e.tex.forEach(t=>t.dispose()); });
   enemies.length=0;
 }
-function stepEnemies(dt){ for(const e of enemies) e.mixer.update(dt); if(shopKeeper&&shopGroup&&shopGroup.visible){ shopKeeper.mixer.update(dt); shopEvtStep(dt); updateShopFace(dt); } fadeEnemies(dt); if(pointerMixer) pointerMixer.update(dt); }
+const SLIME_STEP=1/8;   // the slimes move in 8 frames a second (the knights: 15): a stop-motion look
+function stepEnemies(dt){ for(const e of enemies){ if(e.isSlime){ e.slAcc=(e.slAcc||0)+dt; if(e.slAcc>=SLIME_STEP){ const n=Math.floor(e.slAcc/SLIME_STEP); e.mixer.update(n*SLIME_STEP); e.slAcc-=n*SLIME_STEP; } } else e.mixer.update(dt); } if(shopKeeper&&shopGroup&&shopGroup.visible){ shopKeeper.mixer.update(dt); shopEvtStep(dt); updateShopFace(dt); } fadeEnemies(dt); if(pointerMixer) pointerMixer.update(dt); }
 /* ---------- target pointer (pointer-data: Blockbench glTF with its own spin-and-bob animation) ----------
    One pointer floats above the enemy you have selected. LEFT / RIGHT (or A / D) move it between the enemies, as you see them on screen:
    it starts on the middle one; LEFT / RIGHT follow the TARGET window and wrap round at the ends. Later this is what picks the target of an attack. */
@@ -3312,7 +3313,7 @@ const SQ={crouch:0.30,crouchSy:0.86,leapFrom:0.40,hop:0.07,lunge:0.10,pull:0.02,
 const sqEase=k=>{ k=Math.max(0,Math.min(1,k)); return k*k*(3-2*k); };
 function slimeSquishStart(e,px,pz){
   const dx=px-e.x, dz=pz-e.z, d=Math.hypot(dx,dz)||1;
-  e.sqT=0; e.sqDir={x:dx/d,z:dz/d}; e.sqHome=e.rig.position.clone(); e.sqBase=e.root.scale.x;
+  e.sqT=0; e.sqAcc=0; e.sqDir={x:dx/d,z:dz/d}; e.sqHome=e.rig.position.clone(); e.sqBase=e.root.scale.x;
   e.root.position.y=0; e.rig.updateMatrixWorld(true); e.sqB=new THREE.Box3().setFromObject(e.root).min.y-e.rig.position.y;   // where its underside is (so it squashes onto the ground rather than into it)
 }
 function slimeSquish(e,dt){
@@ -3351,7 +3352,7 @@ function updateEnemyPhase(dt){
   if(!ep||turn==='over') return;
   ep.t+=dt;
   if(ep.stage===9){ if(ep.t>=ENEMY_START_BEAT) epNext(); return; }
-  if(ep.e&&ep.e.isSlime&&ep.stage>=1&&ep.stage<=3) slimeSquish(ep.e,dt);   // the squishy jump drawn over the slime's own attack clip
+  if(ep.e&&ep.e.isSlime&&ep.stage>=1&&ep.stage<=3){ const se=ep.e; se.sqAcc=(se.sqAcc||0)+dt; if(se.sqAcc>=SLIME_STEP){ const d=Math.floor(se.sqAcc/SLIME_STEP)*SLIME_STEP; se.sqAcc-=d; slimeSquish(se,d); } }   // (the squish moves in the same choppy steps)   // the squishy jump drawn over the slime's own attack clip
   const e=ep.e, sw=e.isSlime?e.clips.action:(e.isGolem?(e.gc||golemClips).Attack:actions.Swing.getClip()), spd=e.isSlime?SLIME_ATK_SPEED:(e.isGolem?1.0:SWING_SPEED), hitAt=e.isSlime?SLIME_HIT_AT/SLIME_ATK_SPEED:(e.isGolem?(e.gc?e.gc.Attack.duration*0.5:GOLEM_HIT_AT):(CARVE_HIT_AT/SWING_SPEED));
   if(ep.stage===0){   // this enemy turns to face the player and attacks
     const px=homeTarget.x+playerRig.position.x, pz=homeTarget.z+playerRig.position.z;
@@ -4760,7 +4761,7 @@ const EDIT_BG=['#ececec','#d3121f'];   // the background: light, then red, a new
 const EDIT_SHOTS=[   // camera shots: zoom (bigger = further), pitch (negative = from below), height he is looked at (fraction of his height from the middle), roll (tilt)
   {z:0.85,p:-0.18,y:0.00,r:0},{z:0.50,p:0.03,y:0.30,r:0},{z:0.60,p:0.08,y:0.10,r:0},{z:0.80,p:0.60,y:-0.05,r:0},{z:0.58,p:-0.25,y:-0.30,r:0},
   {z:0.62,p:0.04,y:0.05,r:0.22},{z:0.62,p:0.04,y:0.05,r:-0.22},{z:1.05,p:0.00,y:0.00,r:0},{z:0.58,p:0.10,y:0.12,r:0.30}];
-const EDIT_POSE_Y=[0,0,-0.18,-0.08,0,-0.42];   // per pose: look lower at the crouch, the dance and (a lot) the pose lying down
+const EDIT_POSE_Y=[0,0,-0.18,-0.08,0,-0.42,0];   // per pose: look lower at the crouch, the dance and (a lot) the pose lying down
 let editBusy=false, editBuf=null, editLoading=null, editSrc=null, editGain=null, editT0=0, editPrev=null, editHid=[], editBeat0=-99, editBag=[], editPoseLast=-1, editPoseNow=0, editShotLast=-1;
 let editVisor=0, editRollGoal=0, editYawGoal=0, editDir=1, editPitchGoal=0, editZoomGoal=1, editYGoal=0, editPunch=0, editShake=0, editFlash=0, editInvert=0, editBlur=0, editBg=0, editFx=null, editExitOk=0;
 const _edC=new THREE.Color();
@@ -4776,8 +4777,8 @@ function editBlack(on){   // the armor: every armor material's tint pulled to (n
   armorMats.forEach((m,i)=>{ const v=m.uniforms.uTint.value; if(on) v.set(0.035,0.035,0.04); else if(editPrev&&editPrev.tints[i]) v.copy(editPrev.tints[i]); });
   tintPlume(on?'#000000':(editPrev?editPrev.plume:null));
 }
-function editPoseNext(){   // the next of the six poses, from a shuffled bag so none repeats until all have played
-  if(!editBag.length){ editBag=[0,1,2,3,4,5]; for(let i=5;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [editBag[i],editBag[j]]=[editBag[j],editBag[i]]; }
+function editPoseNext(){   // the next of the poses (EDIT_POSE_N of them), from a shuffled bag so none repeats until all have played
+  if(!editBag.length){ editBag=[]; for(let i=0;i<EDIT_POSE_N;i++) editBag.push(i); for(let i=EDIT_POSE_N-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [editBag[i],editBag[j]]=[editBag[j],editBag[i]]; }
     if(editBag[editBag.length-1]===editPoseLast){ const j=Math.floor(Math.random()*(editBag.length-1)); [editBag[editBag.length-1],editBag[j]]=[editBag[j],editBag[editBag.length-1]]; } }
   editPoseLast=editPoseNow=editBag.pop();
   const a=actions['UALX_EditPose'+(editPoseNow+1)]; if(!a) return;
@@ -4785,14 +4786,56 @@ function editPoseNext(){   // the next of the six poses, from a shuffled bag so 
   Object.keys(actions).forEach(k=>{ if(actions[k]!==a&&actions[k].isRunning()) actions[k].stop(); }); if(current&&current!==a) current.stop();
   current=a; mixer.update(0);
 }
+/* The 7th pose (Walk3 from the Blockbench file: the dislocated idle). It lasts two beats: on the first he holds the sword in his hand; it then shoots up his arm, so fast that it lands on his face exactly on the next beat,
+   where the visor flashes and the RDR2 low-honor sting hits (its loudest part, EDIT_SWORD_PEAK s into the file, is put on that beat). edSw.st: 0 = no sword, 1 = in his hand / flying, 2 = landed on his face. */
+const EDIT_POSE_N=7, EDIT_SWORD_POSE=6, EDIT_SWORD_FLY=0.09, EDIT_SWORD_GAIN=1.0, EDIT_SWORD_PEAK=0.16;
+const EDIT_SWORD_FACE=[0,0.15,0.36], EDIT_SWORD_CY=1.1;   // where the middle of the blade lands (in the head's own space: just in front of the visor), and where the middle of the blade is along the sword's own axis
+const edSw={st:0,grp:null,fore:null,head:null,shoulder:null,p0:null,q0:null,s0:null,snd:false};
+const _e1=new THREE.Vector3(),_e2=new THREE.Vector3(),_e3=new THREE.Vector3(),_e4=new THREE.Vector3(),_eq1=new THREE.Quaternion(),_eq2=new THREE.Quaternion(),_eq3=new THREE.Quaternion(),_em1=new THREE.Matrix4(),_em2=new THREE.Matrix4(),_es=new THREE.Vector3(),_eqz=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),Math.PI/2);
+function editSwordGroup(){ return swordStyle==='hatchet'?hatchetGrp:swordStyle==='hammer'?hammerGrp:swordStyle==='knightly'?knightlyGrp:swordGrp; }
+function editSwordBegin(){
+  const grp=editSwordGroup(); if(!grp||!grp.parent||!playerRig) return;
+  edSw.grp=grp; edSw.fore=grp.parent; edSw.head=playerRig.getObjectByName('Head'); edSw.shoulder=playerRig.getObjectByName(SWORD_HAND+'_Arm')||grp.parent;
+  if(!edSw.head) { edSw.grp=null; return; }
+  edSw.p0=grp.position.clone(); edSw.q0=grp.quaternion.clone(); edSw.s0=grp.scale.clone(); edSw.st=1; edSw.snd=false; grp.visible=true;
+  loadSfxSet('honor-sfx-data');
+}
+function editSwordEnd(){   // back into his hand, out of sight again (EDIT shows no weapon)
+  const g=edSw.grp; if(g){ g.position.copy(edSw.p0); g.quaternion.copy(edSw.q0); g.scale.copy(edSw.s0); g.visible=false; }
+  edSw.grp=null; edSw.st=0; edSw.snd=false;
+}
+function editSwordStep(ph){   // ph: how far through the beat we are (0..1)
+  if(!edSw.st||!edSw.grp) return;
+  const P=EDIT_PERIOD, fly=EDIT_SWORD_FLY/P;
+  if(edSw.st===1&&!edSw.snd&&ph>=0.5){   // the sting is scheduled ahead, so its loudest part sits on the next beat (the picture changes EDIT_LEAD before the beat is heard)
+    edSw.snd=true; playSfxSetTracked('honor-sfx-data',0,EDIT_SWORD_GAIN,1,Math.max(0,(1-ph)*P+EDIT_LEAD-EDIT_SWORD_PEAK));
+  }
+  const u=edSw.st===1?Math.max(0,Math.min(1,(ph-(1-fly))/fly)):1, grp=edSw.grp, fore=edSw.fore;
+  playerRig.updateMatrixWorld(true);
+  const Wf=fore.matrixWorld, cy=EDIT_SWORD_CY;
+  _em1.compose(edSw.p0,edSw.q0,edSw.s0).premultiply(Wf);                       // the sword where it is in his hand, in the world
+  _em1.decompose(_e1,_eq1,_es);                                                  // _e1 origin, _eq1 turn, _es scale
+  const sc=_es.y, C0=_e2.set(0,cy,0).multiplyScalar(sc).applyQuaternion(_eq1).add(_e1).clone();   // the middle of the blade, in his hand
+  const C1=edSw.shoulder.getWorldPosition(new THREE.Vector3());                  // up the arm: his shoulder
+  const C2=edSw.head.localToWorld(_e3.set(EDIT_SWORD_FACE[0],EDIT_SWORD_FACE[1],EDIT_SWORD_FACE[2]));   // and on to his face
+  edSw.head.getWorldQuaternion(_eq2); _eq2.multiply(_eqz);                       // blade across the face, flat against it, hilt on the sword-arm side
+  const L1=C0.distanceTo(C1), L2=C1.distanceTo(C2), d=u*u*(L1+L2);               // speeds up all the way: it hits at full speed
+  const C=_e4; if(d<=L1) C.lerpVectors(C0,C1,L1>0?d/L1:1); else C.lerpVectors(C1,C2,L2>0?(d-L1)/L2:1);
+  const q=_eq3.copy(_eq1).slerp(_eq2,Math.min(1,u*1.15));
+  const org=_e1.set(0,cy,0).multiplyScalar(sc).applyQuaternion(q).negate().add(C);
+  _em2.compose(org,q,_es).premultiply(_em1.copy(Wf).invert()).decompose(grp.position,grp.quaternion,grp.scale);
+}
 function editOnBeat(idx){
   const bar=((idx%4)+4)%4, drop=idx===0;
-  editPoseNext();
-  let k; do{ k=Math.floor(Math.random()*EDIT_SHOTS.length); }while(k===editShotLast); if(drop) k=1; editShotLast=k;   // the drop is always the close-up
+  let land=false;
+  if(edSw.st===1){ edSw.st=2; land=true; }   // the second beat of the sword pose: the pose is held, the sword has just landed
+  else { editSwordEnd(); editPoseNext(); if(editPoseNow===EDIT_SWORD_POSE) editSwordBegin(); }
+  let k; do{ k=Math.floor(Math.random()*EDIT_SHOTS.length); }while(k===editShotLast); if(drop||land) k=1; editShotLast=k;   // the landing is a close-up, like the drop   // the drop is always the close-up
   const sh=EDIT_SHOTS[k]; editZoomGoal=sh.z; editPitchGoal=sh.p; editYGoal=sh.y+EDIT_POSE_Y[editPoseNow]; editRollGoal=sh.r;
   editDir=Math.random()<0.5?-1:1; editYawGoal+=editDir*(0.9+Math.random()*1.5)*(bar===0?1.4:1);   // the sharp turn: a big jump round him
   editPunch=1; editShake=bar===0?1:0.45; editBlur=1; editVisor=1;   // editVisor: the visor flashes white on every beat (it only shows when his face is turned to the camera)
   if(bar===0){ editFlash=0.85; editBg=(editBg+1)%EDIT_BG.length; }
+  if(land){ editFlash=Math.max(editFlash,0.9); editShake=Math.max(editShake,1.6); }
   if(drop){ editFlash=1; editInvert=0.14; editShake=2.2; }
   else if(bar===0&&((idx%8)+8)%8===0) editInvert=0.07;
 }
@@ -4819,7 +4862,7 @@ function editBegin(buf){
   document.body.classList.add('map');   // the menu steps aside
   editBlack(true); showWeapons(); syncAudio();   // black, no weapon, and the menu music out
   [srcNode,flauntSrc,battleSrc].concat(Object.keys(xtra).map(k=>xtra[k].src)).forEach(t=>{ if(t) stopTrack(t); }); srcNode=flauntSrc=battleSrc=null; for(const k in xtra) xtra[k].src=null;   // and straight away, whatever was still starting up
-  editBeat0=-99; editBag=[]; editPoseLast=-1; editShotLast=-1; editBg=0; editPunch=editShake=editFlash=editInvert=editBlur=editVisor=0;
+  editSwordEnd(); loadSfxSet('honor-sfx-data'); editBeat0=-99; editBag=[]; editPoseLast=-1; editShotLast=-1; editBg=0; editPunch=editShake=editFlash=editInvert=editBlur=editVisor=0;
   editYawGoal=yaw; editRoll=editRollGoal=0; editPitchGoal=0.04; editZoomGoal=0.8; editYGoal=0; editPoseNext();
   const src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=buf; src.loop=true; src.loopStart=EDIT_START; src.loopEnd=buf.duration;   // starts at 0:57 and loops from there
   g.gain.value=EDIT_GAIN; src.connect(g); g.connect(sfx.destination); editT0=sfx.currentTime+0.05; src.start(editT0,EDIT_START); editSrc=src; editGain=g;
@@ -4829,7 +4872,7 @@ function editBegin(buf){
 function editEnd(){
   if(!editOn) return; editOn=false;
   try{ const t=sfx.currentTime; editGain.gain.cancelScheduledValues(t); editGain.gain.setValueAtTime(editGain.gain.value,t); editGain.gain.linearRampToValueAtTime(0,t+0.25); editSrc.stop(t+0.3); }catch(_){}
-  editSrc=null; editGain=null; editBlack(false); editVisorSet(0); showWeapons();
+  editSrc=null; editGain=null; editSwordEnd(); swishStopAll(); editBlack(false); editVisorSet(0); showWeapons();
   editHid.forEach(h=>{ h.o.visible=h.v; }); editHid=[];
   if(invBg){ invBg.visible=false; const u=invBg.material.uniforms; u.uGlow.value=INV_BG_GLOW; u.uVig.value=INV_BG_VIGNETTE; u.uBokeh.value=INV_BG_BOKEH; }
   if(editFx){ editFx.remove(); editFx=null; } renderer.domElement.style.filter='';
@@ -4846,6 +4889,7 @@ function editStep(dt){
   const el=sfx.currentTime-editT0, len=editBuf.duration-EDIT_START, pos=EDIT_START+(el<0?0:(el%len));
   const b=(pos+EDIT_LEAD-EDIT_FIRST)/EDIT_PERIOD, idx=Math.floor(b), ph=b-idx;
   if(el>=0&&idx!==editBeat0){ editBeat0=idx; editOnBeat(idx); }
+  editSwordStep(ph);
   // the camera: eased VERY fast, so each cut is a whip, with a slow drift in between
   editYawGoal+=dt*0.22*editDir; editPunch*=Math.exp(-dt*6); editVisor*=Math.exp(-dt*8); editShake*=Math.exp(-dt*9); editFlash*=Math.exp(-dt*7); editBlur*=Math.exp(-dt*11); editInvert=Math.max(0,editInvert-dt);
   const k=(r)=>1-Math.exp(-dt*r);
