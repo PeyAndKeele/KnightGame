@@ -309,6 +309,7 @@ function toggleShine(){
 
 /* ---------- state ---------- */
 let invCust=false, invGoMenu=null, invHid=[], invOn=false, invK=0, invPrev=null, invCur=0, invUi=null;   // inventory (main menu > INVENTORY)
+let editOn=false, editRoll=0;   // (EDIT mode, see editStart: declared up here because showWeapons and the frame loop look at them)
 let exploring=false, ps1=true, spin=false, paused=false, mixer=null, actions={}, names=[], menuNames=[], current=null;
 let mapMode=false, startScr=false, mapS=0, mapDir=0, mapViewK=1;   // the map (see MAP below): mapS 0 = menu camera ... 3 = the map, mapDir +1 opening / -1 closing / 0 resting, mapViewK 1 = picture shifted right for the menu ... 0 = centered
 let yaw=Math.PI+0.65, pitch=0.1, zoom=0.82, baseDist=5, target=new THREE.Vector3();
@@ -438,6 +439,13 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
     const U=JSON.parse(el.textContent), base={};
     gltf.animations.forEach(a=>a.tracks.forEach(t=>{ const b=t.name.slice(0,t.name.lastIndexOf('.')); base[b.replace(/_\d+$/,'')]=b; }));
     U.clips.forEach(D=>{ const tr=D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); }); gltf.animations.push(new THREE.AnimationClip(D.name==='UAL_Sword_Heavy_Combo'?'HeavyCombo':D.name,-1,tr)); });   // (the heavy combo is just called HeavyCombo: it is not one of the hidden UAL_ clips)
+  })();
+  /* EDIT: six still poses (Mixamo poses, retargeted onto this rig offline: editposes-data). They are hidden from the menus (UALX_) and only used by the EDIT mode (see editStart). */
+  (function(){
+    const el=document.getElementById('editposes-data'); if(!el) return;
+    const E=JSON.parse(el.textContent), base={};
+    gltf.animations.forEach(a=>a.tracks.forEach(t=>{ const b=t.name.slice(0,t.name.lastIndexOf('.')); base[b.replace(/_\d+$/,'')]=b; }));
+    E.clips.forEach(D=>{ const tr=D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); }); gltf.animations.push(new THREE.AnimationClip(D.name,-1,tr)); });
   })();
   { [START_CLIP,'ShopIdle','ShopIdleAnimation1','ShopIdleAnimationIntoTalk','ShopIdleAnimationOutroTalk','ShopIdleAnimationWhileTalking'].forEach(cn=>{ const p3=gltf.animations.find(a=>a.name===cn); if(p3) setLeftShin(p3,LEFT_SHIN_DEG); }); }   // Pose3 shares Pose2's legs, so it gets the same tweak and sits on the same rock. Its head is left as authored; the occasional look at the sky is added on top, see headLook()
   /* AxeFlaunt is the rig's own "animation" clip, played exactly as authored (arms, body, legs and head are not touched). Only the axe moves: it rests on his back, see AXE_STOW_CLIPS. */
@@ -1000,6 +1008,7 @@ function showWeapons(){ applyAxeStyle();
   if(hammerGrp) hammerGrp.visible=(weapon==='sword'&&swordStyle==='hammer');
   if(knightlyGrp) knightlyGrp.visible=(weapon==='sword'&&swordStyle==='knightly');
   if(axeGrp) axeGrp.visible=(weapon==='axe');
+  if(editOn) [swordGrp,hatchetGrp,hammerGrp,knightlyGrp,axeGrp].forEach(g=>{ if(g) g.visible=false; });   // EDIT: no weapon
   swooshUse();
 }
 function initHatchet(parent){
@@ -2109,7 +2118,7 @@ function setShopMusic(on){ if(shopWant===on) return; shopWant=on; syncAudio(); }
 function setFrostMusic(on){ if(frostWant===on) return; frostWant=on; syncAudio(); }
 function setIgnisMusic(on){ if(ignisWant===on) return; ignisWant=on; syncAudio(); }
 async function syncAudio(){
-  const pick=()=>!musicOn?null:(danceWant?danceKey:flauntWant?'flaunt':(battleWant?'battle':(shopWant?shopSong:(ignisWant?'ignis':(frostWant?'frost':'main')))));
+  const pick=()=>(!musicOn||editOn)?null:(danceWant?danceKey:flauntWant?'flaunt':(battleWant?'battle':(shopWant?shopSong:(ignisWant?'ignis':(frostWant?'frost':'main')))));
   const stopX=keep=>{ for(const k in xtra){ if(k!==keep&&xtra[k].src){ stopTrack(xtra[k].src); xtra[k].src=null; } } };
   try{
     const want=pick();
@@ -3483,9 +3492,11 @@ function frame(now){
   shopSync(); if(mapMode) mapStep(dt);   // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
   if(!mapMode){
     invStep(dt);   // the inventory zoom
+    editStep(dt);  // the EDIT mode's camera
     const d=(camera.userData.fit||5)*zoom, cp=Math.cos(pitch);
     camera.position.set(target.x+d*Math.sin(yaw)*cp, target.y+d*Math.sin(pitch), target.z+d*Math.cos(yaw)*cp);
     camera.lookAt(target);
+    if(editOn) camera.rotateZ(editRoll);   // EDIT: tilted shots
   }
   occUpdate();   // where the characters are on screen, for the see-through obstacles
   if(inspect.it&&inspect.k>0.002) inspectRender(); else renderer.render(scene,camera);
@@ -4699,6 +4710,118 @@ addEventListener('keydown',e=>{
   else if(k==='ArrowUp'||k==='w'||k==='W'){ e.preventDefault(); invSelect(invCur-1,true); }
   else if(k==='Enter'||k===' '){ e.preventDefault(); invActivate(); }
 });
+/* ---------- EDIT: a phonk edit ----------
+   ANIMATIONS > EDIT turns the screen into a car-edit style video: everything but the knight is hidden, he is pitch black (armor and plume at their darkest) with no weapon, and he cuts between six poses
+   ON THE BEAT of the song (SUA CAVALONA, hardstyle remix, started at 0:57 and looped from there) while the camera whips round him: every beat a new shot (low angles, close-ups, high angles, tilted ones),
+   a fast sharp turn, a zoom punch and a shake, with a white flash on the first beat of every bar and a hard flicker on the drop. ESC (or a tap) leaves.
+   The song's beat: its drop (the first big hit) is at 57.844 s and the beat is 0.4488 s (133.7 BPM) from there. Everything is driven from the song's own clock, so it cannot drift. */
+const EDIT_START=57.0, EDIT_FIRST=57.844, EDIT_PERIOD=0.4488, EDIT_LEAD=0.035, EDIT_GAIN=0.9;   // EDIT_LEAD: the picture is changed a hair before the beat (the sound reaches the ear a little later than the frame is drawn)
+const EDIT_BG=['#ececec','#d3121f'];   // the background: light, then red, a new one every bar
+const EDIT_SHOTS=[   // camera shots: zoom (bigger = further), pitch (negative = from below), height he is looked at (fraction of his height from the middle), roll (tilt)
+  {z:0.85,p:-0.18,y:0.00,r:0},{z:0.34,p:0.03,y:0.34,r:0},{z:0.52,p:0.08,y:0.10,r:0},{z:0.80,p:0.60,y:-0.05,r:0},{z:0.50,p:-0.25,y:-0.32,r:0},
+  {z:0.62,p:0.04,y:0.05,r:0.22},{z:0.62,p:0.04,y:0.05,r:-0.22},{z:1.05,p:0.00,y:0.00,r:0},{z:0.40,p:0.10,y:0.15,r:0.30}];
+const EDIT_POSE_Y=[0,0,-0.18,-0.08,0,-0.42];   // per pose: look lower at the crouch, the dance and (a lot) the pose lying down
+let editBusy=false, editBuf=null, editLoading=null, editSrc=null, editGain=null, editT0=0, editPrev=null, editHid=[], editBeat0=-99, editBag=[], editPoseLast=-1, editPoseNow=0, editShotLast=-1;
+let editRollGoal=0, editYawGoal=0, editDir=1, editPitchGoal=0, editZoomGoal=1, editYGoal=0, editPunch=0, editShake=0, editFlash=0, editInvert=0, editBlur=0, editBg=0, editFx=null, editExitOk=0;
+const _edC=new THREE.Color();
+function editLoad(){
+  if(editBuf) return Promise.resolve(editBuf); if(editLoading) return editLoading;
+  const t=atob(document.getElementById('edit-song-data').textContent.trim()), u=new Uint8Array(t.length); for(let i=0;i<t.length;i++) u[i]=t.charCodeAt(i);
+  return editLoading=new Promise((res,rej)=>sfx.decodeAudioData(u.buffer,res,rej)).then(b=>{ editBuf=b; return b; });
+}
+function editBlack(on){   // the armor: every armor material's tint pulled to (nearly) black; the plume: its darkest colour
+  armorMats.forEach((m,i)=>{ const v=m.uniforms.uTint.value; if(on) v.set(0.035,0.035,0.04); else if(editPrev&&editPrev.tints[i]) v.copy(editPrev.tints[i]); });
+  tintPlume(on?'#000000':(editPrev?editPrev.plume:null));
+}
+function editPoseNext(){   // the next of the six poses, from a shuffled bag so none repeats until all have played
+  if(!editBag.length){ editBag=[0,1,2,3,4,5]; for(let i=5;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [editBag[i],editBag[j]]=[editBag[j],editBag[i]]; }
+    if(editBag[editBag.length-1]===editPoseLast){ const j=Math.floor(Math.random()*(editBag.length-1)); [editBag[editBag.length-1],editBag[j]]=[editBag[j],editBag[editBag.length-1]]; } }
+  editPoseLast=editPoseNow=editBag.pop();
+  const a=actions['UALX_EditPose'+(editPoseNow+1)]; if(!a) return;
+  a.reset().setEffectiveWeight(1).setLoop(THREE.LoopRepeat,Infinity).play();   // a hard cut: the new pose starts BEFORE the old one stops (else one frame shows the bind pose)
+  Object.keys(actions).forEach(k=>{ if(actions[k]!==a&&actions[k].isRunning()) actions[k].stop(); }); if(current&&current!==a) current.stop();
+  current=a; mixer.update(0);
+}
+function editOnBeat(idx){
+  const bar=((idx%4)+4)%4, drop=idx===0;
+  editPoseNext();
+  let k; do{ k=Math.floor(Math.random()*EDIT_SHOTS.length); }while(k===editShotLast); if(drop) k=1; editShotLast=k;   // the drop is always the close-up
+  const sh=EDIT_SHOTS[k]; editZoomGoal=sh.z; editPitchGoal=sh.p; editYGoal=sh.y+EDIT_POSE_Y[editPoseNow]; editRollGoal=sh.r;
+  editDir=Math.random()<0.5?-1:1; editYawGoal+=editDir*(0.9+Math.random()*1.5)*(bar===0?1.4:1);   // the sharp turn: a big jump round him
+  editPunch=1; editShake=bar===0?1:0.45; editBlur=1;
+  if(bar===0){ editFlash=0.85; editBg=(editBg+1)%EDIT_BG.length; }
+  if(drop){ editFlash=1; editInvert=0.14; editShake=2.2; }
+  else if(bar===0&&((idx%8)+8)%8===0) editInvert=0.07;
+}
+function editFxBuild(){
+  if(editFx) return;
+  const st=document.createElement('style'); st.textContent='#editfx{position:fixed;inset:0;pointer-events:none;z-index:40;overflow:hidden}#editfx div{position:absolute}'
+    +'#editfx .ebt,#editfx .ebb{left:0;right:0;height:9vh;background:#000;transition:transform .5s cubic-bezier(.2,.7,.2,1)}#editfx .ebt{top:0;transform:translateY(-100%)}#editfx .ebb{bottom:0;transform:translateY(100%)}#editfx.on .ebt,#editfx.on .ebb{transform:none}'
+    +'#editfx .evg{inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 52%,rgba(0,0,0,.5) 100%)}#editfx .efl{inset:0;background:#fff;opacity:0}#editfx .eblk{inset:0;background:#000;opacity:1;transition:opacity .7s}#editfx.on .eblk{opacity:0}'
+    +'#editfx .eh{left:14px;bottom:calc(9vh + 10px);font:16px monospace;letter-spacing:.2em;color:#000;opacity:.55;transition:opacity 1s}#editfx .eh.gone{opacity:0}';
+  document.head.appendChild(st);
+  editFx=document.createElement('div'); editFx.id='editfx'; editFx.innerHTML='<div class="evg"></div><div class="efl"></div><div class="ebt"></div><div class="ebb"></div><div class="eblk"></div><div class="eh">ESC: EXIT</div>';
+  document.body.appendChild(editFx);
+}
+function editStart(){
+  if(editOn||editBusy||exploring||mapMode||invOn) return;
+  editBusy=true;
+  try{ sfx=sfx||new (window.AudioContext||window.webkitAudioContext)(); sfx.resume(); }catch(e){ editBusy=false; return; }
+  editLoad().then(buf=>{ editBusy=false; if(!editOn) editBegin(buf); }).catch(e=>{ editBusy=false; console.error('edit song failed',e); });
+}
+function editBegin(buf){
+  editPrev={zoom:zoom,pitch:pitch,yaw:yaw,tx:target.x,ty:target.y,tz:target.z,spin:spin,night:night,clip:current?current.getClip().name:null,plume:plumeHex,tints:armorMats.map(m=>m.uniforms.uTint.value.clone())};
+  editOn=true; if(spin) toggleSpin(); if(night) setNight(false);
+  editHid=scene.children.filter(o=>o!==playerRig&&o!==invBg).map(o=>({o:o,v:o.visible})); if(rockMesh) editHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
+  document.body.classList.add('map');   // the menu steps aside
+  editBlack(true); showWeapons(); syncAudio();   // black, no weapon, and the menu music out
+  editBeat0=-99; editBag=[]; editPoseLast=-1; editShotLast=-1; editBg=0; editPunch=editShake=editFlash=editInvert=editBlur=0;
+  editYawGoal=yaw; editRoll=editRollGoal=0; editPitchGoal=0.04; editZoomGoal=0.8; editYGoal=0; editPoseNext();
+  const src=sfx.createBufferSource(), g=sfx.createGain(); src.buffer=buf; src.loop=true; src.loopStart=EDIT_START; src.loopEnd=buf.duration;   // starts at 0:57 and loops from there
+  g.gain.value=EDIT_GAIN; src.connect(g); g.connect(sfx.destination); editT0=sfx.currentTime+0.05; src.start(editT0,EDIT_START); editSrc=src; editGain=g;
+  editFxBuild(); requestAnimationFrame(()=>editFx.classList.add('on')); setTimeout(()=>{ const h=editFx&&editFx.querySelector('.eh'); if(h) h.classList.add('gone'); },3500);
+  editExitOk=performance.now()+900;
+}
+function editEnd(){
+  if(!editOn) return; editOn=false;
+  try{ const t=sfx.currentTime; editGain.gain.cancelScheduledValues(t); editGain.gain.setValueAtTime(editGain.gain.value,t); editGain.gain.linearRampToValueAtTime(0,t+0.25); editSrc.stop(t+0.3); }catch(_){}
+  editSrc=null; editGain=null; editBlack(false); showWeapons();
+  editHid.forEach(h=>{ h.o.visible=h.v; }); editHid=[];
+  if(invBg){ invBg.visible=false; const u=invBg.material.uniforms; u.uGlow.value=INV_BG_GLOW; u.uVig.value=INV_BG_VIGNETTE; u.uBokeh.value=INV_BG_BOKEH; }
+  if(editFx){ editFx.remove(); editFx=null; } renderer.domElement.style.filter='';
+  const p=editPrev; editPrev=null; editRoll=0;
+  if(p){ zoom=p.zoom; pitch=p.pitch; yaw=p.yaw; target.set(p.tx,p.ty,p.tz); if(p.night!==night) setNight(p.night); if(p.spin!==spin) toggleSpin(); }
+  mapViewK=1; applyView(); document.body.classList.remove('map');
+  if(p&&p.clip&&actions[p.clip]) play(p.clip); else play(idleName());
+  syncAudio();
+}
+function editStep(dt){
+  if(!editOn) return;
+  editHid.forEach(h=>{ h.o.visible=false; });
+  // the beat, read off the song's own clock
+  const el=sfx.currentTime-editT0, len=editBuf.duration-EDIT_START, pos=EDIT_START+(el<0?0:(el%len));
+  const b=(pos+EDIT_LEAD-EDIT_FIRST)/EDIT_PERIOD, idx=Math.floor(b), ph=b-idx;
+  if(el>=0&&idx!==editBeat0){ editBeat0=idx; editOnBeat(idx); }
+  // the camera: eased VERY fast, so each cut is a whip, with a slow drift in between
+  editYawGoal+=dt*0.22*editDir; editPunch*=Math.exp(-dt*6); editShake*=Math.exp(-dt*9); editFlash*=Math.exp(-dt*7); editBlur*=Math.exp(-dt*11); editInvert=Math.max(0,editInvert-dt);
+  const k=(r)=>1-Math.exp(-dt*r);
+  yaw+=(editYawGoal-yaw)*k(26); pitch+=(editPitchGoal-pitch)*k(22); editRoll+=(editRollGoal-editRoll)*k(18);
+  const zg=editZoomGoal*(1-0.1*ph)*(1-0.22*editPunch); zoom+=(zg-zoom)*k(24);   // a slow push in across each beat, and a punch on it
+  const ty=(editPrev?homeTarget.y:0)+playerH*(editYGoal+0.08); target.y+=(ty-target.y)*k(22); target.x=editPrev.tx; target.z=editPrev.tz;
+  target.x+=(Math.random()-0.5)*0.12*editShake; target.y+=(Math.random()-0.5)*0.12*editShake; target.z+=(Math.random()-0.5)*0.12*editShake;
+  mapViewK=0; applyView();
+  // the picture: background colour, glow and vignette behind him
+  _edC.set(EDIT_BG[editBg]); renderer.setClearColor(_edC); U.uFogColor.value.copy(_edC);
+  { const bg=invBackdrop(), u=bg.material.uniforms; bg.visible=true; u.uBase.value.copy(_edC); u.uTime.value+=dt; u.uAsp.value=innerWidth/innerHeight; u.uK.value=1; u.uGlow.value=0.4; u.uVig.value=0.55; u.uBokeh.value=0; }
+  if(editFx){ editFx.querySelector('.efl').style.opacity=Math.min(1,editFlash).toFixed(3); }
+  const blur=editBlur>0.05?'blur('+(editBlur*5).toFixed(1)+'px)':'', inv=editInvert>0?'invert(1)':'';
+  renderer.domElement.style.filter=(inv+' '+blur).trim();
+}
+addEventListener('keydown',e=>{
+  if(!editOn) return; e.stopImmediatePropagation();
+  if(e.key==='Escape'||e.key==='Backspace'||e.key==='Enter'){ e.preventDefault(); editEnd(); }
+},true);
+addEventListener('pointerdown',e=>{ if(editOn&&performance.now()>editExitOk){ e.stopImmediatePropagation(); editEnd(); } },true);
 function initMainMenu(){
   const root=document.getElementById('mm'), scr=document.getElementById('scr'), cust=document.getElementById('cust'), toastEl=document.getElementById('toast');
   ['vlbl','voicesel','hlbl','helmsel','plbl','sws','albl','asws','astrl','astr','shiny','slbl','ssws','smatch'].forEach(id=>{ const n=document.getElementById(id); if(n) cust.appendChild(n); });
@@ -4711,7 +4834,7 @@ function initMainMenu(){
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
-    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':swordStyle==='knightly'?'KNIGHTLY':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>animSet.toUpperCase(),run:toggleUal},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
+    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':swordStyle==='knightly'?'KNIGHTLY':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>animSet.toUpperCase(),run:toggleUal},{t:'EDIT',run:editStart},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
     anims_enemies:{name:'ANIMATIONS: ENEMIES',up:'anims',get items(){ return animRows('enemies').concat([BACK_ANIM]); }},
     anims_self:{name:'ANIMATIONS: SELF',up:'anims',get items(){ return animRows('self').concat([BACK_ANIM]); }},
     anims_shop:{name:'ANIMATIONS: SHOPKEEPER',up:'anims',get items(){ return animRows('shop').concat([BACK_ANIM]); }},

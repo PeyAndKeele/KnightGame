@@ -10,6 +10,16 @@
     "url": "shop-song-data.txt"
   },
   {
+    "id": "edit-song-data",
+    "type": "text/plain",
+    "url": "edit-song-data.txt"
+  },
+  {
+    "id": "editposes-data",
+    "type": "application/json",
+    "url": "editposes-data.json"
+  },
+  {
     "id": "shop-song2-data",
     "type": "text/plain",
     "url": "shop-song2-data.txt"
