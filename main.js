@@ -439,7 +439,17 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
     const el=document.getElementById('ual-data'); if(!el) return;
     const U=JSON.parse(el.textContent), base={};
     gltf.animations.forEach(a=>a.tracks.forEach(t=>{ const b=t.name.slice(0,t.name.lastIndexOf('.')); base[b.replace(/_\d+$/,'')]=b; }));
-    U.clips.forEach(D=>{ const tr=D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); }); gltf.animations.push(new THREE.AnimationClip(D.name==='UAL_Sword_Heavy_Combo'?'HeavyCombo':D.name,-1,tr)); });   // (the heavy combo is just called HeavyCombo: it is not one of the hidden UAL_ clips)
+    U.clips.forEach(D=>{ const tr=D.tracks.map(k=>{ const b=base[k.n]||k.n; return k.p==='q'?new THREE.QuaternionKeyframeTrack(b+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(b+'.position',k.t,k.v); }); gltf.animations.push(new THREE.AnimationClip(D.name==='UAL_Sword_Heavy_Combo'?'HeavyCombo':D.name,-1,tr)); });
+    /* UALX_ConsumeM: UAL_Consume mirrored left <-> right (the UAL drinks with its right hand, the potion is in his left). Left and right bones swap tracks, rotations are mirrored across x (x,-y,-z,w),
+       and the hips' / head's sideways position is negated. The static 'rest offset' position tracks of the arms / torso are left alone. Used by the inventory's ITEMS inspection (see invDrink). */
+    (function(){ const D=U.clips.find(c=>c.name==='UAL_Consume'); if(!D) return;
+      const sw=n=>n.replace(/^(Left|Right)_/,(m,a)=>a==='Left'?'Right_':'Left_'), tr=[];
+      D.tracks.forEach(k=>{
+        if(k.p==='q'){ const v=[]; for(let i=0;i<k.v.length;i+=4) v.push(k.v[i],-k.v[i+1],-k.v[i+2],k.v[i+3]); const n=sw(k.n); tr.push(new THREE.QuaternionKeyframeTrack((base[n]||n)+'.quaternion',k.t,v)); }
+        else if(k.n==='Root_Hips'||k.n==='Head'){ const v=k.v.slice(); for(let i=0;i<v.length;i+=3) v[i]=-v[i]; tr.push(new THREE.VectorKeyframeTrack((base[k.n]||k.n)+'.position',k.t,v)); }
+        else tr.push(new THREE.VectorKeyframeTrack((base[k.n]||k.n)+'.position',k.t,k.v));
+      });
+      gltf.animations.push(new THREE.AnimationClip('UALX_ConsumeM',-1,tr)); })();   // (the heavy combo is just called HeavyCombo: it is not one of the hidden UAL_ clips)
   })();
   /* EDIT: six still poses (Mixamo poses, retargeted onto this rig offline: editposes-data). They are hidden from the menus (UALX_) and only used by the EDIT mode (see editStart). */
   (function(){
@@ -1280,7 +1290,7 @@ function reachHand(o,T){   // two-bone solve: o's fist goes to T, the elbow keep
 /* Stowed: during Flaunt, Death, Pose2 (sitting on the rock, including its look-around event) and Drinking_Potion the axe hangs on his back instead - flat against it, slung diagonally with the head up over one shoulder.
    Numbers are in the torso's space (x sideways, y up, z forward; his back is at about z -0.13): AXE_BACK_AT is where the middle of the handle lies, AXE_BACK_TILT_DEG how far
    the handle leans from upright, AXE_BACK_SIDE which shoulder the head is over (-1 = his right, 1 = his left). */
-const AXE_STOW_CLIPS=['Flaunt','Death','Pose2','Pose2_randomevent','Drinking_Potion','Chestopen'], AXE_BACK_AT=[0,0.2,-0.175], AXE_BACK_TILT_DEG=35, AXE_BACK_SIDE=-1;
+const AXE_STOW_CLIPS=['Flaunt','Death','Pose2','Pose2_randomevent','Drinking_Potion','UALX_ConsumeM','Chestopen'], AXE_BACK_AT=[0,0.2,-0.175], AXE_BACK_TILT_DEG=35, AXE_BACK_SIDE=-1;
 const AXE_FOLLOW_ARMS=true, AXE_FOLLOW_EASE=0.12, AXE_TOP_GRIP=1.366;   // AXE_TOP_GRIP: where the right fist holds the handle (axe units); false = the axe just rides the right forearm
 /* The head's turn about the shaft is worked out live, so it can't end up facing the camera whatever pose the arms are in:
    in AxeIdle / Walk / anything but the swing, the blades are turned to point front and back, the way he faces (the head is symmetric, so either end is fine).
@@ -1390,7 +1400,7 @@ function initPotion(parent){
 const DRINK_HOLD=0.9;
 /* While he drinks the sword hangs at his waist (his sword hand is the one with the bottle). Numbers are in the hips' space (x sideways, y up, z forward; the right hip is -x):
    WAIST_AT is where the grip sits, WAIST_DIR where the blade points (down and a little back), WAIST_ROLL_DEG turns it about the blade so the flat lies against his leg. The hatchet is put away (hidden) instead: it is too long to hang from a belt. */
-const WAIST_CLIPS=['Drinking_Potion'], WAIST_AT=[-0.27,0.1,0.0], WAIST_DIR=[0,-1,-0.28], WAIST_ROLL_DEG=90;
+const WAIST_CLIPS=['Drinking_Potion','UALX_ConsumeM'], WAIST_AT=[-0.27,0.1,0.0], WAIST_DIR=[0,-1,-0.28], WAIST_ROLL_DEG=90;
 function waistStep(stow){
   const hips=knightScene&&knightScene.getObjectByName('Root_Hips');
   if(hatchetGrp&&weapon==='sword'&&swordStyle==='hatchet') hatchetGrp.visible=!stow;
@@ -1419,8 +1429,10 @@ function potionStep(){
   if(drinking&&current.time>=current.getClip().duration-1e-4){   // finished: hold, then back to Idle
     const now=performance.now(); if(drinkEndAt===null) drinkEndAt=now; else if(now-drinkEndAt>=DRINK_HOLD*1000){ drinkEndAt=null; play(idleName()); return; }
   } else drinkEndAt=null;
+  invDrinkStep();
   if(!potionGrp) return;
-  const k=drinking?Math.min(1,Math.max(0,(current.time-POTION_OUT_AT)/POTION_POP)):0;
+  const insp=invDrink.on&&c==='UALX_ConsumeM';
+  const k=drinking?Math.min(1,Math.max(0,(current.time-POTION_OUT_AT)/POTION_POP)):insp?Math.min(1,Math.max(0,(current.time-INV_DRINK_OUT_AT)/POTION_POP)):0;
   potionGrp.visible=k>0; if(k>0) potionGrp.scale.setScalar(POTION_SCALE*(0.35+0.65*k));
   sparkleStep(k>0);
 }
@@ -2282,6 +2294,7 @@ function pizzaStart(){
   const st=SFX_SETS['pizza-sfx-data']; if(st&&st.bufs) go(); else Promise.resolve(loadSfxSet('pizza-sfx-data')).then(go);
 }
 function play(n){
+  if(invDrink.on&&!invDrink.internal&&n!=='UALX_ConsumeM'){ invDrink.next=n; return; }   // the inventory's potion inspection finishes first; whatever was asked for plays after it
   if(n==='Pizza'&&!pizzaGo){ pizzaStart(); return; }
   if(n!=='Pizza') pizzaCancel();
   if(n==='GolemAttack'){ playGolem(); return; }
@@ -4618,6 +4631,29 @@ const INV_BG_PALE=0.30;   // the background is the armor colour mixed this far t
 const _invWhite=new THREE.Color(0xffffff);
 const INV_CUST_VIEW=0.85; let invCustK=0;   // INV_CUST_VIEW: on the CUSTOMIZE screen the picture slides right (1 = the menu's usual shift, 0 = centred) so he sits in the free space beside the panel
 const INV_ZOOM=0.72, INV_PITCH=0.06, INV_TY=0.08, INV_VIEW=0, INV_FOG_LIGHT=0.4;   // zoom (bigger = further away = smaller on screen), tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift; 0 = centred, between the item list on the left and the details on the right)
+/* ---------- ITEMS tab: inspecting the potion ----------
+   While the POTION is highlighted in the inventory's ITEMS tab the knight plays UAL_Consume (mirrored, see UALX_ConsumeM), holding the bottle in his LEFT hand, and the camera pushes in on that hand.
+   The animation is FROZEN at INV_DRINK_FREEZE_T (the hand held out with the bottle). Leaving the item (other tab, other row, CUSTOMIZE, closing the inventory) lets it play on to the end, and then he goes back to idle.
+   INV_DRINK_OUT_AT: clip time the bottle appears. INV_DRINK_ZOOM: camera zoom while inspecting (smaller = closer). INV_DRINK_UP: how far above the hand the camera looks (knight-heights). */
+const INV_DRINK_FREEZE_T=0.5, INV_DRINK_OUT_AT=0.15, INV_DRINK_ZOOM=0.3, INV_DRINK_UP=0.0;
+const invDrink={on:false,release:false,next:null,internal:false,k:0}; const _invHand=new THREE.Vector3();
+function invDrinkWant(){ const it=invOn&&!invCust&&INV_TABS[invTab].t==='ITEMS'&&invList()[invCur]; return !!it&&it.icon==='potion'; }
+function invDrinkSync(){
+  const want=invDrinkWant(), a=actions.UALX_ConsumeM; if(!a) return;
+  if(want&&(!invDrink.on||invDrink.release)){   // (re)start: reach for the bottle
+    invDrink.on=true; invDrink.release=false; invDrink.next=null; invDrink.internal=true;
+    if(current&&current!==a) current.fadeOut(0.12);
+    a.reset().setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true; a.timeScale=1; a.paused=false; a.fadeIn(0.12).play(); current=a; invDrink.internal=false;
+  } else if(!want&&invDrink.on&&!invDrink.release){ invDrink.release=true; a.paused=false; }   // let it finish
+}
+function invDrinkStep(){
+  if(!invDrink.on) return; const a=actions.UALX_ConsumeM; if(!a){ invDrink.on=false; return; }
+  if(!invDrink.release){ if(a.time>=INV_DRINK_FREEZE_T){ a.time=INV_DRINK_FREEZE_T; a.paused=true; } return; }
+  if(a.time>=a.getClip().duration-1e-3||!a.isRunning()){   // finished: back to idle (or whatever was asked for meanwhile)
+    const nx=invDrink.next; invDrink.on=false; invDrink.release=false; invDrink.next=null; a.paused=false;
+    play(nx&&nx!=='Idle'&&nx!=='AxeIdle'?nx:idleName());
+  }
+}
 function invStep(dt){
   if(!invOn&&invK===0) return;
   if(invOn) invHid.forEach(h=>{ h.o.visible=false; });   // (kept hidden every frame, in case something else switches it back on)
@@ -4625,8 +4661,10 @@ function invStep(dt){
   applyAreaFog(); if(invK>0){ if(armorHex){ _fogB.set(armorHex).lerp(_invWhite,INV_BG_PALE); _fogC.lerp(_fogB,invK); } else { _fogB.setHex(0xffffff); _fogC.lerp(_fogB,INV_FOG_LIGHT*invK); } renderer.setClearColor(_fogC); U.uFogColor.value.copy(_fogC); }
   { const bg=invBackdrop(), u=bg.material.uniforms; bg.visible=invK>0; u.uBase.value.copy(_fogC); u.uTime.value+=dt*INV_BG_DRIFT; u.uAsp.value=innerWidth/innerHeight; u.uK.value=invK; }   // the background layer, over that colour   // the background / fog is lightened while the inventory is open (INV_FOG_LIGHT: 0 = as usual, 1 = white) and settles back as it closes
   if(!invPrev) return;
-  zoom=mapLerp(invPrev.zoom,INV_ZOOM,invK); pitch=mapLerp(invPrev.pitch,INV_PITCH,invK);
+  const dg=(invDrink.on&&!invDrink.release&&invOn)?1:0; invDrink.k+=(dg-invDrink.k)*(1-Math.exp(-dt*5)); if(Math.abs(dg-invDrink.k)<0.002) invDrink.k=dg;
+  zoom=mapLerp(invPrev.zoom,mapLerp(INV_ZOOM,INV_DRINK_ZOOM,invDrink.k),invK); pitch=mapLerp(invPrev.pitch,INV_PITCH,invK);
   target.set(invPrev.tx,mapLerp(invPrev.ty,homeTarget.y+playerH*INV_TY,invK),invPrev.tz);
+  if(invDrink.k>0&&potionGrp){ potionGrp.updateWorldMatrix(true,false); potionGrp.getWorldPosition(_invHand); target.lerp(_invHand.setY(_invHand.y+playerH*INV_DRINK_UP),invDrink.k*invK); }   // the camera looks at the hand holding the bottle
   invCustK+=((invCust?1:0)-invCustK)*(1-Math.exp(-dt*6)); if(Math.abs((invCust?1:0)-invCustK)<0.002) invCustK=invCust?1:0;
   mapViewK=mapLerp(1,INV_VIEW+(INV_CUST_VIEW-INV_VIEW)*invCustK,invK); applyView();
   if(!invOn&&invK===0){ invPrev=null; mapViewK=1; applyView(); applyAreaFog(); }
@@ -4698,6 +4736,7 @@ function invRefresh(){
 }
 function invSpinLabel(){ if(invUi) invUi.querySelector('#inv-spin').textContent='TURNTABLE: '+(spin?'ON':'OFF'); }
 function invDetail(){
+  invDrinkSync();
   const it=invList()[invCur], box=invUi.querySelector('#inv-det'); if(!it){ box.innerHTML=''; return; }
   box.innerHTML='<div class="ib">'+invIcon(it.icon)+'</div><div class="idn">'+it.t+'</div><div class="idt">'+it.kind+(invIsEq(it)?'<b class="eb">E</b>':'')+'</div>'
     +it.stats().map(r=>'<div class="idr"><span>'+r[0]+'</span><span>'+r[1]+'</span></div>').join('')+'<div class="idd">'+it.desc+'</div>';
@@ -4763,20 +4802,21 @@ function invBuild(){
   });
   document.body.appendChild(invUi);
 }
-function invShowCust(){ invApply(invCommit); invCust=true; invUi.classList.remove('on'); document.body.classList.remove('map'); invGoMenu('custom'); }   // the customize window takes the inventory's place, same camera
+function invShowCust(){ invApply(invCommit); invCust=true; invDrinkSync(); invUi.classList.remove('on'); document.body.classList.remove('map'); invGoMenu('custom'); }   // the customize window takes the inventory's place, same camera
 function invShowInv(){ invCust=false; invGoMenu('main'); document.body.classList.add('map'); invUi.classList.add('on'); invPreview(); invRefresh(); }
 function openInventory(){
   if(invOn||exploring||mapMode) return;
   invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,night:night,clip:current?current.getClip().name:null}; invOn=true; if(night) setNight(false);   // the inventory is always shown by day (and the time goes back to what it was when it closes)
   invResetState();
   if(spin) toggleSpin();   // the turntable stays off
-  invHid=scene.children.filter(o=>o!==playerRig&&o!==invBg).map(o=>({o:o,v:o.visible})); if(rockMesh) invHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
+  invHid=scene.children.filter(o=>o!==playerRig&&o!==invBg&&o!==sparkle).map(o=>({o:o,v:o.visible})); if(rockMesh) invHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
   play(idleName());        // his proper idle (the axe's with the axe)
   document.body.classList.add('map');   // the menu window steps aside, as it does for the map
   invBuild(); invRefresh(); requestAnimationFrame(()=>invUi.classList.add('on'));
 }
 function closeInventory(){
   if(!invOn) return;
+  invOn=false; invDrinkSync(); invOn=true;   // a potion inspection plays out first (play() below is queued until it ends)
   invApply(invCommit);   // a weapon that was only previewed goes back to the one he really has equipped
   invOn=false; invCust=false; invUi.classList.remove('on'); if(invPrev&&invPrev.night!==undefined&&invPrev.night!==night) setNight(invPrev.night);
   if(invPrev&&invPrev.spin!==spin) toggleSpin();   // the turntable goes back to how it was before the inventory
