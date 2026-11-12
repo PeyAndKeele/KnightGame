@@ -1432,6 +1432,10 @@ function potionStep(){
   if(!potionGrp) return;
   const insp=invDrink.on&&c==='UALX_ConsumeM';
   const k=drinking?Math.min(1,Math.max(0,(current.time-POTION_OUT_AT)/POTION_POP)):insp?Math.min(1,Math.max(0,(current.time-INV_DRINK_OUT_AT)/POTION_POP)):0;
+  { const g=potionGrp, P=g.parent; if(!g.userData.q0){ g.userData.q0=g.quaternion.clone(); g.userData.n0=new THREE.Vector3().fromArray(POTION_NECK).normalize(); }
+    if(insp&&P){ P.updateWorldMatrix(true,false); const up=_invUp.set(0,1,0).transformDirection(_invInv.copy(P.matrixWorld).invert());   // world 'up', in the forearm's space (works with the mirrored model)
+      g.quaternion.setFromUnitVectors(_invY.set(0,1,0),_invDir.copy(g.userData.n0).lerp(up,INV_DRINK_TILT).normalize()); }   // the neck tilts toward straight up
+    else g.quaternion.copy(g.userData.q0); }   // (battle drinking keeps its own angle)
   potionGrp.visible=k>0; if(k>0) potionGrp.scale.setScalar(POTION_SCALE*(0.35+0.65*k));
   sparkleStep(k>0);
 }
@@ -4673,6 +4677,8 @@ const INV_ZOOM=0.72, INV_PITCH=0.06, INV_TY=0.08, INV_VIEW=0, INV_FOG_LIGHT=0.4;
    While the POTION is highlighted in the inventory's ITEMS tab the knight plays UAL_Consume (mirrored, see UALX_ConsumeM), holding the bottle in his LEFT hand, and the camera pushes in on that hand.
    The animation is FROZEN at INV_DRINK_FREEZE_T (the hand held out with the bottle). Leaving the item (other tab, other row, CUSTOMIZE, closing the inventory) lets it play on to the end, and then he goes back to idle.
    INV_DRINK_OUT_AT: clip time the bottle appears. INV_DRINK_ZOOM: camera zoom while inspecting (smaller = closer). INV_DRINK_UP: how far above the hand the camera looks (knight-heights). */
+const INV_DRINK_TILT=0.75;   // how far the bottle is tipped up while inspecting: 0 = the old angle (neck pointing down-forward), 1 = straight up
+const _invUp=new THREE.Vector3(), _invY=new THREE.Vector3(), _invDir=new THREE.Vector3(), _invInv=new THREE.Matrix4();
 const INV_DRINK_FREEZE_T=0.5, INV_DRINK_OUT_AT=0.15, INV_DRINK_ZOOM=0.3, INV_DRINK_UP=0.0;
 const invDrink={on:false,release:false,next:null,internal:false,k:0}; const _invHand=new THREE.Vector3();
 function invDrinkWant(){ const it=invOn&&!invCust&&INV_TABS[invTab].t==='ITEMS'&&invList()[invCur]; return !!it&&it.icon==='potion'; }
