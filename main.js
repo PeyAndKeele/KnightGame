@@ -994,7 +994,7 @@ function initSword(parent){
    HATCHET_GRIP_Y is where the middle of its handle sits, HATCHET_TURN_DEG turns it about the handle (0 = the edge on the hand's side, 180 = the other way), HATCHET_NUDGE shifts it (forearm space). ---------- */
 /* the Hammer (hammer-data): a second alternate style for the SWORD, held like the hatchet. HAMMER_GRIP is the middle of its handle (the handle stands at x 0, z 0.125 in the model). */
 const HAMMER_GRIP=[0,0.72,0.125], HAMMER_TURN_DEG=0, HAMMER_NUDGE=[0,0,0];
-/* the Morningstar (morningstar-data): a fifth style for the SWORD, held like the hammer. MORNINGSTAR_GRIP is the middle of the part of its handle he holds (the handle stands at x 0, z 0, from y 0.125 to 1.5; the ball sits on top of it, its spikes reach y 2.0). The head is the same all the way round, so the turn does not matter much. */
+/* the Morningstar (morningstar-data): a fifth style for the SWORD, held like the hammer. MORNINGSTAR_GRIP is the middle of the part of its handle he holds (the handle stands at x 0, z 0, from y 0.315 to 1.14; the ball sits on top of it, its spikes reach y 1.44; the model is the original export scaled to 0.6 about the grip, so it is about the hatchet's length). The head is the same all the way round, so the turn does not matter much. */
 const MORNINGSTAR_GRIP=[0,0.6,0], MORNINGSTAR_TURN_DEG=0, MORNINGSTAR_NUDGE=[0,0,0];
 const HATCHET_GRIP_Y=1.156, HATCHET_TURN_DEG=0, HATCHET_NUDGE=[0,0,0];
 let voice='voice1';   // 'voice1' (original sounds) or 'voice2' (new sounds)
@@ -1704,7 +1704,7 @@ const AXE_SWOOSH={bit:0.875,mid:1.906,hilt:1.366,width:0.75,start:10.5,stop:7.5}
 /* The Hatchet follows the sword's swing, so it uses the sword's speeds; the trail follows the edge of its head (tip = the outer corner of the blade). */
 const HATCHET_SWOOSH={tip:[0,1.766,-0.48],hilt:[0,1.0,0],width:0.5};
 const HAMMER_SWOOSH={tip:[0,1.2,0.44],hilt:[0,0.6,0.125],width:0.4};   // the trail follows the far face of the head
-const MORNINGSTAR_SWOOSH={tip:[0,1.5625,0.44],hilt:[0,0.95,0],width:0.45};   // the trail follows the spikes on the far side of the ball (tip = the spike's point at the ball's height)
+const MORNINGSTAR_SWOOSH={tip:[0,1.1775,0.264],hilt:[0,0.81,0],width:0.3};   // the trail follows the spikes on the far side of the ball (tip = the spike's point at the ball's height)
 function swooshAddRig(key,grp,pivot,tipPos,hiltPos,o){
   const tip=new THREE.Object3D(), hilt=new THREE.Object3D();
   tip.position.set(tipPos[0],tipPos[1],tipPos[2]); hilt.position.set(hiltPos[0],hiltPos[1],hiltPos[2]); grp.add(tip); grp.add(hilt);
