@@ -1400,23 +1400,32 @@ const DRINK_HOLD=0.9;
 /* While he drinks the sword hangs at his waist (his sword hand is the one with the bottle). Numbers are in the hips' space (x sideways, y up, z forward; the right hip is -x):
    WAIST_AT is where the grip sits, WAIST_DIR where the blade points (down and a little back), WAIST_ROLL_DEG turns it about the blade so the flat lies against his leg. The hatchet is put away (hidden) instead: it is too long to hang from a belt. */
 const WAIST_CLIPS=['Drinking_Potion','UALX_ConsumeM'], WAIST_AT=[-0.27,0.1,0.0], WAIST_DIR=[0,-1,-0.28], WAIST_ROLL_DEG=90;
+/* Every light weapon hangs at the waist the same way: each is held by a point on its handle (grip, in the weapon's own space), turned about its length by roll, and nudged out sideways by out (heads that stick out of the handle need room, or they sink into his leg).
+   The grip points are chosen so every weapon's lowest end hangs as deep as the sword's tip does (it never reaches the floor); the hatchet's head points forward, the hammer's and the morningstar's sit along his leg. */
+const WAIST_HANG={
+  sword:{grp:()=>swordGrp,grip:[0,SWORD_GRIP_Y,0],roll:WAIST_ROLL_DEG,out:0},
+  knightly:{grp:()=>knightlyGrp,grip:[0,SWORD_GRIP_Y,0],roll:WAIST_ROLL_DEG,out:0},   // (the knightly sword has the sword's shape)
+  hatchet:{grp:()=>hatchetGrp,grip:[0,0.95,0],roll:180,out:0.02},
+  hammer:{grp:()=>hammerGrp,grip:[0,0.52,0.125],roll:0,out:0.08},
+  morningstar:{grp:()=>morningstarGrp,grip:[0,0.62,0],roll:0,out:0.12}
+};
 function waistStep(stow){
-  const hips=knightScene&&knightScene.getObjectByName('Root_Hips');
-  if(hatchetGrp&&weapon==='sword'&&swordStyle==='hatchet') hatchetGrp.visible=!stow;
-  if(hammerGrp&&weapon==='sword'&&swordStyle==='hammer') hammerGrp.visible=!stow;
-  if(knightlyGrp&&weapon==='sword'&&swordStyle==='knightly') knightlyGrp.visible=!stow;
-  if(morningstarGrp&&weapon==='sword'&&swordStyle==='morningstar') morningstarGrp.visible=!stow;
-  const g=swordGrp; if(!g||!hips) return;
-  if(stow){
-    if(!g.userData.home) g.userData.home={parent:g.parent,p:g.position.clone(),q:g.quaternion.clone()};
-    if(g.parent!==hips){
-      const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3().fromArray(WAIST_DIR).normalize())
-        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),WAIST_ROLL_DEG*Math.PI/180));
-      hips.add(g); g.quaternion.copy(q); g.position.fromArray(WAIST_AT).sub(new THREE.Vector3(0,SWORD_GRIP_Y,0).applyQuaternion(q));
+  const hips=knightScene&&knightScene.getObjectByName('Root_Hips'); if(!hips) return;
+  const Y=new THREE.Vector3(0,1,0);
+  Object.keys(WAIST_HANG).forEach(key=>{
+    const H=WAIST_HANG[key], g=H.grp(); if(!g) return;
+    if(stow){
+      if(!g.userData.home) g.userData.home={parent:g.parent,p:g.position.clone(),q:g.quaternion.clone()};
+      if(g.parent!==hips){
+        const q=new THREE.Quaternion().setFromUnitVectors(Y,new THREE.Vector3().fromArray(WAIST_DIR).normalize())
+          .multiply(new THREE.Quaternion().setFromAxisAngle(Y,H.roll*Math.PI/180));
+        hips.add(g); g.quaternion.copy(q);
+        g.position.set(WAIST_AT[0]-H.out,WAIST_AT[1],WAIST_AT[2]).sub(new THREE.Vector3().fromArray(H.grip).applyQuaternion(q));
+      }
+    } else if(g.userData.home&&g.parent!==g.userData.home.parent){
+      const h=g.userData.home; h.parent.add(g); g.position.copy(h.p); g.quaternion.copy(h.q);
     }
-  } else if(g.userData.home&&g.parent!==g.userData.home.parent){
-    const h=g.userData.home; h.parent.add(g); g.position.copy(h.p); g.quaternion.copy(h.q);
-  }
+  });
 }
 function potionStep(){
   const c=current&&current.getClip().name, drinking=(c==='Drinking_Potion');
