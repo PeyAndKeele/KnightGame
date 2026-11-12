@@ -472,7 +472,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   mixer.addEventListener('loop',e=>{ if(evtDue&&e.action===current&&e.action.getClip().name===SEAT_CLIP) evtGo=true; });
   mixer.addEventListener('loop',e=>{ const n=e.action.getClip().name; if(e.action===current&&ANIM_SFX_LOOPS[n]) ANIM_SFX[n](); });
   buildMenu(); play(names.indexOf(START_CLIP)>=0?START_CLIP:(names.indexOf(SEAT_CLIP)>=0?SEAT_CLIP:names[0])); initMainMenu();
-  setNight(true);   // night is the default look
+  setTimeMode('auto');   // the default look follows the local clock (set 'night' here for the old always-night start)
   if(actions[START_CLIP]){ startCam(); syncRockMeshes(); }   // the start screen's low camera; he sits in Pose3 without the rock
 },function(e){console.error(e);const el=document.getElementById('err');el.textContent='Could not load the model: '+String((e&&e.message)||e).slice(0,160);el.style.display='block';});
 
@@ -563,9 +563,7 @@ function moveKnightToArea(area){
   syncRockMeshes();
 }
 function setWorld(f){
-  forest=f; const sky=night?SKY_NIGHT:(f?SKY_FOREST:SKY_CLASSIC);
-  setSkyFog(sky);
-  document.documentElement.style.setProperty('--sky','#'+sky.toString(16).padStart(6,'0'));
+  forest=f; todApplied=null;   // (the time-of-day look is redone next frame with the new world's day colours)
   if(floorMat){ floorMat.uniforms.map.value=f?floorTexForest:floorTexClassic; syncFrostBlend(); }
   treeGroup=areaTrees(mapArea);
   if(ignisTreeGroup) ignisTreeGroup.visible=f&&!dungeon;
@@ -594,17 +592,85 @@ function applyFogThickness(){
   const s=Math.pow(1.3,5-fogT), nn=fogRec.base[0]*s, ff=fogRec.base[1]*s;
   U.uFogNear.value=nn; U.uFogFar.value=ff; fogRec.set=[nn,ff];
 }
-function setNight(on){
-  night=on; const sky=night?SKY_NIGHT:(forest?SKY_FOREST:SKY_CLASSIC);
-  setSkyFog(sky);
-  document.documentElement.style.setProperty('--sky','#'+sky.toString(16).padStart(6,'0'));
-  U.uNight.value.set(on?NIGHT_TINT[0]:1,on?NIGHT_TINT[1]:1,on?NIGHT_TINT[2]:1);
-  if(on){
-    if(!nightFogDay) nightFogDay=[U.uFogNear.value,U.uFogFar.value];
-    U.uFogNear.value=playerH*NIGHT_FOG[0]; U.uFogFar.value=playerH*NIGHT_FOG[1];
-  } else if(nightFogDay){ U.uFogNear.value=nightFogDay[0]; U.uFogFar.value=nightFogDay[1]; nightFogDay=null; }
-  if(nightGroup) nightGroup.visible=on;
-  if(skyGroup) skyGroup.visible=!forest&&!on;
+/* ---------- time of day: OPTIONS > WORLD > TIME = AUTO (your computer's clock) / DAY / DAWN-DUSK / NIGHT ----------
+   Everything hangs off one number, the sun's elevation `e` in degrees (AUTO: from the local clock and the time of year; the others: fixed). From it come the darkness d (0 day .. 1 night) and the
+   twilight warmth w (peaks as the sun touches the horizon). The look eases towards its target, so changing the setting (or the clock moving on) is always a slow blend, never a jump.
+   The sky is a banded gradient dome (chunky steps, like the rest) whose horizon is always the fog colour, with a low sun, a warm glow, and stars / moon that fade in as it darkens. */
+const TOD_ORDER=['auto','day','dusk','night'], TOD_LABEL={auto:'AUTO',day:'DAY',dusk:'DAWN/DUSK',night:'NIGHT'};
+const TOD={duskGlow:0xff8a4a, dawnGlow:0xff9fb0, duskPlum:0x6a3f86, dawnPlum:0x7c6a9e, duskTop:0x3a4aa0, dawnTop:0x5a6cb4, nightTop:0x040716, deepTop:0x141a52, warm:[1.0,0.88,0.7], ease:2.2, bands:12};
+let timeMode='auto', todHold=null, lookSnap=true, todDome=null, todD=1, todApplied=null;   // todHold 'day': the inventory / editor force daylight
+const todL={e:-45,azi:0,dp:0}, todT={e:-45,azi:0,dp:0};
+const _tdG=new THREE.Color(), _tdP=new THREE.Color(), _tdH=new THREE.Color(), _tdT=new THREE.Color(), _tdW=new THREE.Color(), _tdC=new THREE.Color(), _todBase={hor:new THREE.Color(),top:new THREE.Color()};
+const sstep=(a,b,x)=>{ x=Math.min(1,Math.max(0,(x-a)/(b-a))); return x*x*(3-2*x); };
+function setTimeMode(m){ timeMode=m; }
+function setNight(on){ todHold=on?null:'day'; lookSnap=true; }   // (kept for old callers)
+function clockSun(o){   // sun elevation / bearing from the local clock: noon at 12:30, day length swinging with the season
+  const t=new Date(), h=t.getHours()+t.getMinutes()/60+t.getSeconds()/3600, doy=Math.floor((t-new Date(t.getFullYear(),0,0))/864e5);
+  const L=6+1.25*Math.sin(2*Math.PI*(doy-80)/365), alt=Math.cos(2*Math.PI*(h-12.5)/24)-Math.cos(Math.PI*L/12);
+  o.e=alt*65; o.azi=Math.max(-1.3,Math.min(1.3,(h-12.5)/L))*100; o.dp=h<12.5?1:0; return o;
+}
+function todTarget(){
+  const o=todT;
+  if(todHold==='day'||timeMode==='day'){ o.e=48; o.azi=-20; o.dp=0; }
+  else if(timeMode==='night'){ o.e=-45; o.azi=0; o.dp=0; }
+  else { clockSun(o); if(timeMode==='dusk'){ o.e=-1.2; o.azi=o.dp?-95:95; } }
+}
+function applyLook(){
+  const e=todL.e, d=1-sstep(-10,6,e), w=Math.exp(-Math.pow((e+2)/8,2)), dp=todL.dp, dayHor=forest?SKY_FOREST:SKY_CLASSIC;
+  night=d>0.5; todD=d;
+  _tdG.setHex(TOD.duskGlow).lerp(_tdC.setHex(TOD.dawnGlow),dp);               // the glow
+  _tdP.setHex(TOD.duskPlum).lerp(_tdC.setHex(TOD.dawnPlum),dp);               // the colour the horizon deepens to as the light goes
+  _tdH.setHex(dayHor).lerp(_tdC.setHex(SKY_NIGHT),d);                           // horizon = fog
+  _tdW.copy(_tdG).multiplyScalar(0.9).lerp(_tdP,Math.min(1,d*1.15)); _tdH.lerp(_tdW,w*0.85);
+  if(forest) _tdT.setHex(dayHor).lerp(_tdC.setHex(0x2c5cc0),0.6); else _tdT.setHex(dayHor).multiplyScalar(0.55);   // zenith
+  _tdT.lerp(_tdC.setHex(TOD.nightTop),d);
+  _tdW.setHex(TOD.duskTop).lerp(_tdC.setHex(TOD.dawnTop),dp).lerp(_tdC.setHex(TOD.deepTop),d*0.8); _tdT.lerp(_tdW,w*0.8);
+  _todBase.hor.copy(_tdH); _todBase.top.copy(_tdT);
+  setSkyFog(_tdH.getHex()); document.documentElement.style.setProperty('--sky','#'+_tdH.getHex().toString(16).padStart(6,'0'));
+  const k=1-w*0.9, tr=NIGHT_TINT[0]+(1-NIGHT_TINT[0])*(1-d), tgc=NIGHT_TINT[1]+(1-NIGHT_TINT[1])*(1-d), tb=NIGHT_TINT[2]+(1-NIGHT_TINT[2])*(1-d);
+  U.uNight.value.set(tr*(1-w*0.9+TOD.warm[0]*w*0.9), tgc*(k+TOD.warm[1]*w*0.9), tb*(k+TOD.warm[2]*w*0.9));
+  if(!nightFogDay) nightFogDay=[U.uFogNear.value,U.uFogFar.value];
+  U.uFogNear.value=nightFogDay[0]+(playerH*NIGHT_FOG[0]-nightFogDay[0])*d; U.uFogFar.value=nightFogDay[1]+(playerH*NIGHT_FOG[1]-nightFogDay[1])*d;
+  const sa=sstep(0.18,0.95,d);                                                // stars and moon fade in (a few show at dusk)
+  if(nightGroup){ nightGroup.visible=d>0.12; nightStars.material.opacity=sa; nightMoon.children[0].material.opacity=0.16*sa; nightMoon.children[1].material.opacity=sa; }
+  if(comet&&d<0.6){ comet.visible=false; cometAge=-1; }
+  if(skyGroup) skyGroup.visible=!forest&&d<0.5;
+  if(todDome){
+    const u=todDome.material.uniforms, el=e*Math.PI/180, az=todL.azi*Math.PI/180;
+    u.uSunDir.value.set(Math.sin(az)*Math.cos(el),Math.sin(el),-Math.cos(az)*Math.cos(el));
+    u.uGlow.value.copy(_tdG); u.uGlowAmt.value=w; u.uSunA.value=sstep(-7,-2,e);
+    u.uSunCol.value.setRGB(1,0.96,0.82).lerp(_tdC.setHex(0xffa060),Math.min(1,w*1.3));
+  }
+  todApplied={e:e,azi:todL.azi,dp:dp,forest:forest};
+}
+function updateTime(dt){
+  if(!todDome) return;
+  todTarget();
+  if(lookSnap||!todApplied){ todL.e=todT.e; todL.azi=todT.azi; todL.dp=todT.dp; }
+  else { const f=1-Math.exp(-dt*TOD.ease); todL.e+=(todT.e-todL.e)*f; todL.azi+=(todT.azi-todL.azi)*f; todL.dp+=(todT.dp-todL.dp)*f; }
+  const guard=mapMode||dungeon||shopT>=0||fogBak;   // the map / dungeon / shop have their own fog: leave it alone, catch up afterwards
+  if(!guard&&(lookSnap||!todApplied||todApplied.forest!==forest||Math.abs(todL.e-todApplied.e)>0.02||Math.abs(todL.azi-todApplied.azi)>0.2||Math.abs(todL.dp-todApplied.dp)>0.01)){ applyLook(); lookSnap=false; }
+  const u=todDome.material.uniforms, fc=U.uFogColor.value;   // the horizon is always exactly the fog colour (areas, dungeon ...); the zenith follows it
+  u.uHor.value.copy(fc);
+  u.uTop.value.set(Math.min(1,Math.max(0,_todBase.top.r+(fc.r-_todBase.hor.r)*0.75)),Math.min(1,Math.max(0,_todBase.top.g+(fc.g-_todBase.hor.g)*0.75)),Math.min(1,Math.max(0,_todBase.top.b+(fc.b-_todBase.hor.b)*0.75)));
+}
+function initSkyDome(){
+  const mat=new THREE.ShaderMaterial({side:THREE.BackSide,depthTest:false,depthWrite:false,fog:false,
+    uniforms:{uTop:{value:new THREE.Color(0x101528)},uHor:{value:new THREE.Color(SKY)},uGlow:{value:new THREE.Color(TOD.duskGlow)},uSunCol:{value:new THREE.Color(1,0.96,0.82)},uSunDir:{value:new THREE.Vector3(0,-1,0)},uGlowAmt:{value:0},uSunA:{value:0},uBands:{value:TOD.bands}},
+    vertexShader:'varying vec3 vD; void main(){ vD=position; gl_Position=projectionMatrix*vec4(mat3(viewMatrix)*position,1.0); }',
+    fragmentShader:`uniform vec3 uTop,uHor,uGlow,uSunCol,uSunDir; uniform float uGlowAmt,uSunA,uBands; varying vec3 vD;
+void main(){
+  vec3 d=normalize(vD); float e=d.y;
+  float t=floor(pow(clamp(e,0.0,1.0),0.55)*uBands+0.5)/uBands;                       // banded gradient, horizon -> zenith
+  vec3 c=mix(uHor,uTop,t);
+  float sd=max(dot(d,uSunDir),0.0), up=clamp(e,0.0,1.0);
+  float g=(pow(sd,3.0)*0.55+pow(sd,24.0)*0.45)*uGlowAmt*(1.0-0.55*up)+exp(-abs(e)*5.0)*uGlowAmt*0.35;   // glow round the sun + a low band all round the horizon
+  c=mix(c,uGlow,floor(clamp(g,0.0,1.0)*8.0+0.5)/8.0*0.85);
+  float hz=smoothstep(-0.03,0.012,e);                                                   // the sun sets into the horizon
+  c=mix(c,uSunCol,max(step(0.99955,sd),step(0.9975,sd)*0.4)*hz*uSunA);                  // chunky disc + halo
+  gl_FragColor=vec4(c,1.0);
+}`});
+  const m=new THREE.Mesh(new THREE.SphereGeometry(50,32,16),mat); m.renderOrder=-1000; m.frustumCulled=false; scene.add(m); todDome=m;
 }
 /* ---------- the start screen's sky marks: where the moon and the comet go ----------
    SKY_REF is the window size the marks were drawn on (a screenshot of the start screen), SKY_MOON_PX the middle of the red circle (the moon), COMET.from / COMET.to the two ends of the white
@@ -669,24 +735,25 @@ function initNight(H,groundY){
     col[i*3]=b*0.9; col[i*3+1]=b*0.95; col[i*3+2]=b;
   }
   const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.BufferAttribute(pos,3)); sg.setAttribute('color',new THREE.BufferAttribute(col,3));
-  nightStars=new THREE.Points(sg,new THREE.PointsMaterial({size:1.7,sizeAttenuation:false,vertexColors:true,fog:false,depthWrite:false})); nightStars.frustumCulled=false; grp.add(nightStars);
+  nightStars=new THREE.Points(sg,new THREE.PointsMaterial({size:1.7,sizeAttenuation:false,vertexColors:true,fog:false,depthWrite:false,transparent:true})); nightStars.frustumCulled=false; grp.add(nightStars);
   /* the moon: up in the sky exactly where the red circle was drawn on the start screen (SKY_MOON_PX, in pixels of a SKY_REF-sized window), with a soft halo.
      The spot is found by sending a ray through that pixel of the start camera and putting the moon where the ray meets the sky dome, so it sits in the same place relative to
      him on any screen size that has the same shape; on a very different shape it shifts, like anything that really is in the sky. */
   const MR=R*0.9, moonRay=startSkyRay(SKY_MOON_PX[0],SKY_MOON_PX[1]), G=new THREE.Vector3(homeTarget.x,groundY,homeTarget.z);
   const moon=new THREE.Group(); moon.position.copy(skyHit(moonRay.C.clone().sub(G),moonRay.dir,MR));
   const halo=new THREE.Mesh(new THREE.CircleGeometry(H*5.5,20),new THREE.MeshBasicMaterial({color:0x7f93d9,transparent:true,opacity:0.16,depthWrite:false,fog:false}));
-  const disc=new THREE.Mesh(new THREE.CircleGeometry(H*3.2,18),new THREE.MeshBasicMaterial({color:0xe6ecff,fog:false}));
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(H*3.2,18),new THREE.MeshBasicMaterial({color:0xe6ecff,fog:false,transparent:true}));
   halo.position.z=-0.05; moon.add(halo); moon.add(disc); moon.frustumCulled=false; grp.add(moon); nightMoon=moon;
   initComet(H,groundY,grp,R);
-  grp.visible=night; scene.add(grp); nightGroup=grp;
+  grp.visible=false; scene.add(grp); nightGroup=grp; initSkyDome();
 }
 function updateNight(dt){
+  updateTime(dt);
   if(!nightGroup||!nightGroup.visible) return;
   nightGroup.position.set(target.x,groundYNight,target.z);      // rides along with the camera, so the sky never gets closer
   nightStars.rotation.y+=dt*0.006;                                // the stars turn very slowly
   nightMoon.lookAt(camera.position);
-  updateComet(dt);
+  if(todD>0.6) updateComet(dt);
 }
 let groundYNight=0;
 
@@ -4884,7 +4951,7 @@ function invShowCust(){ invApply(invCommit); invCust=true; invDrinkSync(); invUi
 function invShowInv(){ invCust=false; invGoMenu('main'); document.body.classList.add('map'); invUi.classList.add('on'); invPreview(); invRefresh(); }
 function openInventory(){
   if(invOn||exploring||mapMode) return;
-  invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,night:night,clip:current?current.getClip().name:null}; invOn=true; if(night) setNight(false);   // the inventory is always shown by day (and the time goes back to what it was when it closes)
+  invPrev={zoom:zoom,pitch:pitch,tx:target.x,ty:target.y,tz:target.z,spin:spin,night:night,clip:current?current.getClip().name:null}; invOn=true; todHold='day'; lookSnap=true;   // the inventory is always shown by day (and the time goes back to what it was when it closes)
   invResetState();
   if(spin) toggleSpin();   // the turntable stays off
   invHid=scene.children.filter(o=>o!==playerRig&&o!==invBg&&o!==sparkle).map(o=>({o:o,v:o.visible})); if(rockMesh) invHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
@@ -4896,7 +4963,7 @@ function closeInventory(){
   if(!invOn) return;
   invOn=false; invDrinkSync(); invOn=true;   // a potion inspection plays out first (play() below is queued until it ends)
   invApply(invCommit);   // a weapon that was only previewed goes back to the one he really has equipped
-  invOn=false; invCust=false; invUi.classList.remove('on'); if(invPrev&&invPrev.night!==undefined&&invPrev.night!==night) setNight(invPrev.night);
+  invOn=false; invCust=false; invUi.classList.remove('on'); if(todHold){ todHold=null; lookSnap=true; }
   if(invPrev&&invPrev.spin!==spin) toggleSpin();   // the turntable goes back to how it was before the inventory
   invHid.forEach(h=>{ h.o.visible=h.v; }); invHid=[]; if(invPrev&&invPrev.clip&&actions[invPrev.clip]) play(invPrev.clip);   // the world comes back and he returns to the pose he was in
   document.body.classList.remove('map');
@@ -5021,7 +5088,7 @@ function editStart(){
 }
 function editBegin(buf){
   editPrev={zoom:zoom,pitch:pitch,yaw:yaw,tx:target.x,ty:target.y,tz:target.z,spin:spin,night:night,clip:current?current.getClip().name:null,plume:plumeHex,tints:armorMats.map(m=>m.uniforms.uTint.value.clone())};
-  editOn=true; if(spin) toggleSpin(); if(night) setNight(false);
+  editOn=true; if(spin) toggleSpin(); todHold='day'; lookSnap=true;
   editHid=scene.children.filter(o=>o!==playerRig&&o!==invBg).map(o=>({o:o,v:o.visible})); if(rockMesh) editHid.push({o:rockMesh,v:rockMesh.visible});   // everything but the knight goes
   document.body.classList.add('map');   // the menu steps aside
   editBlack(true); showWeapons(); syncAudio();   // black, no weapon, and the menu music out
@@ -5041,7 +5108,7 @@ function editEnd(){
   if(invBg){ invBg.visible=false; const u=invBg.material.uniforms; u.uGlow.value=INV_BG_GLOW; u.uVig.value=INV_BG_VIGNETTE; u.uBokeh.value=INV_BG_BOKEH; }
   if(editFx){ editFx.remove(); editFx=null; } renderer.domElement.style.filter='';
   const p=editPrev; editPrev=null; editRoll=0;
-  if(p){ zoom=p.zoom; pitch=p.pitch; yaw=p.yaw; target.set(p.tx,p.ty,p.tz); if(p.night!==night) setNight(p.night); if(p.spin!==spin) toggleSpin(); }
+  if(p){ zoom=p.zoom; pitch=p.pitch; yaw=p.yaw; target.set(p.tx,p.ty,p.tz); if(todHold){ todHold=null; lookSnap=true; } if(p.spin!==spin) toggleSpin(); }
   mapViewK=1; applyView(); document.body.classList.remove('map');
   if(p&&p.clip&&actions[p.clip]) play(p.clip); else play(idleName());
   syncAudio();
@@ -5106,7 +5173,7 @@ function initMainMenu(){
       {t:'SHINE',v:()=>shineOn?'ON':'OFF',run:toggleShine},BACK_OPT]},
     opt_world:{name:'WORLD',up:'options',items:[
       {t:'WORLD',v:()=>forest?'FOREST':'CLASSIC',run:()=>setWorld(!forest)},
-      {t:'TIME',v:()=>night?'NIGHT':'DAY',run:()=>setNight(!night)},
+      {t:'TIME',v:()=>TOD_LABEL[timeMode],run:()=>setTimeMode(TOD_ORDER[(TOD_ORDER.indexOf(timeMode)+1)%TOD_ORDER.length])},
       {t:'FOG',v:()=>'#'.repeat(fogT)+'.'.repeat(9-fogT),adj:d=>{ fogT=d?Math.max(1,Math.min(9,fogT+d)):fogT%9+1; }},   // thickness: LEFT / RIGHT (or click) - 5 is the normal fog
       {t:'LEAVES',v:()=>leavesOn?'ON':'OFF',run:toggleLeaves},
       {t:'SNOW',v:()=>snowOn?'ON':'OFF',run:()=>{ snowOn=!snowOn; }},BACK_OPT]},
