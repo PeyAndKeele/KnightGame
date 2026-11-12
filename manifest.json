@@ -220,6 +220,11 @@
     "url": "hammer-data.json"
   },
   {
+    "id": "morningstar-data",
+    "type": "application/json",
+    "url": "morningstar-data.json"
+  },
+  {
     "id": "knightly-sword-data",
     "type": "application/json",
     "url": "knightly-sword-data.json"
