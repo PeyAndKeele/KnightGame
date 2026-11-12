@@ -473,5 +473,10 @@
     "id": "honor-sfx-data",
     "type": "application/json",
     "url": "honor-sfx-data.json"
+  },
+  {
+    "id": "chest-data",
+    "type": "application/json",
+    "url": "chest-data.json"
   }
 ]
