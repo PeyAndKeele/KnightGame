@@ -1366,7 +1366,7 @@ function axePose(nm){
 const POTION_OUT_AT=0.78, POTION_POP=0.12;   // seconds into Drinking_Potion when the bottle appears, and how long it takes to grow to full size
 const POTION_SCALE=0.8, POTION_PIVOT_Y=1.34;  // size (1 = as modeled) and the point of the bottle that sits in his fist (lower body)
 const POTION_NECK=[-0.35,0.3,0.88];           // where the neck points, in forearm space: roughly along the thumb side so it tips toward his mouth at the end of the clip
-let potionGrp=null, drinkEndAt=null;
+let potionGrp=null, drinkEndAt=null, potionKind='heal', potionVariants=null;   // potionKind: 'heal' (red) or 'haste' (green): which bottle is in his hand
 function initPotion(parent){
   const el=document.getElementById('potion-data'); if(!el) return;
   const F=parent.getObjectByName('Left_Forearm'), Hd=parent.getObjectByName('Adventurer_Left_Hand'); if(!F||!Hd) return;
@@ -1389,7 +1389,14 @@ function initPotion(parent){
         }
         o.material=cache.get(om.uuid); o.renderOrder=o.material.userData.glass?2:0; o.frustumCulled=false; });
       g.scene.position.y=-POTION_PIVOT_Y;
-      const hold=new THREE.Group(); hold.add(g.scene);
+      /* HASTE POTION: a copy of the bottle whose liquid texture is recoloured from red to green (red and green channels swapped, blue dimmed). The glass is shared with the red bottle. */
+      const hasteScene=g.scene.clone(true); hasteScene.visible=false;
+      hasteScene.traverse(o=>{ if(!o.isMesh||o.material.userData.glass) return; const mp=o.material.uniforms&&o.material.uniforms.map&&o.material.uniforms.map.value; if(!mp||!mp.image) return;
+        const im=mp.image, c=document.createElement('canvas'); c.width=im.width; c.height=im.height; const x=c.getContext('2d'); x.drawImage(im,0,0); const id=x.getImageData(0,0,c.width,c.height), d=id.data;
+        for(let i=0;i<d.length;i+=4){ const r=d[i],gg=d[i+1],b=d[i+2]; d[i]=gg*0.9; d[i+1]=r; d[i+2]=b*0.8; } x.putImageData(id,0,0);
+        const t=new THREE.Texture(c); t.flipY=mp.flipY; t.wrapS=mp.wrapS; t.wrapT=mp.wrapT; t.magFilter=mp.magFilter; t.minFilter=mp.minFilter; t.needsUpdate=true; o.material=ps1Mat(t,1); });
+      potionVariants={heal:g.scene,haste:hasteScene};
+      const hold=new THREE.Group(); hold.add(g.scene); hold.add(hasteScene);
       hold.position.copy(hc); hold.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3().fromArray(POTION_NECK).normalize());
       hold.scale.setScalar(POTION_SCALE); hold.visible=false; F.add(hold); potionGrp=hold;
     },e=>console.error('potion load failed',e));
@@ -1445,6 +1452,8 @@ function potionStep(){
     if(insp&&P){ P.updateWorldMatrix(true,false); const up=_invUp.set(0,1,0).transformDirection(_invInv.copy(P.matrixWorld).invert());   // world 'up', in the forearm's space (works with the mirrored model)
       g.quaternion.setFromUnitVectors(_invY.set(0,1,0),_invDir.copy(g.userData.n0).lerp(up,INV_DRINK_TILT).normalize()); }   // the neck tilts toward straight up
     else g.quaternion.copy(g.userData.q0); }   // (battle drinking keeps its own angle)
+  if(potionVariants){ potionVariants.heal.visible=potionKind!=='haste'; potionVariants.haste.visible=potionKind==='haste'; }
+  if(sparkle) sparkle.material.color.set(potionKind==='haste'?0x9dffb0:0xffffff);
   potionGrp.visible=k>0; if(k>0) potionGrp.scale.setScalar(POTION_SCALE*(0.35+0.65*k));
   sparkleStep(k>0);
 }
@@ -2936,7 +2945,7 @@ function nextWave(){   // every enemy of this wave is down: a pause, then the ne
   turn='wave'; try{ setTurnLabel('WAVE '+(dgWave+2)+' OF '+RUINS_WAVES.length); }catch(e){}
   setTimeout(()=>{ if(!dungeon||turn!=='wave') return;
     dgWave++; try{ spawnEnemies(); }catch(e){ console.error(e); }
-    pl.guard=false; ep=null; turn='player'; barsBuild(); setTurnLabel('YOUR TURN'); try{ showPointer(); }catch(e){}
+    pl.guard=false; ep=null; turn='player'; barsBuild(); setTurnLabel('YOUR TURN'+hasteTag()); try{ showPointer(); }catch(e){}
   },2000);
 }
 function spawnEnemies(){
@@ -3102,7 +3111,7 @@ const BM_MENUS={
   attack:{title:'ATTACK',get items(){ return klActive()?['CARVE',klReady()?'KNIGHT LIGHT':'KNIGHT LIGHT '+kl.n+'/'+KL_MAX,'BACK']:['CARVE','BACK']; }},   // KNIGHT LIGHT: only with the Knightly Sword, once its gauge is full
   actions:{title:'ACTIONS',get items(){ return weapon==='axe'?['FLAUNT','BLOCK','RENDER','BACK']:['FLAUNT','BLOCK','BACK']; }},   // RENDER only while a heavy weapon (axe / shovel) is held
 
-  items:{title:'ITEMS',get items(){ return ['POTION x'+potions,'BACK']; }}   // the label shows how many are left
+  items:{title:'ITEMS',get items(){ return ['POTION x'+potions,'HASTE POTION x'+hastes,'BACK']; }}   // the label shows how many are left
 };
 const SWING_SPEED=1.25;        // same swing speed as in Walk Around
 const CARVE_HIT_AT=0.5;        // seconds into the Swing clip when the blade connects: the enemy's Hit starts then
@@ -3147,6 +3156,7 @@ function bmChoose(){
   else if(it==='ATTACK') bmGo('attack',0);
   else if(it==='ACTIONS') bmGo('actions',0);
   else if(it==='ITEMS') bmGo('items',0);
+  else if(it.indexOf('HASTE')===0) startHaste();
   else if(it.indexOf('POTION')===0) startPotion();
   else if(it==='FLEE'){ bmClose(true); leaveDungeon(); }
   else if(it==='CARVE') startCarve();
@@ -3244,8 +3254,9 @@ const PLAYER_HP=100, ENEMY_HP=100, SLIME_HP=50;      // starting hit points
 const SWING_DAMAGE=25;                  // what your swing does
 const ENEMY_DAMAGE=12, GUARD_FACTOR=0.25;   // what an enemy swing does, and the share of it that gets through while you are guarding
 const ENEMY_START_BEAT=0.5, ENEMY_HOLD=0.45, DEATH_HOLD=0.6, END_SHOW=3.2;   // pauses (s): before the first enemy swings, after each enemy swing, after an enemy falls, how long VICTORY / DEFEATED stays up
+const HASTE_COUNT=3;   // haste potions you start a fight with: drinking one (it uses that turn) gives you TWO actions on your next turn, each one counting for the KNIGHT LIGHT gauge
 const POTION_HEAL=25, POTION_COUNT=3, POTION_HEAL_AT=1.5;   // hit points a potion restores, how many you start a fight with, and when in the clip (s) the heal lands: his hand is at his lips
-let potions=POTION_COUNT;
+let potions=POTION_COUNT, hastes=HASTE_COUNT;
 const DEFEAT_GAIN=1.0, DEFEAT_SHOW=4.2;
 /* The defeat sound is crushed when it is first played (mono, sample-and-hold down to DEFEAT_RATE Hz, then DEFEAT_BITS bits: lower = dirtier) and comes out of the knights themselves:
    one copy from each living knight, panned to where that knight is on screen, a little off pitch (DEFEAT_DETUNE) and a hair apart in time (DEFEAT_STAGGER, s) so it reads as a chorus,
@@ -3336,7 +3347,7 @@ function barsUpdate(dt){
 function popup(text,pos,cls){ const el=document.createElement('div'); el.className='dmg '+(cls||''); el.textContent=text; hpLayer.appendChild(el); popups.push({el,pos:pos.clone(),t:0}); }
 function setTurnLabel(txt,cls){ turnEl.textContent=txt||''; turnEl.className=cls||''; }
 function battleReset(){
-  kl.n=0; klShown=''; pl.hp=pl.max=PLAYER_HP; pl.guard=false; pl.render=false; pl.buf=false; pl.dead=false; potions=POTION_COUNT; turn='player'; ep=null; endDone=false; endKind=null;
+  kl.n=0; klShown=''; pl.hp=pl.max=PLAYER_HP; pl.guard=false; pl.render=false; pl.buf=false; pl.dead=false; pl.haste=0; pl.hasteArm=false; potions=POTION_COUNT; hastes=HASTE_COUNT; potionKind='heal'; turn='player'; ep=null; endDone=false; endKind=null;
   barsBuild(); setTurnLabel('YOUR TURN');
 }
 function hurtEnemy(e,dmg){
@@ -3373,11 +3384,23 @@ function startPotion(){   // ITEMS > POTION: uses the turn
   if(potions<=0){ bmToast('NO POTIONS'); return; }
   if(pl.hp>=pl.max){ bmToast('HP IS FULL'); return; }
   if(!actions.Drinking_Potion){ bmToast('NO DRINK ANIMATION'); return; }
-  potions--; btBegin('potion'); bt.heading=-Math.PI/2; bt.healed=false; play('Drinking_Potion');
+  potions--; btBegin('potion'); bt.heading=-Math.PI/2; bt.healed=false; bt.haste=false; potionKind='heal'; play('Drinking_Potion');
 }
+function startHaste(){   // ITEMS > HASTE POTION: uses the turn; the next turn is two actions
+  if(hastes<=0){ bmToast('NO HASTE POTIONS'); return; }
+  if(pl.haste>0||pl.hasteArm){ bmToast('ALREADY HASTED'); return; }
+  if(!actions.Drinking_Potion){ bmToast('NO DRINK ANIMATION'); return; }
+  hastes--; btBegin('potion'); bt.heading=-Math.PI/2; bt.healed=false; bt.haste=true; potionKind='haste'; pl.hasteArm=true; play('Drinking_Potion');
+}
+function hasteTag(){ return pl.haste>0?'  HASTE '+(3-pl.haste)+'/2':''; }   // 'HASTE 1/2', 'HASTE 2/2' while the double turn is on
 function afterPlayerAction(){   // the player's command has finished: victory, or the enemies' turn
   if(turn==='over') return;
   if(enemies.length&&enemies.every(e=>e.dead)){ if(dgWave<RUINS_WAVES.length-1){ nextWave(); return; } battleEnd('win'); return; }
+  if(pl.hasteArm){ pl.hasteArm=false; pl.haste=2; }   // he just drank a haste potion: the enemies go now, and his NEXT turn is two actions
+  else if(pl.haste>0){   // a hasted turn: after the first action he simply acts again, without the enemies going
+    if(pl.render) pl.haste=0;   // (RENDER hands the turn over while he holds the swing, so no second action there)
+    else { pl.haste--; if(pl.haste>0){ setTurnLabel('YOUR TURN'+hasteTag()); return; } }
+  }
   startEnemyPhase();
 }
 function startEnemyPhase(){ turn='enemies'; btBegin('enemy'); ep={i:-1,stage:9,t:0,e:null}; setTurnLabel('ENEMY TURN','foe'); }
@@ -3397,7 +3420,7 @@ function endEnemyPhase(){ if(pl.render&&!pl.dead){ pl.render=false; pl.guard=fal
   enemies.forEach(e=>setEnemyYaw(e,Math.PI/2));
   pl.guard=false; pl.buf=false; ep=null; turn='player';
   if(!pl.dead) play(idleName());
-  btEnd(true); setTurnLabel('YOUR TURN');
+  btEnd(true); setTurnLabel('YOUR TURN'+hasteTag());
 }
 function playerStruck(e){
   const g=pl.guard||pl.buf, dmg=pl.guard?Math.max(1,Math.round(ENEMY_DAMAGE*GUARD_FACTOR)):(pl.buf?Math.max(1,Math.round(ENEMY_DAMAGE*(1-RENDER_GUARD))):ENEMY_DAMAGE);
@@ -3514,8 +3537,8 @@ function updateBattle(dt){
   } else if(bt.act==='potion'){
     const c=current&&current.getClip().name==='Drinking_Potion';
     if(!bt.healed&&c&&current.time>=POTION_HEAL_AT){
-      bt.healed=true; const h=Math.min(POTION_HEAL,pl.max-pl.hp); pl.hp+=h;
-      popup('+'+h,headPos({isPl:true},new THREE.Vector3()),'heal'); blip(660,0.1); setTimeout(()=>blip(880,0.12),90);
+      bt.healed=true; const h=bt.haste?0:Math.min(POTION_HEAL,pl.max-pl.hp); pl.hp+=h;
+      popup(bt.haste?'HASTE':'+'+h,headPos({isPl:true},new THREE.Vector3()),'heal'); blip(660,0.1); setTimeout(()=>blip(880,0.12),90);
     }
     if(bt.t>=actions.Drinking_Potion.getClip().duration+DRINK_HOLD+0.25){ if(c) play(idleName()); btEnd(); }
   } else if(bt.act==='enemy'){
@@ -4693,6 +4716,7 @@ const invDrink={on:false,release:false,next:null,internal:false,k:0}; const _inv
 function invDrinkWant(){ const it=invOn&&!invCust&&INV_TABS[invTab].t==='ITEMS'&&invList()[invCur]; return !!it&&it.icon==='potion'; }
 function invDrinkSync(){
   const want=invDrinkWant(), a=actions.UALX_ConsumeM; if(!a) return;
+  if(want) potionKind=invList()[invCur].haste?'haste':'heal';   // the green bottle for the haste potion
   if(want&&(!invDrink.on||invDrink.release)){   // (re)start: reach for the bottle
     invDrink.on=true; invDrink.release=false; invDrink.next=null; invDrink.internal=true;
     if(current&&current!==a) current.fadeOut(0.12);
@@ -4753,7 +4777,8 @@ const INV_TABS=[
     {t:'AXE',cls:'heavy',icon:'axe',kind:'HEAVY WEAPON',w:'axe',as:'axe',stats:invHeavyStats,desc:'A two-handed axe. It takes both hands to bring around, and it is the kind of weapon that can RENDER.'},
     {t:'SHOVEL',cls:'heavy',icon:'shovel',kind:'HEAVY WEAPON',w:'axe',as:'shovel',stats:invHeavyStats,desc:'A digger\'s shovel put to work as a weapon. It swings like the axe and can RENDER too.'}]},
   {t:'ITEMS',subs:null,items:[
-    {t:'POTION',icon:'potion',kind:'CONSUMABLE',qty:()=>'x'+POTION_COUNT,stats:()=>[['HEALS',POTION_HEAL+' HP'],['STOCK',POTION_COUNT+' PER BATTLE']],desc:'A small flask of healing draught. Drink it from the ITEMS menu in battle.'}]}
+    {t:'POTION',icon:'potion',kind:'CONSUMABLE',qty:()=>'x'+POTION_COUNT,stats:()=>[['HEALS',POTION_HEAL+' HP'],['STOCK',POTION_COUNT+' PER BATTLE']],desc:'A small flask of healing draught. Drink it from the ITEMS menu in battle.'},
+    {t:'HASTE POTION',icon:'potion',haste:true,kind:'CONSUMABLE',qty:()=>'x'+HASTE_COUNT,stats:()=>[['EFFECT','2 ACTIONS NEXT TURN'],['STOCK',HASTE_COUNT+' PER BATTLE']],desc:'A fizzing green draught. Drinking it uses your turn, but your next turn is two actions, and both fill the KNIGHT LIGHT gauge.'}]}
 ];
 /* HOVER shows a weapon on the knight, CLICK (or ENTER) equips it. invCommit is what he really has equipped (what the E badge marks, and what he goes back to when the inventory closes or the cursor
    rests on something that is not a weapon); whatever is highlighted is only previewed on him. */
