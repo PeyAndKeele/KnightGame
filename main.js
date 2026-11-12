@@ -464,7 +464,6 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
   const order=['Idle','AxeIdle','Walk','Swing','AxeSwing','AxeFlaunt','Hit','Death'];
   names=order.filter(n=>gltf.animations.some(a=>a.name===n)).concat(gltf.animations.map(a=>a.name).filter(n=>!order.includes(n)&&n!==EVT_CLIP));
   menuNames=names.filter(n=>!AXE_BASE[n]&&n!==START_CLIP&&!/^UALX_/.test(n));   // what the menus list: the axe variants are folded into Idle / Swing / Flaunt, and the start-screen pose (Pose3) is not an animation to browse
-  menuNames.push('GolemAttack');   // the golem's clip (see GOLEM below): not one of the knight's own, it swaps the golem in
   { const gi={enemies:0,self:1,shop:2}; menuNames=menuNames.map((n,i)=>[n,i]).sort((a,b)=>gi[animGroup(a[0])]-gi[animGroup(b[0])]||a[1]-b[1]).map(x=>x[0]); }   // grouped in the order the ANIMATIONS menu shows them (so the cycle keys follow it too)
   if(SNAP_ON) gltf.animations.forEach(a=>{ if(SNAP_CLIPS.includes(a.name)) snapClip(a); });   // see SNAP
   gltf.animations.forEach(a=>{actions[a.name]=mixer.clipAction(a);});
@@ -1836,7 +1835,7 @@ function ualGround(){
   if(lo<1e8){ const ground=(blobHome?blobHome.y:0)-0.002*playerH; playerRig.position.y=ualY0+(ground-lo); }
 }
 function stepMixer(dt){
-  if(golemOn&&golemMixer){ golemPlace(); const p=golemAct.time; golemMixer.update(dt); if(p<GOLEM_HIT_AT&&golemAct.time>=GOLEM_HIT_AT) playGolemSfx('atk'); }
+  evStep(dt);
   const cn=current&&current.getClip().name, onSwing=swooshOn&&swTip&&swsh.mesh&&(cn==='Swing'||cn==='AxeSwing'||cn==='SwingHeavyRelease'||cn==='HeavyCombo'||/^UAL_(Sword_Regular|Sword_Heavy|Melee_Hook)/.test(cn));
   if(!onSwing){ swsh.hasPrev=false; swsh.emit=false; mixer.update(dt); stickAxe(); ualGround(); return; }
   const n=Math.max(1,Math.ceil(dt/SWOOSH_STEP-1e-6)), h=dt/n;
@@ -2241,7 +2240,7 @@ function firstGesture(e){
 /* ---------- GOLEM (ANIMATIONS screen): golem-data is his Blockbench model, golem-attack-data the GolemAttack clip (same track format as the other clips).
    Picking GolemAttack hides the knight and shows the golem in his place; picking anything else, or leaving the screen, brings the knight back. ---------- */
 const GOLEM_SCALE=0.9;   // golem height as a fraction of the knight's (his raised fists reach well above his head)
-let golemRig=null, golemScene=null, golemMixer=null, golemAct=null, golemOn=false, golemH0=1, golemMinY=0, golemClips=null, golemPrevT=0;
+let golemRig=null, golemScene=null, golemMixer=null, golemAct=null, golemOn=false, golemH0=1, golemMinY=0, golemClips=null, golemPrevT=0, golemAll=null;
 const GOLEM_HIT_AT=0.5;   // seconds into GolemAttack where the fists land (the slam), for the damage and the hit sound
 function golemEye(o){ return !!(o.parent&&o.parent.name==='Torso'&&o.position.z>0.2); }   // the two small cubes on his torso
 function golemReady(){ return !!(golemScene&&golemClips&&golemClips.Idle&&golemClips.Hit); }
@@ -2259,7 +2258,9 @@ function playGolemSfx(kind){ playSfxSet(kind==='atk'?'golem-atk-sfx-data':kind==
       const D=JSON.parse(ad.textContent);
       const clip=new THREE.AnimationClip(D.name,-1,D.tracks.map(k=>k.p==='q'?new THREE.QuaternionKeyframeTrack(k.n+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(k.n+'.position',k.t,k.v)));
       golemMixer=new THREE.AnimationMixer(g.scene); golemAct=golemMixer.clipAction(clip);
-      golemClips={Idle:g.animations.find(a=>a.name==='Idle'),Hit:g.animations.find(a=>a.name==='Hit'),Attack:clip}; if(SNAP_ON&&golemClips.Hit) snapClip(golemClips.Hit);   // the enemy golems use these (their own Idle and Hit from the model file, and GolemAttack)
+      golemClips={Idle:g.animations.find(a=>a.name==='Idle'),Hit:g.animations.find(a=>a.name==='Hit'),Attack:clip};
+      { const rd=document.getElementById('golem-introroar-data'), R=rd&&JSON.parse(rd.textContent), blk=g.animations.find(a=>a.name==='Block');   // golem-introroar-data: the intro roar clip (same track format as GolemAttack)
+        golemAll={Idle:golemClips.Idle,Attack:clip,Hit:golemClips.Hit,IntroRoar:R?new THREE.AnimationClip(R.name,-1,R.tracks.map(k=>k.p==='q'?new THREE.QuaternionKeyframeTrack(k.n+'.quaternion',k.t,k.v):new THREE.VectorKeyframeTrack(k.n+'.position',k.t,k.v))):null,Block:blk}; } if(SNAP_ON&&golemClips.Hit) snapClip(golemClips.Hit);   // the enemy golems use these (their own Idle and Hit from the model file, and GolemAttack)
     },e=>console.error('golem failed',e));
   }catch(e){ console.error(e); }
 })();
@@ -2267,18 +2268,55 @@ function golemPlace(){   // stand where the knight stands, facing the way he fac
   const k=GOLEM_SCALE*playerH/golemH0;
   golemRig.scale.setScalar(k); golemRig.position.set(playerRig.position.x,groundYNight-golemMinY*k,playerRig.position.z); golemRig.rotation.y=playerRig.rotation.y;
 }
-function golemShow(on){
-  if(!golemRig||on===golemOn) return;
-  golemOn=on; golemRig.visible=on; if(playerRig) playerRig.visible=!on;
-  if(current) current.paused=on;   // the hidden knight's clip must not keep running (Chestopen looped on behind the golem and replayed the chest creak)
-  if(on){ golemPlace(); golemAct.reset().setLoop(THREE.LoopRepeat,Infinity).play(); golemMixer.update(0); golemPrevT=0; playGolemSfx('spawn'); }
-  else golemAct.stop();
+/* ---------- ENEMY VIEWER (ANIMATIONS > ENEMIES > enemy > animation) ----------
+   Picking an enemy's animation hides the knight and shows that enemy in his place, looping the clip. Every enemy type is listed (golem, treeling, sporeling, slime) with all the clips its model has.
+   golemOn means "an enemy is being shown". The golem keeps his sounds (the slam on ATTACK, the roar on INTRO ROAR, the grunt on HIT); picking a knight animation or leaving the ANIMATIONS screens brings the knight back. */
+const EV_ENEMIES=[{key:'golem',name:'GOLEM'},{key:'treeling',name:'TREELING'},{key:'sporeling',name:'SPORELING'},{key:'slime',name:'SLIME'}];
+const EV_LABEL={idle:'IDLE',hit:'HIT',atk:'ATTACK',action:'ATTACK',attack:'ATTACK',introroar:'INTRO ROAR',block:'BLOCK',death:'DEATH'};
+const evViews={}; let evCur=null;   // evCur: {key,ci,v,act,label}
+function evDefs(key){   // [{label,clip}] straight from the loaded models (null until the model has loaded)
+  let src=null;
+  if(key==='golem'){ if(!golemAll) return null; src=['Idle','Attack','Hit','IntroRoar','Block'].map(n=>golemAll[n]&&[n,golemAll[n]]).filter(Boolean); }
+  else if(key==='slime'){ if(!elementalGltf) return null; src=elementalGltf.animations.map(a=>[a.name,a]); }
+  else { const M=mobModels[key]; if(!M||!M.all) return null; src=M.all.map(a=>[a.name,a]); }
+  return src.map(([n,c])=>({label:EV_LABEL[n.toLowerCase()]||n.toUpperCase(),clip:c}));
 }
-function playGolem(){
-  if(!golemRig||!playerRig){ return; }
-  golemShow(true); golemAct.reset().play();
-  document.querySelectorAll('#anims .item').forEach(b=>b.setAttribute('aria-checked',b.dataset.n==='GolemAttack'));
+function evBuild(key){
+  if(evViews[key]) return evViews[key];
+  const defs=evDefs(key); if(!defs||!scene) return null; let v=null;
+  if(key==='golem'){ if(!golemRig) return null; v={key,rig:golemRig,mixer:golemMixer,golem:true}; }
+  else if(key==='slime'){ const root=cloneElemental(), rig=new THREE.Group(); rig.add(root); rig.visible=false; scene.add(rig); v={key,rig,root,mixer:new THREE.AnimationMixer(root)}; }
+  else { const M=mobModels[key], D=MOBS[key], root=M.scene.clone(true), gk=D.scale*playerH/M.h0, rig=new THREE.Group(); root.scale.setScalar(gk); root.position.y=-M.minY*gk; rig.add(root); rig.visible=false; scene.add(rig); v={key,rig,root,mixer:new THREE.AnimationMixer(root)}; }
+  v.defs=defs; v.acts=defs.map(d=>v.mixer.clipAction(d.clip)); return evViews[key]=v;
 }
+function evPlace(v){   // stand where the knight stands, facing the way he faces
+  if(v.golem){ golemPlace(); return; }
+  v.rig.position.set(playerRig.position.x,groundYNight,playerRig.position.z); v.rig.rotation.y=playerRig.rotation.y;
+}
+function evSfx(kind){ if(evCur&&evCur.key==='golem') playGolemSfx(kind); }
+function evPlay(key,ci){
+  const v=evBuild(key); if(!v||!playerRig) return false;
+  if(evCur&&evCur.v!==v){ evCur.v.rig.visible=false; evCur.v.mixer.stopAllAction(); }
+  else if(evCur) evCur.act.stop();
+  if(!golemOn){ golemOn=true; if(current) current.paused=true; playerRig.visible=false; }   // the hidden knight's clip must not keep running (Chestopen looped on behind the golem and replayed the chest creak)
+  const act=v.acts[ci], label=v.defs[ci].label; v.rig.visible=true; evPlace(v);
+  act.reset().setLoop(THREE.LoopRepeat,Infinity).play(); v.mixer.update(0); evCur={key,ci,v,act,label};
+  if(label==='INTRO ROAR') evSfx('spawn'); else if(label==='HIT') evSfx('pain');
+  return true;
+}
+function evStep(dt){
+  if(!golemOn||!evCur) return; const {v,act,label}=evCur; evPlace(v);
+  const p=act.time; v.mixer.update(dt); const t=act.time;
+  if(label==='ATTACK'&&p<GOLEM_HIT_AT&&t>=GOLEM_HIT_AT) evSfx('atk');   // the fists land
+  if(t<p){ if(label==='INTRO ROAR') evSfx('spawn'); else if(label==='HIT') evSfx('pain'); }   // looped round
+}
+function evHide(){
+  if(!golemOn) return; golemOn=false;
+  if(evCur){ evCur.v.rig.visible=false; evCur.v.mixer.stopAllAction(); evCur=null; }
+  if(playerRig) playerRig.visible=true; if(current) current.paused=false;
+}
+function golemShow(on){ if(!on) evHide(); }   // (older callers: only "hide" is ever asked for now)
+function playGolem(){ const d=evDefs('golem'); if(d) evPlay('golem',Math.max(0,d.findIndex(x=>x.label==='ATTACK'))); }
 /* ---------- PIZZA: the Soccer Trip (a running trip and tumble, retargeted from Mixamo, done in place) with the "Ayo, the pizza here" meme.
    The animation starts the moment it is picked, at its own speed. The sound plays at its own speed too, starting PIZZA_AUDIO_START seconds into the meme (at the bump). Picking anything else cuts it off. ---------- */
 const PIZZA_AUDIO_START=1.815, PIZZA_SPEED=1;   // the crack: the first loud, broadband burst in the meme, starting at 1.82 s (silence before it)
@@ -2386,7 +2424,7 @@ function toggleUal(){
   let base=null; Object.keys(UAL_ALT).forEach(k=>{ if(current&&(current===actions[k]||current===ualOrig[k]||current===actions[UAL_ALT[k]]||current===actions.UALX_Sword_Block&&k==='Block')) base=k; });
   animSet=animSet==='ideal'?'knight':animSet==='knight'?'universal':'ideal'; ualOn=animSet==='universal'; ualApply(); if(base) play(base);
 }
-function animGroup(n){ return n==='GolemAttack'?'enemies':(/^Shop/.test(n)?'shop':'self'); }
+function animGroup(n){ return /^Shop/.test(n)?'shop':'self'; }
 function buildMenu(){
   const box=document.getElementById('anims');
   menuNames.forEach((n,i)=>{
@@ -2394,7 +2432,7 @@ function buildMenu(){
     b.addEventListener('click',()=>menuPlay(n)); box.appendChild(b);
   });
 }
-function cycle(d){ const L=menuNames.filter(animVisible), c=golemOn?'GolemAttack':(current&&current.getClip().name), i=L.indexOf(AXE_BASE[c]||c); menuPlay(L[(i+d+L.length)%L.length]); }
+function cycle(d){ const L=menuNames.filter(animVisible), c=current&&current.getClip().name, i=L.indexOf(AXE_BASE[c]||c); menuPlay(L[(i+d+L.length)%L.length]); }
 
 /* ---------- toggles ---------- */
 function setSwitch(id,on,label){ const b=document.getElementById(id); b.setAttribute('aria-checked',on); b.querySelector('.v').textContent=label; }
@@ -2859,7 +2897,7 @@ function loadMobs(){
         const cache=new Map();
         g.scene.traverse(o=>{ if(!o.isMesh) return; const om=o.material; if(!cache.has(om.uuid)) cache.set(om.uuid,ps1Mat(om.map,1)); o.material=cache.get(om.uuid); o.frustumCulled=false; });
         g.scene.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(g.scene), f=n=>g.animations.find(a=>a.name===n);
-        mobModels[key]={scene:g.scene,h0:bx.max.y-bx.min.y,minY:bx.min.y,clips:{Idle:f('Idle'),Hit:f('Hit'),Attack:f('atk')}};
+        mobModels[key]={scene:g.scene,h0:bx.max.y-bx.min.y,minY:bx.min.y,clips:{Idle:f('Idle'),Hit:f('Hit'),Attack:f('atk')},all:g.animations};
       },e=>console.error(key+' failed',e));
     }catch(e){ console.error(key+' failed',e); }
   });
@@ -5003,14 +5041,21 @@ function initMainMenu(){
   let tt=0; window.toast=toast; function toast(t){ toastEl.textContent=t; toastEl.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>toastEl.classList.remove('show'),1700); }
   const BACK={t:'BACK',go:'main'}, BACK_OPT={t:'BACK',go:'options'};   // BACK_OPT: from a group of options back to OPTIONS
   const BACK_ANIM={t:'BACK',go:'anims'};   // from an ANIMATIONS sub-menu back to the ANIMATIONS list
-  const animRows=g=>menuNames.filter(n=>animGroup(n)===g&&animVisible(n)).map(n=>({t:n.toUpperCase(),v:()=>(n==='GolemAttack'?golemOn:(!golemOn&&current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n))?'PLAYING':'',run:()=>menuPlay(n)}));
+  const BACK_ENEMIES={t:'BACK',go:'anims_enemies'};   // from one enemy's animations back to the enemy list
+  const evRows=key=>{ const d=evDefs(key); return d?d.map((x,i)=>({t:x.label,v:()=>(golemOn&&evCur&&evCur.key===key&&evCur.ci===i)?'PLAYING':'',run:()=>evPlay(key,i)})):[{t:'LOADING...'}]; };
+  const animRows=g=>menuNames.filter(n=>animGroup(n)===g&&animVisible(n)).map(n=>({t:n.toUpperCase(),v:()=>(!golemOn&&current&&(AXE_BASE[current.getClip().name]||current.getClip().name)===n)?'PLAYING':'',run:()=>menuPlay(n)}));
   const SCREENS={
     start:{name:'PRESS START',items:[{t:'START',run:startGame}]},
     main:{name:'MAIN MENU',items:[{t:'MAP',run:openMap},{t:'INVENTORY',run:openInventory},{t:'OPTIONS',go:'options'},{t:'ANIMATIONS',go:'anims'},{t:'CREDITS',go:'credits'}]},
     custom:{name:'CUSTOMIZE',panel:1,items:[BACK]},
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
-    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'VOICE',v:()=>voice==='voice2'?'VOICE 2':'VOICE 1',run:toggleVoice},{t:'WEAPON',v:()=>weapon==='axe'?'AXE':'SWORD',run:toggleWeapon},{t:'SWORD STYLE',v:()=>swordStyle==='hatchet'?'HATCHET':swordStyle==='hammer'?'HAMMER':swordStyle==='knightly'?'KNIGHTLY':swordStyle==='morningstar'?'MORNINGSTAR':'SWORD',run:toggleStyle},{t:'AXE STYLE',v:()=>axeStyle==='shovel'?'SHOVEL':'AXE',run:toggleAxeStyle},{t:'ANIM SET',v:()=>animSet.toUpperCase(),run:toggleUal},{t:'EDIT',run:editStart},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},BACK]; }},
-    anims_enemies:{name:'ANIMATIONS: ENEMIES',up:'anims',get items(){ return animRows('enemies').concat([BACK_ANIM]); }},
+    anims:{name:'ANIMATIONS (TEMP)',get items(){ return [{t:'ANIM SET',v:()=>animSet.toUpperCase(),run:toggleUal},{t:'ENEMIES',go:'anims_enemies'},{t:'SELF',go:'anims_self'},{t:'SHOPKEEPER',go:'anims_shop'},{t:'MISC',go:'anims_misc'},BACK]; }},
+    anims_misc:{name:'ANIMATIONS: MISC',up:'anims',items:[{t:'EDIT',run:editStart},BACK_ANIM]},
+    anims_enemies:{name:'ANIMATIONS: ENEMIES',up:'anims',get items(){ return EV_ENEMIES.map(e=>({t:e.name,go:'anims_en_'+e.key})).concat([BACK_ANIM]); }},
+    anims_en_golem:{name:'ENEMIES: GOLEM',up:'anims_enemies',get items(){ return evRows('golem').concat([BACK_ENEMIES]); }},
+    anims_en_treeling:{name:'ENEMIES: TREELING',up:'anims_enemies',get items(){ return evRows('treeling').concat([BACK_ENEMIES]); }},
+    anims_en_sporeling:{name:'ENEMIES: SPORELING',up:'anims_enemies',get items(){ return evRows('sporeling').concat([BACK_ENEMIES]); }},
+    anims_en_slime:{name:'ENEMIES: SLIME',up:'anims_enemies',get items(){ return evRows('slime').concat([BACK_ENEMIES]); }},
     anims_self:{name:'ANIMATIONS: SELF',up:'anims',get items(){ return animRows('self').concat([BACK_ANIM]); }},
     anims_shop:{name:'ANIMATIONS: SHOPKEEPER',up:'anims',get items(){ return animRows('shop').concat([BACK_ANIM]); }},
     options:{name:'OPTIONS',items:[{t:'GRAPHICS',go:'opt_gfx'},{t:'WORLD',go:'opt_world'},{t:'SOUND',go:'opt_sound'},{t:'KNIGHT',go:'opt_knight'},BACK]},
