@@ -592,28 +592,38 @@ function applyFogThickness(){
   const s=Math.pow(1.3,5-fogT), nn=fogRec.base[0]*s, ff=fogRec.base[1]*s;
   U.uFogNear.value=nn; U.uFogFar.value=ff; fogRec.set=[nn,ff];
 }
-/* ---------- time of day: OPTIONS > WORLD > TIME = AUTO (your computer's clock) / DAY / DAWN-DUSK / NIGHT ----------
+/* ---------- time of day: OPTIONS > WORLD > TIME = AUTO (your computer's clock) or a slider over the 24 hours ----------
    Everything hangs off one number, the sun's elevation `e` in degrees (AUTO: from the local clock and the time of year; the others: fixed). From it come the darkness d (0 day .. 1 night) and the
    twilight warmth w (peaks as the sun touches the horizon). The look eases towards its target, so changing the setting (or the clock moving on) is always a slow blend, never a jump.
    The sky is a banded gradient dome (chunky steps, like the rest) whose horizon is always the fog colour, with a low sun, a warm glow, and stars / moon that fade in as it darkens. */
-const TOD_ORDER=['auto','day','dusk','night'], TOD_LABEL={auto:'AUTO',day:'DAY',dusk:'DAWN/DUSK',night:'NIGHT'};
 const TOD={duskGlow:0xff8a4a, dawnGlow:0xff9fb0, duskPlum:0x6a3f86, dawnPlum:0x7c6a9e, duskTop:0x3a4aa0, dawnTop:0x5a6cb4, nightTop:0x040716, deepTop:0x141a52, warm:[1.0,0.88,0.7], ease:2.2, bands:12};
-let timeMode='auto', todHold=null, lookSnap=true, todDome=null, todD=1, todApplied=null;   // todHold 'day': the inventory / editor force daylight
+let todHour=null, todHold=null, lookSnap=true, todDome=null, todD=1, todApplied=null;   // todHold 'day': the inventory / editor force daylight
 const todL={e:-45,azi:0,dp:0}, todT={e:-45,azi:0,dp:0};
 const _tdG=new THREE.Color(), _tdP=new THREE.Color(), _tdH=new THREE.Color(), _tdT=new THREE.Color(), _tdW=new THREE.Color(), _tdC=new THREE.Color(), _todBase={hor:new THREE.Color(),top:new THREE.Color()};
 const sstep=(a,b,x)=>{ x=Math.min(1,Math.max(0,(x-a)/(b-a))); return x*x*(3-2*x); };
-function setTimeMode(m){ timeMode=m; }
+function setTimeMode(m){ todHour=(m==='auto')?null:m; }   // 'auto' = the local clock, or an hour 0..23
+function clockHour(){ const t=new Date(); return t.getHours()+t.getMinutes()/60+t.getSeconds()/3600; }
+function todSlide(d){   // OPTIONS > WORLD > TIME slider: AUTO, then 12 AM .. 11 PM; LEFT / RIGHT step it, a click flips AUTO <-> the current hour
+  const cur=todHour===null?-1:todHour; let n;
+  if(!d) n=cur<0?Math.floor(clockHour()):-1;
+  else { n=cur<0?Math.floor(clockHour()):cur+d; if(n>23||n<0) n=-1; }
+  todHour=n<0?null:n;
+}
+function todText(){
+  if(todHour===null) return 'AUTO';
+  const n=Math.floor(todHour/2), h=todHour%12||12;
+  return '#'.repeat(n)+'.'.repeat(12-n)+' '+h+(todHour<12?' AM':' PM');
+}
 function setNight(on){ todHold=on?null:'day'; lookSnap=true; }   // (kept for old callers)
-function clockSun(o){   // sun elevation / bearing from the local clock: noon at 12:30, day length swinging with the season
-  const t=new Date(), h=t.getHours()+t.getMinutes()/60+t.getSeconds()/3600, doy=Math.floor((t-new Date(t.getFullYear(),0,0))/864e5);
+function clockSun(o,hr){   // sun elevation / bearing from the local clock: noon at 12:30, day length swinging with the season
+  const t=new Date(), h=(hr===undefined||hr===null)?t.getHours()+t.getMinutes()/60+t.getSeconds()/3600:hr, doy=Math.floor((t-new Date(t.getFullYear(),0,0))/864e5);
   const L=6+1.25*Math.sin(2*Math.PI*(doy-80)/365), alt=Math.cos(2*Math.PI*(h-12.5)/24)-Math.cos(Math.PI*L/12);
   o.e=alt*65; o.azi=Math.max(-1.3,Math.min(1.3,(h-12.5)/L))*100; o.dp=h<12.5?1:0; return o;
 }
 function todTarget(){
   const o=todT;
-  if(todHold==='day'||timeMode==='day'){ o.e=48; o.azi=-20; o.dp=0; }
-  else if(timeMode==='night'){ o.e=-45; o.azi=0; o.dp=0; }
-  else { clockSun(o); if(timeMode==='dusk'){ o.e=-1.2; o.azi=o.dp?-95:95; } }
+  if(todHold==='day'){ o.e=48; o.azi=-20; o.dp=0; }
+  else clockSun(o,todHour);
 }
 function applyLook(){
   const e=todL.e, d=1-sstep(-10,6,e), w=Math.exp(-Math.pow((e+2)/8,2)), dp=todL.dp, dayHor=forest?SKY_FOREST:SKY_CLASSIC;
@@ -5173,7 +5183,7 @@ function initMainMenu(){
       {t:'SHINE',v:()=>shineOn?'ON':'OFF',run:toggleShine},BACK_OPT]},
     opt_world:{name:'WORLD',up:'options',items:[
       {t:'WORLD',v:()=>forest?'FOREST':'CLASSIC',run:()=>setWorld(!forest)},
-      {t:'TIME',v:()=>TOD_LABEL[timeMode],run:()=>setTimeMode(TOD_ORDER[(TOD_ORDER.indexOf(timeMode)+1)%TOD_ORDER.length])},
+      {t:'TIME',v:todText,adj:todSlide},   // AUTO (local clock) or a slider over the 24 hours: LEFT / RIGHT
       {t:'FOG',v:()=>'#'.repeat(fogT)+'.'.repeat(9-fogT),adj:d=>{ fogT=d?Math.max(1,Math.min(9,fogT+d)):fogT%9+1; }},   // thickness: LEFT / RIGHT (or click) - 5 is the normal fog
       {t:'LEAVES',v:()=>leavesOn?'ON':'OFF',run:toggleLeaves},
       {t:'SNOW',v:()=>snowOn?'ON':'OFF',run:()=>{ snowOn=!snowOn; }},BACK_OPT]},
