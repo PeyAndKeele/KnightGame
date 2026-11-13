@@ -2074,7 +2074,7 @@ function updateHelm6Face(dt){
 /* ---------- the shopkeeper's own Helmet 6 face ----------
    Only the shopkeeper's helmet uses these (shop-face-data: the kris*.gif art, 85x85, two frames of 500 ms each: normal, talking, angrytalking, spite).
    The player's and the enemies' Helmet 6 keep the original face above. shopFaceSet('talking') etc. switches it (also from the console: shopFace('talking')).
-   SHOP_H6_GREY: the parts of his helmet that are pure black in the texture (the ones that never shine) show this grey instead - 0 is black, 1 is white. */
+   SHOP_H6_GREY: the parts of their helmet that are pure black in the texture (the ones that never shine) show this grey instead - 0 is black, 1 is white. */
 const SHOP_H6_GREY=0.40;
 /* The shopkeeper's helmet = Helmet 6's shape with the textures of shop-helmet-data (the gltf's retextured helmet). The areas that used to be pure black (never shine) were kept: they carry alpha 254 in
    the new textures and uMaskNoShine reads that. The plume colour is the ph variable in spawnShopKeeperInBuilding. */
@@ -4166,15 +4166,14 @@ addEventListener('keydown',e=>{
   if(!mapMode||dgBusy) return;
   if(shopT>=0){
     const k=e.key;
-    if(shopDlg.on){ e.preventDefault(); if(k==='Escape'||k==='Backspace') shopDlgSkip(); else if(k==='Enter'||k===' '||k==='z'||k==='Z') shopDlgAdvance(); }   // while she talks: ENTER / SPACE / Z go on, ESC skips the rest
-    else if(k==='Escape'||k==='Backspace'){ e.preventDefault(); if(shopView!=='main') shopBack(); else shopFarewell(); }   // in the BUY / TALK lists Escape goes back to the main panel, there it makes her say bye and leaves the shop
+    if(shopDlg.on){ e.preventDefault(); if(k==='Escape'||k==='Backspace') shopDlgSkip(); else if(k==='Enter'||k===' '||k==='z'||k==='Z') shopDlgAdvance(); }   // while Kris talks: ENTER / SPACE / Z go on, ESC skips the rest
+    else if(k==='Escape'||k==='Backspace'){ e.preventDefault(); if(shopView!=='main') shopBack(); else shopFarewell(); }   // in the BUY / TALK lists Escape goes back to the main panel, there it makes Kris say bye and leaves the shop
     else if(shopUi&&shopUi.classList.contains('on')){
       if(k==='ArrowUp'||k==='w'||k==='W'){ e.preventDefault(); shopSelect(shopCur-1,true); }
       else if(k==='ArrowDown'||k==='s'||k==='S'){ e.preventDefault(); shopSelect(shopCur+1,true); }
       else if(k==='Enter'||k===' '){ e.preventDefault(); shopActivate(); }
-      else if(shopView==='main'&&((k==='ArrowRight'&&shopCur<3)||(k==='ArrowLeft'&&shopCur===2))){ e.preventDefault(); shopActivate(); }   // right opens BUY; left / right flip USHINE
+      else if(shopView==='main'&&k==='ArrowRight'&&shopCur<2){ e.preventDefault(); shopActivate(); }   // right opens BUY / TALK
       else if(shopView!=='main'&&k==='ArrowLeft'){ e.preventDefault(); shopBack(); }
-      else if(k==='u'||k==='U') document.getElementById('shop-ushine-btn').click();
     }
     return;
   }   // in the shop, Escape walks back out
@@ -4198,10 +4197,10 @@ const SHOP_CLEAR=2.3, SHOP_LANE=1.4;   // trees are cleared inside this radius a
 const shopF=new THREE.Vector3(1,0,0); let shopCleared=null;   // shopF: the way the front of the stall faces (set when it is placed: toward the knight)
 /* ---------- the shop's item list ----------
    One entry per labelled cylinder in the stall model, named from its label ('SWORD HANDLE HERE. BLADE POINT DOWN.' -> SWORD, 'HATCHED HERE. POINT UP.' -> HATCHET, ...), in the order they are in the model.
-   The picked entry's item turns slowly on its hook. UP / DOWN (or W / S) pick, the mouse works too. The old test controls are gone (talk / end talk) or hidden (shine: the U key still does it). */
-let shopItems=[], shopSel=-1, shopView='main', shopCur=0;   // shopView: 'main' (BUY, USHINE) or 'buy' (the items, then BACK); shopCur: the highlighted row of that view; shopSel: the picked item (only in 'buy')
+   The picked entry's item turns slowly on its hook. UP / DOWN (or W / S) pick, the mouse works too. The old test controls (shine, talk, end talk) are gone. */
+let shopItems=[], shopSel=-1, shopView='main', shopCur=0;   // shopView: 'main' (BUY, TALK, SELL, BACK) or 'buy' (the items, then BACK); shopCur: the highlighted row of that view; shopSel: the picked item (only in 'buy')
 function shopLabel(n){ let s=n.split(/[\s_]+HERE(?=[\s_.]|$)/i)[0].trim().toUpperCase().replace(/[\s_]+HANDLE$/,'').replace(/_/g,' '); return s==='HATCHED'?'HATCHET':s; }
-function shopRowCount(){ return shopView==='buy'?shopItems.length+1:shopView==='talk'?SHOP_VOICE.talk.length+1:4; }   // main: BUY, TALK, USHINE, BACK - buy: every item, then BACK - talk: each question, then BACK
+function shopRowCount(){ return shopView==='buy'?shopItems.length+1:shopView==='talk'?SHOP_VOICE.talk.length+1:4; }   // main: BUY, TALK, SELL, BACK - buy: every item, then BACK - talk: each question, then BACK
 function shopMarkSel(){
   if(!shopUi) return;
   const rows=shopUi.querySelectorAll(shopView==='buy'?'.shopbuy':shopView==='talk'?'.shoptalk':'.shopmain');
@@ -4218,7 +4217,7 @@ function shopSetView(v){
 function shopBack(){ blip(300,0.08); shopSetView('main'); }
 function shopActivate(){   // Enter / Space / a click on the highlighted row
   if(shopDlg.on) return;
-  if(shopView==='main'){ blip(880,0.09); if(shopCur===0) shopSetView('buy'); else if(shopCur===1) shopSetView('talk'); else if(shopCur===2) setShopUShine(!shopShineOn); else shopFarewell(); }
+  if(shopView==='main'){ blip(880,0.09); if(shopCur===0) shopSetView('buy'); else if(shopCur===1) shopSetView('talk'); else if(shopCur===2) shopSell(); else shopFarewell(); }
   else if(shopView==='talk'){ if(shopCur>=SHOP_VOICE.talk.length) shopBack(); else { blip(880,0.09); shopAsk(shopCur); } }
   else if(shopCur>=shopItems.length) shopBack();
   else { blip(880,0.09); if(window.toast) window.toast('COMING SOON'); }   // (nothing to pay with yet)
@@ -4564,19 +4563,19 @@ function placeShopCrates(root,groundY){
   }catch(e){ console.error('shop failed',e); }
 })();
 let shopEvt={clock:0,next:6};
-function shopEvtStep(dt){   // every 5-11 s of plain idling he plays ShopIdleAnimation1 once, then settles back into ShopIdle
+function shopEvtStep(dt){   // every 5-11 s of plain idling the keeper plays ShopIdleAnimation1 once, then settles back into ShopIdle
   const sk=shopKeeper; if(!sk||!actions.ShopIdleAnimation1) return;
   if(sk.curAct!==sk.idleAct||shopTalkOn){ shopEvt.clock=0; return; }   // not while talking, or while the event is already playing
   shopEvt.clock+=dt; if(shopEvt.clock<shopEvt.next) return;
   const a=sk.mixer.clipAction(actions.ShopIdleAnimation1.getClip()); a.reset(); a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true;
   sk.curAct.crossFadeTo(a,0.2,false); a.play(); sk.curAct=a;
   const onFin=e=>{ if(e.action!==a) return; sk.mixer.removeEventListener('finished',onFin);
-    if(sk.curAct===a){ const idle=sk.idleAct; idle.reset(); a.crossFadeTo(idle,0.25,false); idle.play(); sk.curAct=idle; } };   // (if he started talking meanwhile, the talk clips already took over)
+    if(sk.curAct===a){ const idle=sk.idleAct; idle.reset(); a.crossFadeTo(idle,0.25,false); idle.play(); sk.curAct=idle; } };   // (if the keeper started talking meanwhile, the talk clips already took over)
   sk.mixer.addEventListener('finished',onFin); shopEvt.clock=0; shopEvt.next=5+Math.random()*6;
 }
 function spawnShopKeeperInBuilding(){
   if(shopKeeper||!shopGroup||!knightScene||!actions.ShopIdle) return;
-  if(helmetNames.indexOf('Helmet 6')<0||!helm6.pane) return;   // the helmets (and Helmet 6's face pane) load a moment after the model; the keeper is cloned only once they are there, or he would end up with the first helmet
+  if(helmetNames.indexOf('Helmet 6')<0||!helm6.pane) return;   // the helmets (and Helmet 6's face pane) load a moment after the model; the keeper is cloned only once they are there, or the keeper would end up with the first helmet
   const root=(()=>{ const st=[]; knightScene.traverse(o=>{ if(o.userData&&Object.keys(o.userData).length){ st.push([o,o.userData]); o.userData={}; } }); try{ return knightScene.clone(true); } finally{ st.forEach(([o,u])=>{ o.userData=u; }); } })();
   const cache=new Map(), pTex=[], rocks=[];
   root.scale.x=MIRROR_MODEL?1:-1;   // the keeper is mirrored the other way from the player, so every shop clip plays flipped left-for-right (mirroring the model is the exact way to mirror an animation: see MIRROR_MODEL)
@@ -4585,7 +4584,7 @@ function spawnShopKeeperInBuilding(){
   knightScene.traverse(o=>oL.push(o)); root.traverse(o=>cL.push(o));
   helmetSets.forEach((set,j)=>set.forEach(m=>{ const cm=cL[oL.indexOf(m)]; if(cm) cm.visible=(j===h6Idx); }));
   shopKeeperMats=[];
-  const ah='#a38aeb', ph='#9177b6';   // ph: the keeper's plume colour, sampled from his new helmet's plume texture
+  const ah='#a38aeb', ph='#9177b6';   // ph: the keeper's plume colour, sampled from their new helmet's plume texture
   root.traverse(o=>{
     if(o.name==='SeatRock') rocks.push(o);
     if(!o.isMesh||o.name==='SeatRock') return;
@@ -4602,7 +4601,7 @@ function spawnShopKeeperInBuilding(){
           tintOne({tex:t,ctx:cv.getContext('2d'),base:pl.base,avgL:pl.avgL},ph); tex=t; pTex.push(t);
         }
       }
-      nm=ps1Mat(tex,1); if(/h6_/.test(o.name)){ nm.uniforms.uBlackNoShine.value=1; nm.uniforms.uBlackGrey.value=SHOP_H6_GREY; }   // (until shopHelmApply swaps in his new helmet textures)
+      nm=ps1Mat(tex,1); if(/h6_/.test(o.name)){ nm.uniforms.uBlackNoShine.value=1; nm.uniforms.uBlackGrey.value=SHOP_H6_GREY; }   // (until shopHelmApply swaps in their new helmet textures)
       if(!isPl) tintMat(nm,ah,SHOP_ARMOR_TINT);
       nm.uniforms.uShine.value=shopShineOn?1:0;
       if(/Plume$/.test(o.name)) nm.uniforms.uShine.value=0; else shopKeeperMats.push(nm);   // the plume never shines
@@ -4624,11 +4623,11 @@ function spawnShopKeeperInBuilding(){
   shopHelmLoad(); shopHelmApply(root);
   shopFitKeeper(shopKeeper);
 }
-/* The keeper's arms rest on the counter. ShopIdle holds his hands about 1.2 high, a little below the counter top and well short of the shelf, so he is lifted and moved up to the counter:
-   measured on the real pose (every 1/12 of the idle loop, the posed hand meshes in the stall's space), his lowest hand point ends on the shelf's top face and his hands reach SHOP_REST of the way across it.
+/* The keeper's arms rest on the counter. ShopIdle holds their hands about 1.2 high, a little below the counter top and well short of the shelf, so the keeper is lifted and moved up to the counter:
+   measured on the real pose (every 1/12 of the idle loop, the posed hand meshes in the stall's space), their lowest hand point ends on the shelf's top face and their hands reach SHOP_REST of the way across it.
    SHOP_TABLE is that shelf in the stall's own model units: the height of its top face, and where it starts / ends toward the open front (+x). */
-const SHOP_TABLE={top:0.281,x0:0.234,x1:0.484}, SHOP_REST=0.6;   // how far across the shelf his hands reach (0 = back edge, 1 = front edge): 0.3 -> 0.6 moves him forward over the table
-const SHOP_KEEPER_NUDGE=-0.0549;   // his extra height relative to the table, in the stall's model units (so it scales with the stall)
+const SHOP_TABLE={top:0.281,x0:0.234,x1:0.484}, SHOP_REST=0.6;   // how far across the shelf their hands reach (0 = back edge, 1 = front edge): 0.3 -> 0.6 moves them forward over the table
+const SHOP_KEEPER_NUDGE=-0.0549;   // their extra height relative to the table, in the stall's model units (so it scales with the stall)
 function shopFitKeeper(sk){
   const hands=['Adventurer_Left_Hand','Adventurer_Right_Hand'].map(n=>sk.root.getObjectByName(n)).filter(Boolean);
   if(!hands.length||!shopRoot) return;
@@ -4643,7 +4642,7 @@ function shopFitKeeper(sk){
   const X=m=>m*shopScale+shopRoot.position.x, topY=SHOP_TABLE.top*shopScale+shopRoot.position.y;
   const wantX=X(SHOP_TABLE.x0)+SHOP_REST*(X(SHOP_TABLE.x1)-X(SHOP_TABLE.x0));
   const dy=Math.max(0,Math.min(0.8*playerH,topY-low)), dx=Math.max(-0.5*playerH,Math.min(1.2*playerH,wantX-fx/n));   // (clamped, in case the pose ever measures oddly)
-  sk.rig.position.y+=dy+SHOP_KEEPER_NUDGE*shopScale; sk.rig.position.x+=dx;   // SHOP_KEEPER_LIFT: extra height (knight-heights) so his arms, not just his hands, sit on the table; x / z unchanged
+  sk.rig.position.y+=dy+SHOP_KEEPER_NUDGE*shopScale; sk.rig.position.x+=dx;   // SHOP_KEEPER_LIFT: extra height (knight-heights) so their arms, not just their hands, sit on the table; x / z unchanged
 }
 function shopSync(){   // put the stall on its spot (once the knight's home is known) and show it everywhere but inside the ruins
   if(!shopGroup) return;
@@ -4665,15 +4664,16 @@ function shopSync(){   // put the stall on its spot (once the knight's home is k
   }
 }
 /* ---------- KRIS TALKS: Undertale-style voice lines in the shop ----------
-   She greets you when the shop opens, TALK (second row) lets you ask her things, and BACK / ESC makes her say goodbye before you are back on the map. The words are all in SHOP_VOICE: `f` on a line picks her face
+   Kris greets you when the shop opens, TALK (second row) lets you ask Kris things, and BACK / ESC makes Kris say goodbye before you are back on the map. The words are all in SHOP_VOICE: `f` on a line picks their face
    (default 'talking'; 'angrytalking' for the sassy ones), words in CAPS are drawn in gold. The text appears letter by letter in the box along the bottom (it is a short strip, so the shop stays visible),
    with a little cat meow slice (shop-meow-data: five meows) for every couple of letters. ENTER / SPACE / Z / a click on the box: finish the line, then the next one. ESC: skip the rest.
-   While she speaks she plays the talking animation and the camera moves in on her (the old TALK / END TALK test controls, T and E, are what it runs). */
+   While Kris speaks Kris plays the talking animation and the camera moves in on Kris (the old TALK / END TALK test controls, T and E, are what it runs). */
 const SHOP_VOICE={
   greet:["Oh, hey. What's up.","You new around here?",{t:"I sell things. Buy them.",f:'angrytalking'},"You know I could really go for Chinese food."],
   talk:[{q:'WHO ARE YOU?',a:["I'm a talking cat."]},{q:'WHAT DO YOU SELL?',a:[{t:"Why don't you LOOK before asking STUPID questions?",f:'angrytalking'}]}],
+  sell:[{t:"I don't want your JUNK.",f:'angrytalking'}],   // SELL on the main panel: Kris says this (CAPS words in gold) with their angry face
   bye:["Um. Okay. Bye."],
-  cps:30, pause:{',':0.16,'.':0.3,'!':0.3,'?':0.3}, every:2, gain:0.55, byeWait:0.9   // letters per second, the wait after punctuation (s), a meow every N letters, meow volume, how long she waits before you leave
+  cps:30, pause:{',':0.16,'.':0.3,'!':0.3,'?':0.3}, every:2, gain:0.55, byeWait:0.9   // letters per second, the wait after punctuation (s), a meow every N letters, meow volume, how long Kris waits before you leave
 };
 const SHOP_CSS=`
 /* Where everything sits (landscape): the shop panel top-left, the song button top-right, the chat bar along the bottom. --sdH is the room the chat bar can take (three lines of text,
@@ -4734,7 +4734,7 @@ function shopPlayClip(name,loop,next){
     shopKeeper.mixer.addEventListener('finished',onFin);
   }
 }
-function shopTalkAnim(on){   // the talking animation + the camera moving in on her (on), or the outro + the camera pulling back (off)
+function shopTalkAnim(on){   // the talking animation + the camera moving in on Kris (on), or the outro + the camera pulling back (off)
   if(!shopKeeper||shopDlg.animOn===on) return; shopDlg.animOn=on;
   if(on){
     if(actions.ShopIdleAnimationIntoTalk){ shopTalkOn=true; shopPlayClip('ShopIdleAnimationIntoTalk',false,()=>shopPlayClip('ShopIdleAnimationWhileTalking',true)); }
@@ -4760,7 +4760,7 @@ function shopDlgStart(){
 }
 function shopDlgDrawn(){ shopDlg.txt.innerHTML=_dlgEsc(shopDlg.cur.t.slice(0,shopDlg.pos)); }
 function shopDlgDone(){   // the line is fully typed: the little arrow blinks
-  shopDlg.typing=false; shopDlg.el.classList.add('wait');   // (her face stays as the line set it - it goes back to normal only when the box closes, see shopDlgEnd)
+  shopDlg.typing=false; shopDlg.el.classList.add('wait');   // (their face stays as the line set it - it goes back to normal only when the box closes, see shopDlgEnd)
   if(shopDlg.auto&&shopDlg.li>=shopDlg.lines.length-1) shopDlg.autoT=shopDlg.auto;
 }
 function shopDlgLoop(now){
@@ -4802,25 +4802,26 @@ function shopDlgReset(){   // a new visit (or leaving): nothing half-said, the t
   if(shopUi) shopUi.classList.remove('busy'); if(shopLbl) shopLbl.classList.remove('hush');
   if(shopDlg.animOn) shopTalkAnim(false); shopDlg.animOn=false; shopDlg.greeted=false;
 }
-function shopGreet(){   // she says ONE of the greet lines, picked at random (never the same one twice in a row)
+function shopGreet(){   // Kris says ONE of the greet lines, picked at random (never the same one twice in a row)
   const g=SHOP_VOICE.greet; let i=Math.floor(Math.random()*g.length); if(g.length>1&&i===shopDlg.lastGreet) i=(i+1+Math.floor(Math.random()*(g.length-1)))%g.length;
   shopDlg.lastGreet=i; shopSay([g[i]]);
 }
 function shopAsk(i){ shopSay(SHOP_VOICE.talk[i].a); }
-function shopFarewell(){ if(shopDlg.on||shopOut||shopT<0) return; shopSay(SHOP_VOICE.bye,()=>exitShop(),SHOP_VOICE.byeWait); }   // she says bye, then it is the map (not the main menu) again
+function shopSell(){ shopSay(SHOP_VOICE.sell); }   // works like a TALK question: Kris zooms in, talks, and keeps their face until the box closes
+function shopFarewell(){ if(shopDlg.on||shopOut||shopT<0) return; shopSay(SHOP_VOICE.bye,()=>exitShop(),SHOP_VOICE.byeWait); }   // Kris says bye, then it is the map (not the main menu) again
 function enterShop(){
   if(shopT>=0||!shopGroup||!shopPlaced) return;
   shopDlgReset();
   document.body.classList.remove('mapui'); mapPings.forEach(q=>q.el.classList.remove('on'));
   shopTalkOn=false; shopTalkK=0; setShopMusic(true); shopFrom={p:camera.position.clone(),pit:camera.rotation.x,yaw:camera.rotation.y,view:mapViewK}; shopFog=[U.uFogNear.value,U.uFogFar.value]; shopOut=false; shopT=0;
   if(!shopLbl){
-    /* Shop UI on the left with toggleable uShine and Talk controls */
+    /* Shop UI on the left */
     shopCssInit();
     shopUi=document.createElement('div'); shopUi.id='shopui';
     shopUi.innerHTML='<div class="shophead" style="border-bottom:2px solid var(--ui-edge);padding-bottom:6px;margin-bottom:8px">SHOP</div>'
       +'<button class="mi shopmain" data-m="0" type="button"><span>BUY</span><span class="v">&#9654;</span></button>'
       +'<button class="mi shopmain" data-m="1" type="button"><span>TALK</span><span class="v">&#9654;</span></button>'
-      +'<button class="mi shopmain" id="shop-ushine-btn" data-m="2" type="button"><span>USHINE</span><span class="v">'+(shopShineOn?'ON':'OFF')+'</span></button>'
+      +'<button class="mi shopmain" data-m="2" type="button"><span>SELL</span></button>'
       +'<button class="mi shopmain" data-m="3" type="button"><span>BACK</span></button>'
       +'<div class="shoptalklist">'+SHOP_VOICE.talk.map((q,k)=>'<button class="mi shoptalk" data-i="'+k+'" type="button"><span>'+q.q+'</span></button>').join('')+'<button class="mi shoptalk" data-i="'+SHOP_VOICE.talk.length+'" type="button"><span>BACK</span></button></div>'
       +'<div class="shoplist">'+shopItems.map((it,k)=>'<button class="mi shopbuy" data-i="'+k+'" type="button"><span>'+it.label+'</span></button>').join('')+'<button class="mi shopbuy" data-i="'+shopItems.length+'" type="button"><span>BACK</span></button></div>';
@@ -4828,14 +4829,13 @@ function enterShop(){
     shopUi.querySelectorAll('.shopmain').forEach(b=>{ const i=+b.dataset.m; b.onmouseenter=()=>shopSelect(i,true); b.onclick=()=>{ shopSelect(i,false); shopActivate(); }; });
     shopUi.querySelectorAll('.shopbuy').forEach(b=>{ const i=+b.dataset.i; b.onmouseenter=()=>shopSelect(i,true); b.onclick=()=>{ shopSelect(i,false); shopActivate(); }; });
     shopUi.querySelectorAll('.shoptalk').forEach(b=>{ const i=+b.dataset.i; b.onmouseenter=()=>shopSelect(i,true); b.onclick=()=>{ shopSelect(i,false); shopActivate(); }; });
-    document.getElementById('shop-ushine-btn').onclick=()=>{ blip(880,0.09); setShopUShine(!shopShineOn); };   // (also what the U key presses)
     shopSongBtn=document.createElement('div'); shopSongBtn.id='shopsong'; shopSongLabel(); document.body.appendChild(shopSongBtn);
     shopSongBtn.addEventListener('click',e=>{ e.stopPropagation(); shopSongNext(); }); shopSongBtn.addEventListener('pointerdown',e=>e.stopPropagation());
     shopLbl=document.createElement('div'); shopLbl.id='shoplbl'; shopLbl.innerHTML='SHOP<small>ESC: LEAVE</small>'; document.body.appendChild(shopLbl);
   }
   shopDlgInit(); shopSetView('main');   // every visit starts on the main panel
 }
-let shopTalkOn=false, shopTalkK=0; const _tkV=new THREE.Vector3(); const SHOP_TALK_DIST=1.2;   // SHOP_TALK_DIST: how far (knight-heights) in front of the keeper's face the camera stops while he talks
+let shopTalkOn=false, shopTalkK=0; const _tkV=new THREE.Vector3(); const SHOP_TALK_DIST=1.2;   // SHOP_TALK_DIST: how far (knight-heights) in front of the keeper's face the camera stops while the keeper talks
 function shopTalkCam(dt,u){
   const want=shopTalkOn?1:0; shopTalkK+=(want-shopTalkK)*(1-Math.exp(-dt*3.5)); if(Math.abs(want-shopTalkK)<0.002) shopTalkK=want;
   if(shopTalkK<=0||u<1||!shopKeeper) return;
@@ -4854,7 +4854,7 @@ function shopStep(dt){
   U.uFogNear.value=mapLerp(shopFog[0],SHOP_FOG[0]*H,kx); U.uFogFar.value=mapLerp(shopFog[1],SHOP_FOG[1]*H,kx);   // thin haze instead of the menu's thick fog
   const tk=shopTalkK*shopTalkK*(3-2*shopTalkK), vk=mapLerp(shopFrom.view,SHOP_VIEW,kx)*(1-tk); if(Math.abs(vk-mapViewK)>1e-4){ mapViewK=vk; applyView(); }   // the stall slides a little right of center
   if(shopUi) shopUi.classList.toggle('on',u>=1&&!shopOut);
-  if(u>=1&&!shopOut&&!shopDlg.greeted){ shopDlg.greeted=true; shopGreet(); }   // she says hello once you are at the stall
+  if(u>=1&&!shopOut&&!shopDlg.greeted){ shopDlg.greeted=true; shopGreet(); }   // Kris says hello once you are at the stall
   if(shopLbl) shopLbl.classList.toggle('on',u>=1&&!shopOut); if(shopSongBtn) shopSongBtn.classList.toggle('on',u>=1&&!shopOut);
   shopSpin(dt);
 }
