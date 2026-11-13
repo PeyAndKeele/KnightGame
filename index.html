@@ -149,7 +149,8 @@ body.mapui #map{opacity:1; visibility:visible; transition:opacity .45s}
 #map::before{content:""; position:absolute; inset:0; background:radial-gradient(ellipse at 50% 50%,transparent 58%,rgba(6,10,40,.65) 100%)}
 #map::after{content:""; position:absolute; inset:12px; border:2px solid rgba(212,219,247,.55); box-shadow:0 0 0 2px #000, inset 0 0 0 2px #000}
 #mapsub{position:absolute; left:36px; top:26px; font-size:20px; letter-spacing:.26em; color:var(--pick); white-space:nowrap}
-#maptitle{position:absolute; left:34px; top:46px; font-size:46px; line-height:1; letter-spacing:.12em; color:#fff; white-space:nowrap; text-shadow:0 3px 0 #8fa4ff,0 6px 0 #4558c8,4px 8px 0 #000}
+#maptitle{transition:opacity .15s; position:absolute; left:34px; top:46px; font-size:46px; line-height:1; letter-spacing:.12em; color:#fff; white-space:nowrap; text-shadow:0 3px 0 #8fa4ff,0 6px 0 #4558c8,4px 8px 0 #000}
+#maptitle.sw{opacity:0}
 #maparrow{position:absolute; left:50%; top:26px; transform:translateX(-50%); background:linear-gradient(180deg,var(--win-hi),var(--win-lo)); border:2px solid var(--edge); border-radius:6px; box-shadow:0 0 0 2px #000, 3px 3px 0 1px rgba(0,0,0,.45); color:#fff; font:inherit; font-size:24px; line-height:1; padding:6px 18px 7px; cursor:pointer; pointer-events:auto; text-shadow:2px 2px 0 #000; display:flex; align-items:center; gap:10px; letter-spacing:.12em}
 #maparrow.south{top:auto; bottom:26px}
 #maparrow:hover,#maparrow.sel{color:var(--pick); border-color:var(--pick)}
@@ -310,7 +311,7 @@ body.custscr #smatch{grid-area:12/1/auto/-1}
 #loading .part{position:absolute;left:0;top:0;image-rendering:pixelated;will-change:transform;animation:lup linear infinite}
 #loading .part.down{animation-name:ldn}
 #loading .ss{position:absolute;left:70%;top:30%;width:calc(var(--u)*8);height:var(--u);background:linear-gradient(90deg,#fff,transparent);opacity:0;animation:lss 9s linear 2s infinite}
-#loading .kh{position:absolute;left:54%;bottom:calc(var(--u)*22);width:calc(var(--u)*32);height:calc(var(--u)*32)}
+#loading .kh{position:absolute;left:calc(50% - var(--u)*14);bottom:calc(var(--u)*22);width:calc(var(--u)*32);height:calc(var(--u)*32)}
 #loading .kn{position:absolute;inset:0;overflow:hidden}
 #loading .spr{position:absolute;left:0;top:0;height:100%;image-rendering:pixelated;animation:lrun .64s steps(8) infinite}
 #loading .sh{position:absolute;left:calc(var(--u)*5);bottom:calc(var(--u)*-1);width:calc(var(--u)*20);height:calc(var(--u)*3);border-radius:50%;background:rgba(0,0,0,.4)}
@@ -430,14 +431,14 @@ body.custscr #smatch{grid-area:12/1/auto/-1}
   const cur=()=>{ try{ return new DOMMatrix(getComputedStyle(bar).transform).a||0; }catch(e){ return 0; } };   // where the bar is right now, mid-transition included
   function set(f,dur){ f=Math.min(1,Math.max(f,cur())); bar.style.transition='transform '+dur+'s '+(dur>5?'cubic-bezier(.1,.55,.25,1)':'linear'); bar.style.transform='scaleX('+f+')'; }   // never moves backwards
   /* bar and area: the bar itself is a CSS transition (it keeps creeping while models build); a timer reads it back for the % and the area */
-  let rg=0;
+  let rg=0, swT=0;
   function tick(){
     const p=cur(); lpc.textContent=Math.floor(p*100)+'%';
     const r=p<.34?0:p<.67?1:2;
     if(r!==rg && worlds.length){
       worlds[rg].classList.remove('on'); worlds[r].classList.add('on'); rg=r;
       ttl.classList.add('sw');
-      setTimeout(()=>{ const w=WORLDS[r]; ttl.textContent=w.n; ['--a1','--a2','--a3','--ag'].forEach((k,j)=>hd.style.setProperty(k,w.a[j])); ttl.classList.remove('sw'); },260);
+      clearTimeout(swT); swT=setTimeout(()=>{ const w=WORLDS[r]; ttl.textContent=w.n; ['--a1','--a2','--a3','--ag'].forEach((k,j)=>hd.style.setProperty(k,w.a[j])); ttl.classList.remove('sw'); },260);
     }
   }
   const FL=['POLISHING THE KNIGHT','FEEDING THE SLIMES','WAKING THE GOLEM. HE IS GRUMPY','COUNTING ROCKS. ALL GOOD ROCKS','SHARPENING THE SWORD','TELLING THE MORNINGSTAR TO BEHAVE','TUNING A LOT OF SONGS','TEACHING THE TREELINGS TO STAND STILL','DUSTING OFF THE MOSSY RUINS','STRAIGHTENING A BENT NAIL. MOSTLY','SHAKING THE SPORES OFF THE SPORELINGS','LOOKING FOR THE KNIGHTLY SWORD','BREWING A POTION. DO NOT DRINK','PRACTICING THE FLAUNT'];
@@ -446,7 +447,7 @@ body.custscr #smatch{grid-area:12/1/auto/-1}
   flavor(); const iv1=setInterval(tick,120), iv2=setInterval(flavor,3200);
   function loadDone(ok){
     clearInterval(iv1); clearInterval(iv2);
-    if(ok) ttl.textContent='READY!';
+    clearTimeout(swT); ttl.classList.remove('sw'); if(ok) ttl.textContent='READY!';
     setTimeout(()=>{ ov.style.opacity='0'; setTimeout(()=>ov.remove(),450); },ok?500:0);
   }
   window.addEventListener('error',e=>say('JS error: '+e.message+(e.filename?'  ('+e.filename.split('/').pop()+':'+e.lineno+')':'')));

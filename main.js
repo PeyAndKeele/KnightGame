@@ -4064,7 +4064,7 @@ function switchMapArea(area){
   MAP_SPOTS=MAP_AREAS[area].spots; mapSel=0;
   treeGroup=areaTrees(area);
   moveKnightToArea(area);
-  const tEl=document.getElementById('maptitle'); if(tEl) tEl.textContent=MAP_AREAS[area].title;
+  const tEl=document.getElementById('maptitle'); if(tEl){ tEl.classList.add('sw'); clearTimeout(tEl._t); tEl._t=setTimeout(()=>{ tEl.textContent=MAP_AREAS[area].title; tEl.classList.remove('sw'); },150); }
   mapArrows();
   mapRefresh();
 }
@@ -4109,6 +4109,7 @@ function mapConfirm(){
 function openMap(){
   if(mapMode||exploring||dungeon||dgBusy||!playerRig) return;
   swooshHide(); mapBuild();
+  { const tEl=document.getElementById('maptitle'); if(tEl){ clearTimeout(tEl._t); tEl.classList.remove('sw'); tEl.textContent=MAP_AREAS[mapArea].title; } }   // the map is still hidden here, so the right area name is in place before it fades in
   mapCam={p:camera.position.clone(), yaw:yaw, pit:-pitch, t:target.clone()};   // the menu camera as it is right now (orbit: pitch + is looking down)
   mapFog0=[U.uFogNear.value,U.uFogFar.value];
   mapMode=true; mapS=0; mapDir=1; mapSel=0; mapViewK=1; mapAcc=0;
