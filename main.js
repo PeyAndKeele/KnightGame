@@ -183,7 +183,11 @@ function ps1FloorMat(texG,texF,texI,uvScale,H){
 }
 
 /* ---------- armor tint: multiplies every part of the knight (body, limbs, boots, helmets) except the plume (own color) and the sword (own tint, or matched to the armor) ---------- */
-const armorMats=[]; let armorHex=null, armorAmt=0.55;
+/* the knight's look (armor tint, tint strength, plume colour) is kept in localStorage so the next visit starts with it, and so the loading screen's runner can wear it (see index.html) */
+const LOOK_KEY='knight-look', _hexOk=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v)?v:null;
+const _look=(function(){ try{ return JSON.parse(localStorage.getItem(LOOK_KEY)||'null')||{}; }catch(e){ return {}; } })();
+function lookSave(){ try{ localStorage.setItem(LOOK_KEY,JSON.stringify({armor:armorHex,amt:armorAmt,plume:plumeHex})); }catch(e){} }
+const armorMats=[]; let armorHex=_hexOk(_look.armor), armorAmt=(typeof _look.amt==='number'&&_look.amt>=0&&_look.amt<=1)?_look.amt:0.55;
 let shiny=true;   // fake metal shading on the armor and sword (Customize > Shiny metal)
 function shineMat(m){ m.uniforms.uShine.value=shiny?1:0; }
 const swordMats=[]; let swordHex=null, swordMatch=true;   // the blade has its own tint, or follows the armor's while swordMatch is on
@@ -378,7 +382,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
     o.material=cache.get(om.uuid);
     if(o.name!=='Plume'){ bodyMeshes.push(o); if(armorMats.indexOf(o.material)<0) armorMats.push(o.material); }
   });
-  armorMats.forEach(shineMat);
+  armorMats.forEach(shineMat); if(armorHex) applyArmorTint();   // a remembered armor colour
   const pl=gltf.scene.getObjectByName('Plume'); if(pl) setupPlume(pl.material);
   if(pl) initHelmets(pl.parent,pl.parent.children.slice());
   const rig=new THREE.Group(); rig.add(gltf.scene); if(MIRROR_MODEL) gltf.scene.scale.x=-1; rig.rotation.y=Math.PI; // model faces -Z; turn him toward the camera
@@ -477,7 +481,7 @@ new THREE.GLTFLoader().parse(raw,'',function(gltf){
 },function(e){console.error(e);const el=document.getElementById('err');el.textContent='Could not load the model: '+String((e&&e.message)||e).slice(0,160);el.style.display='block';});
 
 /* ---------- plume color ---------- */
-const plumes=[]; let plumeHex=null;
+const plumes=[]; let plumeHex=_hexOk(_look.plume);
 function toHsl(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2;let h=0,s=0;
   if(mx!==mn){const d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6;}return [h,s,l];}
 function fromHsl(h,s,l){const f=n=>{const k=(n+h*12)%12,a=s*Math.min(l,1-l);return (l-a*Math.max(-1,Math.min(k-3,9-k,1)))*255;};return [f(0),f(8),f(4)];}
@@ -2141,13 +2145,14 @@ function buildPlumeUI(){
   SW.forEach(([hex,name],i)=>{
     const b=document.createElement('button'); b.className='sw'; b.style.background=hex; b.title=name;
     b.setAttribute('aria-label',name); b.setAttribute('role','radio'); b.setAttribute('aria-checked',i===0);
-    b.onclick=()=>{ tintPlume(i===0?null:hex); mark(b); };
+    b.dataset.hex=i===0?'':hex; b.onclick=()=>{ tintPlume(i===0?null:hex); mark(b); lookSave(); };
     box.appendChild(b);
   });
   const p=document.createElement('input'); p.type='color'; p.value='#e15050'; p.className='sw'; p.title='Custom color';
   p.setAttribute('aria-label','Custom plume color'); p.setAttribute('aria-checked','false');
-  p.oninput=()=>{ tintPlume(p.value); mark(p); };
+  p.oninput=()=>{ tintPlume(p.value); mark(p); lookSave(); };
   box.appendChild(p);
+  { const hit=[...box.querySelectorAll('button.sw')].find(x=>(x.dataset.hex||'')===(plumeHex||'')); if(hit) mark(hit); else { p.value=plumeHex; mark(p); } }
   document.getElementById('plbl').hidden=false; box.hidden=false;
 }
 
@@ -2158,14 +2163,16 @@ function buildPlumeUI(){
   SW.forEach(([hex,name,show],i)=>{
     const b=document.createElement('button'); b.className='sw'; b.style.background=show||hex; b.title=name;
     b.setAttribute('aria-label',name); b.setAttribute('role','radio'); b.setAttribute('aria-checked',i===0);
-    b.onclick=()=>{ armorHex=hex; applyArmorTint(); mark(b); };
+    b.dataset.hex=hex||''; b.onclick=()=>{ armorHex=hex; applyArmorTint(); mark(b); lookSave(); };
     box.appendChild(b);
   });
   const p=document.createElement('input'); p.type='color'; p.value='#e8a23a'; p.className='sw'; p.title='Custom color';
   p.setAttribute('aria-label','Custom armor tint'); p.setAttribute('aria-checked','false');
-  p.oninput=()=>{ armorHex=p.value; applyArmorTint(); mark(p); };
+  p.oninput=()=>{ armorHex=p.value; applyArmorTint(); mark(p); lookSave(); };
   box.appendChild(p);
-  slider.oninput=()=>{ armorAmt=slider.value/100; lab.textContent='Tint strength '+slider.value+'%'; applyArmorTint(); };
+  { const hit=[...box.querySelectorAll('button.sw')].find(x=>(x.dataset.hex||'')===(armorHex||'')); if(hit) mark(hit); else { p.value=armorHex; mark(p); } }
+  slider.oninput=()=>{ armorAmt=slider.value/100; lab.textContent='Tint strength '+slider.value+'%'; applyArmorTint(); lookSave(); };
+  slider.value=Math.round(armorAmt*100); lab.textContent='Tint strength '+slider.value+'%';
 })();
 
 (function buildShinyUI(){
