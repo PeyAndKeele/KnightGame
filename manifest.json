@@ -2,496 +2,595 @@
   {
     "id": "song-data",
     "type": "text/plain",
-    "url": "song-data.txt"
+    "url": "song-data.txt",
+    "size": 5212400
   },
   {
     "id": "shop-song-data",
     "type": "text/plain",
-    "url": "shop-song-data.txt"
+    "url": "shop-song-data.txt",
+    "size": 4116768
   },
   {
     "id": "edit-song-data",
     "type": "text/plain",
-    "url": "edit-song-data.txt"
+    "url": "edit-song-data.txt",
+    "size": 4087740
   },
   {
     "id": "editposes-data",
     "type": "application/json",
-    "url": "editposes-data.json"
+    "url": "editposes-data.json",
+    "size": 14318
   },
   {
     "id": "shop-song2-data",
     "type": "text/plain",
-    "url": "shop-song2-data.txt"
+    "url": "shop-song2-data.txt",
+    "size": 2641576
   },
   {
     "id": "frost-song-data",
     "type": "text/plain",
-    "url": "frost-song-data.txt"
+    "url": "frost-song-data.txt",
+    "size": 2687908
   },
   {
     "id": "flaunt-data",
     "type": "text/plain",
-    "url": "flaunt-data.txt"
+    "url": "flaunt-data.txt",
+    "size": 2883480
   },
   {
     "id": "battle-data",
     "type": "text/plain",
-    "url": "battle-data.txt"
+    "url": "battle-data.txt",
+    "size": 3246280
   },
   {
     "id": "face-data",
     "type": "application/json",
-    "url": "face-data.json"
+    "url": "face-data.json",
+    "size": 6983
   },
   {
     "id": "helmet-data",
     "type": "application/json",
-    "url": "helmet-data.json"
+    "url": "helmet-data.json",
+    "size": 177371
   },
   {
     "id": "tree-data",
     "type": "application/json",
-    "url": "tree-data.json"
+    "url": "tree-data.json",
+    "size": 23331
   },
   {
     "id": "snow-tree-data",
     "type": "application/json",
-    "url": "snow-tree-data.json"
+    "url": "snow-tree-data.json",
+    "size": 21472
   },
   {
     "id": "rock-data",
     "type": "application/json",
-    "url": "rock-data.json"
+    "url": "rock-data.json",
+    "size": 17784
   },
   {
     "id": "snow-rock-data",
     "type": "application/json",
-    "url": "snow-rock-data.json"
+    "url": "snow-rock-data.json",
+    "size": 20235
   },
   {
     "id": "knight-data",
     "type": "application/json",
-    "url": "knight-data.json"
+    "url": "knight-data.json",
+    "size": 291984
   },
   {
     "id": "sword-data",
     "type": "application/json",
-    "url": "sword-data.json"
+    "url": "sword-data.json",
+    "size": 22308
   },
   {
     "id": "ruins-data",
     "type": "application/json",
-    "url": "ruins-data.json"
+    "url": "ruins-data.json",
+    "size": 505435
   },
   {
     "id": "pointer-data",
     "type": "text/plain",
-    "url": "pointer-data.txt"
+    "url": "pointer-data.txt",
+    "size": 5004
   },
   {
     "id": "step-data",
     "type": "application/json",
-    "url": "step-data.json"
+    "url": "step-data.json",
+    "size": 41468
   },
   {
     "id": "flaunt-sfx-data",
     "type": "application/json",
-    "url": "flaunt-sfx-data.json"
+    "url": "flaunt-sfx-data.json",
+    "size": 134756
   },
   {
     "id": "defeat-gif",
     "type": "text/plain",
-    "url": "defeat-gif.txt"
+    "url": "defeat-gif.txt",
+    "size": 2380
   },
   {
     "id": "shop-data",
     "type": "text/plain",
-    "url": "shop-data.txt"
+    "url": "shop-data.txt",
+    "size": 507540
   },
   {
     "id": "crate-data",
     "type": "text/plain",
-    "url": "crate-data.txt"
+    "url": "crate-data.txt",
+    "size": 103008
   },
   {
     "id": "defeat-sfx-data",
     "type": "application/json",
-    "url": "defeat-sfx-data.json"
+    "url": "defeat-sfx-data.json",
+    "size": 895876
   },
   {
     "id": "knife-sfx-data",
     "type": "application/json",
-    "url": "knife-sfx-data.json"
+    "url": "knife-sfx-data.json",
+    "size": 5332
   },
   {
     "id": "sword-sfx-data",
     "type": "application/json",
-    "url": "sword-sfx-data.json"
+    "url": "sword-sfx-data.json",
+    "size": 81028
   },
   {
     "id": "block-sfx-data",
     "type": "application/json",
-    "url": "block-sfx-data.json"
+    "url": "block-sfx-data.json",
+    "size": 84720
   },
   {
     "id": "pose3-data",
     "type": "application/json",
-    "url": "pose3-data.json"
+    "url": "pose3-data.json",
+    "size": 2299
   },
   {
     "id": "shopidle-data",
     "type": "application/json",
-    "url": "shopidle-data.json"
+    "url": "shopidle-data.json",
+    "size": 2918
   },
   {
     "id": "shopidleanimation1-data",
     "type": "application/json",
-    "url": "shopidleanimation1-data.json"
+    "url": "shopidleanimation1-data.json",
+    "size": 3278
   },
   {
     "id": "shopintotalk-data",
     "type": "application/json",
-    "url": "shopintotalk-data.json"
+    "url": "shopintotalk-data.json",
+    "size": 1256
   },
   {
     "id": "shopoutrotalk-data",
     "type": "application/json",
-    "url": "shopoutrotalk-data.json"
+    "url": "shopoutrotalk-data.json",
+    "size": 1268
   },
   {
     "id": "shopwhiletalking-data",
     "type": "application/json",
-    "url": "shopwhiletalking-data.json"
+    "url": "shopwhiletalking-data.json",
+    "size": 2981
   },
   {
     "id": "death-data",
     "type": "application/json",
-    "url": "death-data.json"
+    "url": "death-data.json",
+    "size": 1689
   },
   {
     "id": "axeidle-data",
     "type": "application/json",
-    "url": "axeidle-data.json"
+    "url": "axeidle-data.json",
+    "size": 1564
   },
   {
     "id": "axeswing-data",
     "type": "application/json",
-    "url": "axeswing-data.json"
+    "url": "axeswing-data.json",
+    "size": 2303
   },
   {
     "id": "axeflaunt-data",
     "type": "application/json",
-    "url": "axeflaunt-data.json"
+    "url": "axeflaunt-data.json",
+    "size": 1817
   },
   {
     "id": "flauntidleaxe-data",
     "type": "application/json",
-    "url": "flauntidleaxe-data.json"
+    "url": "flauntidleaxe-data.json",
+    "size": 1724
   },
   {
     "id": "drinkpotion-data",
     "type": "application/json",
-    "url": "drinkpotion-data.json"
+    "url": "drinkpotion-data.json",
+    "size": 1972
   },
   {
     "id": "potion-data",
     "type": "text/plain",
-    "url": "potion-data.txt"
+    "url": "potion-data.txt",
+    "size": 34840
   },
   {
     "id": "potion-sfx-data",
     "type": "application/json",
-    "url": "potion-sfx-data.json"
+    "url": "potion-sfx-data.json",
+    "size": 107676
   },
   {
     "id": "axe-data",
     "type": "application/json",
-    "url": "axe-data.json"
+    "url": "axe-data.json",
+    "size": 20524
   },
   {
     "id": "hatchet-data",
     "type": "application/json",
-    "url": "hatchet-data.json"
+    "url": "hatchet-data.json",
+    "size": 13938
   },
   {
     "id": "hammer-data",
     "type": "application/json",
-    "url": "hammer-data.json"
+    "url": "hammer-data.json",
+    "size": 30405
   },
   {
     "id": "morningstar-data",
     "type": "application/json",
-    "url": "morningstar-data.json"
+    "url": "morningstar-data.json",
+    "size": 47857
   },
   {
     "id": "knightly-sword-data",
     "type": "application/json",
-    "url": "knightly-sword-data.json"
+    "url": "knightly-sword-data.json",
+    "size": 28373
   },
   {
     "id": "grunt-data",
     "type": "application/json",
-    "url": "grunt-data.json"
+    "url": "grunt-data.json",
+    "size": 33092
   },
   {
     "id": "v2-sword-sfx-data",
     "type": "application/json",
-    "url": "v2-sword-sfx-data.json"
+    "url": "v2-sword-sfx-data.json",
+    "size": 254916
   },
   {
     "id": "v2-block-sfx-data",
     "type": "application/json",
-    "url": "v2-block-sfx-data.json"
+    "url": "v2-block-sfx-data.json",
+    "size": 87104
   },
   {
     "id": "v2-grunt-data",
     "type": "application/json",
-    "url": "v2-grunt-data.json"
+    "url": "v2-grunt-data.json",
+    "size": 192696
   },
   {
     "id": "v2-die-data",
     "type": "application/json",
-    "url": "v2-die-data.json"
+    "url": "v2-die-data.json",
+    "size": 437908
   },
   {
     "id": "v2-flaunt-sfx-data",
     "type": "application/json",
-    "url": "v2-flaunt-sfx-data.json"
+    "url": "v2-flaunt-sfx-data.json",
+    "size": 343252
   },
   {
     "id": "elemental-data",
     "type": "text/plain",
-    "url": "elemental-data.txt"
+    "url": "elemental-data.txt",
+    "size": 50860
   },
   {
     "id": "slime-atk-sfx-data",
     "type": "application/json",
-    "url": "slime-atk-sfx-data.json"
+    "url": "slime-atk-sfx-data.json",
+    "size": 133284
   },
   {
     "id": "slime-hit-sfx-data",
     "type": "application/json",
-    "url": "slime-hit-sfx-data.json"
+    "url": "slime-hit-sfx-data.json",
+    "size": 34588
   },
   {
     "id": "slime-die-sfx-data",
     "type": "application/json",
-    "url": "slime-die-sfx-data.json"
+    "url": "slime-die-sfx-data.json",
+    "size": 53908
   },
   {
     "id": "slime-win-sfx-data",
     "type": "application/json",
-    "url": "slime-win-sfx-data.json"
+    "url": "slime-win-sfx-data.json",
+    "size": 159660
   },
   {
     "id": "flip-data",
     "type": "application/json",
-    "url": "flip-data.json"
+    "url": "flip-data.json",
+    "size": 36899
   },
   {
     "id": "shop-face-data",
     "type": "application/json",
-    "url": "shop-face-data.json"
+    "url": "shop-face-data.json",
+    "size": 7055
   },
   {
     "id": "ignis-song-data",
     "type": "text/plain",
-    "url": "ignis-song-data.txt"
+    "url": "ignis-song-data.txt",
+    "size": 6427724
   },
   {
     "id": "ignis-tree-data",
     "type": "application/json",
-    "url": "ignis-tree-data.json"
+    "url": "ignis-tree-data.json",
+    "size": 28966
   },
   {
     "id": "ignis-rock-data",
     "type": "application/json",
-    "url": "ignis-rock-data.json"
+    "url": "ignis-rock-data.json",
+    "size": 19480
   },
   {
     "id": "hill-data",
     "type": "application/json",
-    "url": "hill-data.json"
+    "url": "hill-data.json",
+    "size": 34414
   },
   {
     "id": "mountain-data",
     "type": "application/json",
-    "url": "mountain-data.json"
+    "url": "mountain-data.json",
+    "size": 8057
   },
   {
     "id": "shop-helmet-data",
     "type": "application/json",
-    "url": "shop-helmet-data.json"
+    "url": "shop-helmet-data.json",
+    "size": 1817
   },
   {
     "id": "block-data",
     "type": "application/json",
-    "url": "block-data.json"
+    "url": "block-data.json",
+    "size": 2602
   },
   {
     "id": "blockidle-data",
     "type": "application/json",
-    "url": "blockidle-data.json"
+    "url": "blockidle-data.json",
+    "size": 1659
   },
   {
     "id": "block-hit-data",
     "type": "application/json",
-    "url": "block-hit-data.json"
+    "url": "block-hit-data.json",
+    "size": 164380
   },
   {
     "id": "shovel-data",
     "type": "application/json",
-    "url": "shovel-data.json"
+    "url": "shovel-data.json",
+    "size": 84796
   },
   {
     "id": "swingheavywindup-data",
     "type": "application/json",
-    "url": "swingheavywindup-data.json"
+    "url": "swingheavywindup-data.json",
+    "size": 1509
   },
   {
     "id": "swingheavyturnhold-data",
     "type": "application/json",
-    "url": "swingheavyturnhold-data.json"
+    "url": "swingheavyturnhold-data.json",
+    "size": 1381
   },
   {
     "id": "swingheavyrelease-data",
     "type": "application/json",
-    "url": "swingheavyrelease-data.json"
+    "url": "swingheavyrelease-data.json",
+    "size": 1815
   },
   {
     "id": "swing2-data",
     "type": "application/json",
-    "url": "swing2-data.json"
+    "url": "swing2-data.json",
+    "size": 2033
   },
   {
     "id": "swish-sfx-data",
     "type": "application/json",
-    "url": "swish-sfx-data.json"
+    "url": "swish-sfx-data.json",
+    "size": 332709
   },
   {
     "id": "render-swish-sfx-data",
     "type": "application/json",
-    "url": "render-swish-sfx-data.json"
+    "url": "render-swish-sfx-data.json",
+    "size": 91932
   },
   {
     "id": "render-attack-sfx-data",
     "type": "application/json",
-    "url": "render-attack-sfx-data.json"
+    "url": "render-attack-sfx-data.json",
+    "size": 549433
   },
   {
     "id": "render-hit-sfx-data",
     "type": "application/json",
-    "url": "render-hit-sfx-data.json"
+    "url": "render-hit-sfx-data.json",
+    "size": 177136
   },
   {
     "id": "render-charge-sfx-data",
     "type": "application/json",
-    "url": "render-charge-sfx-data.json"
+    "url": "render-charge-sfx-data.json",
+    "size": 63356
   },
   {
     "id": "golem-data",
     "type": "text/plain",
-    "url": "golem-data.txt"
+    "url": "golem-data.txt",
+    "size": 228280
   },
   {
     "id": "golem-attack-data",
     "type": "application/json",
-    "url": "golem-attack-data.json"
+    "url": "golem-attack-data.json",
+    "size": 6238
   },
   {
     "id": "golem-introroar-data",
     "type": "application/json",
-    "url": "golem-introroar-data.json"
+    "url": "golem-introroar-data.json",
+    "size": 1810
   },
   {
     "id": "golem-atk-sfx-data",
     "type": "application/json",
-    "url": "golem-atk-sfx-data.json"
+    "url": "golem-atk-sfx-data.json",
+    "size": 52348
   },
   {
     "id": "golem-pain-sfx-data",
     "type": "application/json",
-    "url": "golem-pain-sfx-data.json"
+    "url": "golem-pain-sfx-data.json",
+    "size": 104404
   },
   {
     "id": "golem-spawn-sfx-data",
     "type": "application/json",
-    "url": "golem-spawn-sfx-data.json"
+    "url": "golem-spawn-sfx-data.json",
+    "size": 117584
   },
   {
     "id": "treeling-data",
     "type": "text/plain",
-    "url": "treeling-data.txt"
+    "url": "treeling-data.txt",
+    "size": 103776
   },
   {
     "id": "sporeling-data",
     "type": "text/plain",
-    "url": "sporeling-data.txt"
+    "url": "sporeling-data.txt",
+    "size": 104448
   },
   {
     "id": "dance-data",
     "type": "application/json",
-    "url": "dance-data.json"
+    "url": "dance-data.json",
+    "size": 136767
   },
   {
     "id": "dance-song-data",
     "type": "text/plain",
-    "url": "dance-song-data.txt"
+    "url": "dance-song-data.txt",
+    "size": 1218128
   },
   {
     "id": "ual-data",
     "type": "application/json",
-    "url": "ual-data.json"
+    "url": "ual-data.json",
+    "size": 464765
   },
   {
     "id": "combo-sparkle-sfx-data",
     "type": "application/json",
-    "url": "combo-sparkle-sfx-data.json"
+    "url": "combo-sparkle-sfx-data.json",
+    "size": 352708
   },
   {
     "id": "dance2-data",
     "type": "application/json",
-    "url": "dance2-data.json"
+    "url": "dance2-data.json",
+    "size": 240048
   },
   {
     "id": "dance2-song-data",
     "type": "text/plain",
-    "url": "dance2-song-data.txt"
+    "url": "dance2-song-data.txt",
+    "size": 1149040
   },
   {
     "id": "dance3-data",
     "type": "application/json",
-    "url": "dance3-data.json"
+    "url": "dance3-data.json",
+    "size": 273275
   },
   {
     "id": "dance3-song-data",
     "type": "text/plain",
-    "url": "dance3-song-data.txt"
+    "url": "dance3-song-data.txt",
+    "size": 2565292
   },
   {
     "id": "pizza-data",
     "type": "application/json",
-    "url": "pizza-data.json"
+    "url": "pizza-data.json",
+    "size": 22487
   },
   {
     "id": "pizza-sfx-data",
     "type": "application/json",
-    "url": "pizza-sfx-data.json"
+    "url": "pizza-sfx-data.json",
+    "size": 312072
   },
   {
     "id": "honor-sfx-data",
     "type": "application/json",
-    "url": "honor-sfx-data.json"
+    "url": "honor-sfx-data.json",
+    "size": 82820
   },
   {
     "id": "chest-data",
     "type": "application/json",
-    "url": "chest-data.json"
+    "url": "chest-data.json",
+    "size": 179987
   },
   {
     "id": "shop-meow-data",
     "type": "application/json",
-    "url": "shop-meow-data.json"
+    "url": "shop-meow-data.json",
+    "size": 41792
   }
 ]
