@@ -1258,7 +1258,7 @@ function initMorningstar(parent){
   }).catch(e=>console.error('morningstar load failed',e));
 }
 function applyAxeStyle(){ if(axeGrp) axeGrp.children.forEach(m=>{ if(m.name.indexOf('shovel_')===0) m.visible=(axeStyle==='shovel'); else if(m.name.indexOf('axe_')===0) m.visible=(axeStyle!=='shovel'); }); }
-function toggleAxeStyle(){ axeStyle=(axeStyle==='axe')?'shovel':'axe'; if(weapon!=='axe') setWeapon('axe'); else showWeapons(); refreshAnim(); }
+function toggleAxeStyle(){ const o=['axe','shovel'].filter(owns); if(!o.length) return; axeStyle=o[(o.indexOf(axeStyle)+1)%o.length]; if(weapon!=='axe') setWeapon('axe'); else showWeapons(); refreshAnim(); }
 function initShovel(grp){   // the shovel's meshes ride in the axe's own group, so they follow every bit of the axe's logic
   const el=document.getElementById('shovel-data'); if(!el) return;
   const SD=JSON.parse(el.textContent);
@@ -1274,7 +1274,7 @@ function initShovel(grp){   // the shovel's meshes ride in the axe's own group, 
   });
 }
 function toggleStyle(){
-  swordStyle=(swordStyle==='sword')?'hatchet':(swordStyle==='hatchet')?'hammer':(swordStyle==='hammer')?'knightly':(swordStyle==='knightly')?'morningstar':'sword';
+  const o=['sword','hatchet','hammer','knightly','morningstar'].filter(owns); swordStyle=o[(o.indexOf(swordStyle)+1)%o.length]||'sword';   // only styles you own
   if(weapon!=='sword') setWeapon('sword'); else showWeapons();   // a sword style only shows on the light weapon, so changing it brings that one out
   refreshAnim();
 }
@@ -1782,6 +1782,7 @@ function setWeapon(w){
   swooshHide(); setSwitch('sword',true,w==='axe'?'Axe':'Sword');
 }
 function toggleWeapon(){
+  if(weapon!=='axe'&&!(owns('axe')||owns('shovel'))) return;   // no heavy weapon owned yet
   setWeapon(weapon==='axe'?'sword':'axe');
   refreshAnim();
 }
@@ -3429,7 +3430,7 @@ function battleReset(){
 }
 function hurtEnemy(e,dmg){
   e.hp=Math.max(0,e.hp-dmg); popup('-'+dmg,headPos({isPl:false,ent:e},new THREE.Vector3()),'');
-  if(e.hp<=0){ e.dead=true; enemyDie(e); } else enemyHit(e);
+  if(e.hp<=0){ e.dead=true; awardGold(e); enemyDie(e); } else enemyHit(e);
 }
 /* How enemies die: an enemy with a death animation plays it and stays down (the knights: the rig's Death clip). An enemy without one plays its HIT animation and fades out over FADE_OUT seconds (at least as long as the hit clip), then disappears.
    The slime's file has a clip called "death", but the game uses it as the slime's hit animation, so set SLIME_DEATH_CLIP to a clip name from that file if it ever gets a real death animation (null = hit animation + fade). */
@@ -4165,13 +4166,14 @@ addEventListener('keydown',e=>{
   if(!mapMode||dgBusy) return;
   if(shopT>=0){
     const k=e.key;
-    if(k==='Escape'||k==='Backspace'){ e.preventDefault(); if(shopView==='buy') shopBack(); else exitShop(); }   // in the BUY list Escape goes back to the main panel, there it leaves the shop
+    if(shopDlg.on){ e.preventDefault(); if(k==='Escape'||k==='Backspace') shopDlgSkip(); else if(k==='Enter'||k===' '||k==='z'||k==='Z') shopDlgAdvance(); }   // while she talks: ENTER / SPACE / Z go on, ESC skips the rest
+    else if(k==='Escape'||k==='Backspace'){ e.preventDefault(); if(shopView!=='main') shopBack(); else shopFarewell(); }   // in the BUY / TALK lists Escape goes back to the main panel, there it makes her say bye and leaves the shop
     else if(shopUi&&shopUi.classList.contains('on')){
       if(k==='ArrowUp'||k==='w'||k==='W'){ e.preventDefault(); shopSelect(shopCur-1,true); }
       else if(k==='ArrowDown'||k==='s'||k==='S'){ e.preventDefault(); shopSelect(shopCur+1,true); }
       else if(k==='Enter'||k===' '){ e.preventDefault(); shopActivate(); }
-      else if(shopView==='main'&&(k==='ArrowRight'||(k==='ArrowLeft'&&shopCur===1))){ e.preventDefault(); shopActivate(); }   // right opens BUY; left / right flip USHINE
-      else if(shopView==='buy'&&k==='ArrowLeft'){ e.preventDefault(); shopBack(); }
+      else if(shopView==='main'&&((k==='ArrowRight'&&shopCur<3)||(k==='ArrowLeft'&&shopCur===2))){ e.preventDefault(); shopActivate(); }   // right opens BUY; left / right flip USHINE
+      else if(shopView!=='main'&&k==='ArrowLeft'){ e.preventDefault(); shopBack(); }
       else if(k==='u'||k==='U') document.getElementById('shop-ushine-btn').click();
       else if(k==='t'||k==='T') document.getElementById('shop-talk-btn').click();
       else if(k==='e'||k==='E') document.getElementById('shop-endtalk-btn').click();
@@ -4201,23 +4203,25 @@ const shopF=new THREE.Vector3(1,0,0); let shopCleared=null;   // shopF: the way 
    The picked entry's item turns slowly on its hook. UP / DOWN (or W / S) pick, the mouse works too. The old test controls (shine, talk, end talk) are no longer on the panel: U, T and E still do them. */
 let shopItems=[], shopSel=-1, shopView='main', shopCur=0;   // shopView: 'main' (BUY, USHINE) or 'buy' (the items, then BACK); shopCur: the highlighted row of that view; shopSel: the picked item (only in 'buy')
 function shopLabel(n){ let s=n.split(/[\s_]+HERE(?=[\s_.]|$)/i)[0].trim().toUpperCase().replace(/[\s_]+HANDLE$/,'').replace(/_/g,' '); return s==='HATCHED'?'HATCHET':s; }
-function shopRowCount(){ return shopView==='buy'?shopItems.length+1:2; }   // main: BUY, USHINE - buy: every item, then BACK
+function shopRowCount(){ return shopView==='buy'?shopItems.length+1:shopView==='talk'?SHOP_VOICE.talk.length+1:4; }   // main: BUY, TALK, USHINE, BACK - buy: every item, then BACK - talk: each question, then BACK
 function shopMarkSel(){
   if(!shopUi) return;
-  const rows=shopUi.querySelectorAll(shopView==='buy'?'.shopbuy':'.shopmain');
+  const rows=shopUi.querySelectorAll(shopView==='buy'?'.shopbuy':shopView==='talk'?'.shoptalk':'.shopmain');
   rows.forEach((b,i)=>b.classList.toggle('on',i===shopCur));
   const r=rows[shopCur]; if(r&&r.scrollIntoView) r.scrollIntoView({block:'nearest'});   // a long list scrolls inside the panel instead of running off the screen
 }
 function shopSelect(k,sound){ const n=shopRowCount(); if(n<1) return; k=((k%n)+n)%n; if(k===shopCur) return; shopCur=k; shopSel=(shopView==='buy'&&k<shopItems.length)?k:-1; if(sound) blip(520,0.05); shopMarkSel(); }
 function shopSetView(v){
   shopView=v; shopCur=0; shopSel=(v==='buy'&&shopItems.length)?0:-1;
-  if(shopUi){ shopUi.classList.toggle('buy',v==='buy'); const h=shopUi.querySelector('.shophead'); if(h) h.textContent=(v==='buy'?'BUY':'SHOP'); }
-  if(shopLbl){ const sm=shopLbl.querySelector('small'); if(sm) sm.textContent=(v==='buy'?'ESC: BACK':'ESC: LEAVE'); }
-  shopMarkSel();
+  if(shopUi){ shopUi.classList.toggle('buy',v==='buy'); shopUi.classList.toggle('talk',v==='talk'); const h=shopUi.querySelector('.shophead'); if(h) h.textContent=(v==='buy'?'BUY':v==='talk'?'TALK':'SHOP'); }
+  if(shopLbl){ const sm=shopLbl.querySelector('small'); if(sm) sm.textContent=(v==='main'?'ESC: LEAVE':'ESC: BACK'); }
+  shopMarkSel(); if(!shopDlg.on) shopTalkOn=(v==='talk');   // in the TALK panel the camera is in close
 }
 function shopBack(){ blip(300,0.08); shopSetView('main'); }
 function shopActivate(){   // Enter / Space / a click on the highlighted row
-  if(shopView==='main'){ blip(880,0.09); if(shopCur===0) shopSetView('buy'); else setShopUShine(!shopShineOn); }
+  if(shopDlg.on) return;
+  if(shopView==='main'){ blip(880,0.09); if(shopCur===0) shopSetView('buy'); else if(shopCur===1) shopSetView('talk'); else if(shopCur===2) setShopUShine(!shopShineOn); else shopFarewell(); }
+  else if(shopView==='talk'){ if(shopCur>=SHOP_VOICE.talk.length) shopBack(); else { blip(880,0.09); shopAsk(shopCur); } }
   else if(shopCur>=shopItems.length) shopBack();
   else { blip(880,0.09); if(window.toast) window.toast('COMING SOON'); }   // (nothing to pay with yet)
 }
@@ -4662,8 +4666,102 @@ function shopSync(){   // put the stall on its spot (once the knight's home is k
     shopCleared=greenTreeGroup;
   }
 }
+/* ---------- KRIS TALKS: Undertale-style voice lines in the shop ----------
+   She greets you when the shop opens, TALK (second row) lets you ask her things, and BACK / ESC makes her say goodbye before you are back on the map. The words are all in SHOP_VOICE: `f` on a line picks her face
+   (default 'talking'; 'angrytalking' for the sassy ones), words in CAPS are drawn in gold. The text appears letter by letter in the box along the bottom (it is a short strip, so the shop stays visible),
+   with a little cat meow slice (shop-meow-data: five meows) for every couple of letters. ENTER / SPACE / Z / a click on the box: finish the line, then the next one. ESC: skip the rest.
+   While she speaks she plays the talking animation and the camera moves in on her (the old TALK / END TALK test controls, T and E, are what it runs). */
+const SHOP_VOICE={
+  greet:["Oh, hey. What's up.","You new around here?",{t:"I sell things. Buy them.",f:'angrytalking'},"You know I could really go for Chinese food."],
+  talk:[{q:'WHO ARE YOU?',a:["I'm a talking cat."]},{q:'WHAT DO YOU SELL?',a:[{t:"Why don't you LOOK before asking STUPID questions?",f:'angrytalking'}]}],
+  bye:["Um. Okay. Bye."],
+  cps:30, pause:{',':0.16,'.':0.3,'!':0.3,'?':0.3}, every:2, gain:0.55, byeWait:0.9   // letters per second, the wait after punctuation (s), a meow every N letters, meow volume, how long she waits before you leave
+};
+const shopDlg={on:false,lines:[],li:0,pos:0,acc:0,wait:0,typing:false,done:null,auto:0,autoT:0,raf:0,last:0,el:null,txt:null,quiet:false,greeted:false,animOn:false,count:0,lastBlip:0};
+function shopDlgInit(){
+  if(shopDlg.el) return;
+  const st=document.createElement('style');
+  st.textContent='#shopui.talk .shopmain,#shopui.talk .shopctl{display:none}#shopui:not(.talk) .shoptalklist{display:none}#shopui .shoptalklist{display:flex;flex-direction:column;gap:12px}#shopui.busy .mi{opacity:.45}#shoplbl.hush{opacity:0!important}'
+   +'#shopdlg{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(60vw,880px);box-sizing:border-box;border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);padding:16px 26px 30px;font-size:min(30px,4.6vh);letter-spacing:.06em;line-height:1.2;color:var(--ui-text);text-shadow:3px 3px 0 #000;opacity:0;pointer-events:none;transition:opacity .25s;z-index:16;cursor:pointer;user-select:none;-webkit-user-select:none}'
+   +'#shopdlg.on{opacity:1;pointer-events:auto}#shopdlg .dtxt{min-height:2.4em;white-space:pre-wrap}#shopdlg b{font-weight:normal;color:#ffd45e}'
+   +'#shopdlg::before{content:"KRIS";position:absolute;left:18px;top:-1.15em;padding:0 .6em;font-size:.72em;letter-spacing:.22em;color:#ffd45e;background:var(--ui-panel);border:3px solid var(--ui-edge);box-shadow:0 0 0 3px #000}'
+   +'#shopdlg .dhint{position:absolute;left:26px;bottom:6px;font-size:.5em;letter-spacing:.12em;color:var(--ui-dim)}'
+   +'#shopdlg .dnxt{position:absolute;right:22px;bottom:10px;width:0;height:0;border:9px solid transparent;border-top:12px solid var(--ui-text);border-bottom:0;display:none;animation:dnxt .7s steps(2) infinite}#shopdlg.wait .dnxt{display:block}@keyframes dnxt{50%{opacity:0}}';
+  document.head.appendChild(st);
+  const el=document.createElement('div'); el.id='shopdlg'; el.innerHTML='<div class="dtxt"></div><div class="dhint">ENTER: NEXT &nbsp; ESC: SKIP</div><div class="dnxt"></div>';
+  document.body.appendChild(el); shopDlg.el=el; shopDlg.txt=el.querySelector('.dtxt');
+  el.addEventListener('pointerdown',e=>{ e.stopPropagation(); if(shopDlg.on) shopDlgAdvance(); });
+  loadSfxSet('shop-meow-data');
+}
+function shopMeow(emph){   // one short slice of a random meow, a different pitch each time
+  try{
+    if(!sfx) return; const st=SFX_SETS['shop-meow-data']; if(!st||!st.bufs){ loadSfxSet('shop-meow-data'); return; }
+    sfx.resume(); const b=cz(st.bufs[Math.floor(Math.random()*st.bufs.length)]), src=sfx.createBufferSource(), g=sfx.createGain(), t=sfx.currentTime, d=0.12+Math.random()*0.04;
+    src.buffer=b; src.playbackRate.value=(0.95+Math.random()*0.35)*(emph?1.14:1);
+    const gn=SHOP_VOICE.gain*(emph?1.35:1); g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(gn,t+0.012); g.gain.linearRampToValueAtTime(0,t+d);
+    src.connect(g); g.connect(sfx.destination); src.start(t,0.02+Math.random()*0.22,d+0.03);
+  }catch(_){}
+}
+function shopTalkAnim(on){   // the talking animation + the camera moving in (the same code the T / E keys run), without their menu beep
+  if(!shopKeeper||shopDlg.animOn===on) return; shopDlg.animOn=on; shopDlg.quiet=true;
+  try{ document.getElementById(on?'shop-talk-btn':'shop-endtalk-btn').onclick(); }catch(e){} shopDlg.quiet=false;
+  if(!on&&shopView==='talk') shopTalkOn=true;   // in the TALK panel the camera stays close
+}
+const _dlgEsc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/[A-Z]{2,}/g,'<b>$&</b>');
+function shopDlgStart(){
+  const c=shopDlg.lines[shopDlg.li]; shopDlg.cur=c; shopDlg.pos=0; shopDlg.acc=0; shopDlg.wait=0; shopDlg.typing=true; shopDlg.count=0;
+  shopDlg.el.classList.remove('wait'); shopDlg.txt.innerHTML=''; shopFaceSet(c.f||'talking');
+}
+function shopDlgDrawn(){ shopDlg.txt.innerHTML=_dlgEsc(shopDlg.cur.t.slice(0,shopDlg.pos)); }
+function shopDlgDone(){   // the line is fully typed: her mouth closes and the little arrow blinks
+  shopDlg.typing=false; shopFaceSet('normal'); shopDlg.el.classList.add('wait');
+  if(shopDlg.auto&&shopDlg.li>=shopDlg.lines.length-1) shopDlg.autoT=shopDlg.auto;
+}
+function shopDlgLoop(now){
+  if(!shopDlg.on){ shopDlg.raf=0; return; }
+  const dt=Math.min(0.05,(now-shopDlg.last)/1000||0); shopDlg.last=now;
+  if(shopDlg.typing){
+    const t=shopDlg.cur.t; shopDlg.wait-=dt;
+    if(shopDlg.wait<=0){
+      shopDlg.acc+=dt*SHOP_VOICE.cps;
+      while(shopDlg.acc>=1&&shopDlg.pos<t.length){
+        shopDlg.acc-=1; const ch=t[shopDlg.pos++];
+        if(/[A-Za-z0-9]/.test(ch)){ if(shopDlg.count++%SHOP_VOICE.every===0) shopMeow(/[A-Z]/.test(ch)&&/[A-Z]/.test((t[shopDlg.pos-2]||'')+(t[shopDlg.pos]||''))); }
+        const pz=SHOP_VOICE.pause[ch]; if(pz&&(shopDlg.pos>=t.length||t[shopDlg.pos]===' ')){ shopDlg.wait=pz; break; }
+      }
+      shopDlgDrawn(); if(shopDlg.pos>=t.length) shopDlgDone();
+    }
+  } else if(shopDlg.autoT>0){ shopDlg.autoT-=dt; if(shopDlg.autoT<=0){ shopDlg.autoT=0; shopDlgAdvance(); } }
+  shopDlg.raf=requestAnimationFrame(shopDlgLoop);
+}
+function shopSay(lines,done,auto){
+  shopDlgInit(); shopDlg.lines=lines.map(l=>typeof l==='string'?{t:l}:l); shopDlg.li=0; shopDlg.done=done||null; shopDlg.auto=auto||0; shopDlg.autoT=0; shopDlg.on=true;
+  shopTalkAnim(true); shopDlgStart();
+  shopDlg.el.classList.add('on'); if(shopUi) shopUi.classList.add('busy'); if(shopLbl) shopLbl.classList.add('hush');
+  shopDlg.last=performance.now(); if(!shopDlg.raf) shopDlg.raf=requestAnimationFrame(shopDlgLoop);
+}
+function shopDlgAdvance(){
+  if(!shopDlg.on) return;
+  if(shopDlg.typing){ shopDlg.pos=shopDlg.cur.t.length; shopDlgDrawn(); shopDlgDone(); return; }   // first press finishes the line
+  shopDlg.autoT=0; shopDlg.li++;
+  if(shopDlg.li<shopDlg.lines.length) shopDlgStart(); else shopDlgEnd();
+}
+function shopDlgSkip(){ if(shopDlg.on) shopDlgEnd(); }
+function shopDlgEnd(){
+  shopDlg.on=false; shopDlg.typing=false; shopDlg.el.classList.remove('on','wait'); if(shopUi) shopUi.classList.remove('busy'); if(shopLbl) shopLbl.classList.remove('hush');
+  const d=shopDlg.done; shopDlg.done=null; shopTalkAnim(false); shopFaceSet('normal'); if(d) d();
+}
+function shopDlgReset(){   // a new visit (or leaving): nothing half-said, the talking animation off
+  if(shopDlg.el){ shopDlg.on=false; shopDlg.typing=false; shopDlg.done=null; shopDlg.el.classList.remove('on','wait'); }
+  if(shopUi) shopUi.classList.remove('busy'); if(shopLbl) shopLbl.classList.remove('hush');
+  if(shopDlg.animOn) shopTalkAnim(false); shopDlg.animOn=false; shopDlg.greeted=false;
+}
+function shopGreet(){ shopSay(SHOP_VOICE.greet); }
+function shopAsk(i){ shopSay(SHOP_VOICE.talk[i].a); }
+function shopFarewell(){ if(shopDlg.on||shopOut||shopT<0) return; shopSay(SHOP_VOICE.bye,()=>exitShop(),SHOP_VOICE.byeWait); }   // she says bye, then it is the map (not the main menu) again
 function enterShop(){
   if(shopT>=0||!shopGroup||!shopPlaced) return;
+  shopDlgReset();
   document.body.classList.remove('mapui'); mapPings.forEach(q=>q.el.classList.remove('on'));
   shopTalkOn=false; shopTalkK=0; setShopMusic(true); shopFrom={p:camera.position.clone(),pit:camera.rotation.x,yaw:camera.rotation.y,view:mapViewK}; shopFog=[U.uFogNear.value,U.uFogFar.value]; shopOut=false; shopT=0;
   if(!shopLbl){
@@ -4673,17 +4771,21 @@ function enterShop(){
     shopUi=document.createElement('div'); shopUi.id='shopui';
     shopUi.innerHTML='<div class="shophead" style="border-bottom:2px solid var(--ui-edge);padding-bottom:6px;margin-bottom:8px">SHOP</div>'
       +'<button class="mi shopmain" data-m="0" type="button"><span>BUY</span><span class="v">&#9654;</span></button>'
-      +'<button class="mi shopmain" id="shop-ushine-btn" data-m="1" type="button"><span>USHINE</span><span class="v">'+(shopShineOn?'ON':'OFF')+'</span></button>'
+      +'<button class="mi shopmain" data-m="1" type="button"><span>TALK</span><span class="v">&#9654;</span></button>'
+      +'<button class="mi shopmain" id="shop-ushine-btn" data-m="2" type="button"><span>USHINE</span><span class="v">'+(shopShineOn?'ON':'OFF')+'</span></button>'
+      +'<button class="mi shopmain" data-m="3" type="button"><span>BACK</span></button>'
+      +'<div class="shoptalklist">'+SHOP_VOICE.talk.map((q,k)=>'<button class="mi shoptalk" data-i="'+k+'" type="button"><span>'+q.q+'</span></button>').join('')+'<button class="mi shoptalk" data-i="'+SHOP_VOICE.talk.length+'" type="button"><span>BACK</span></button></div>'
       +'<div class="shoplist">'+shopItems.map((it,k)=>'<button class="mi shopbuy" data-i="'+k+'" type="button"><span>'+it.label+'</span></button>').join('')+'<button class="mi shopbuy" data-i="'+shopItems.length+'" type="button"><span>BACK</span></button></div>'
       +'<button class="mi shopctl" id="shop-talk-btn" type="button"><span>TALK</span></button>'
       +'<button class="mi shopctl" id="shop-endtalk-btn" type="button"><span>END TALK</span></button>';
     document.body.appendChild(shopUi);
     shopUi.querySelectorAll('.shopmain').forEach(b=>{ const i=+b.dataset.m; b.onmouseenter=()=>shopSelect(i,true); b.onclick=()=>{ shopSelect(i,false); shopActivate(); }; });
     shopUi.querySelectorAll('.shopbuy').forEach(b=>{ const i=+b.dataset.i; b.onmouseenter=()=>shopSelect(i,true); b.onclick=()=>{ shopSelect(i,false); shopActivate(); }; });
+    shopUi.querySelectorAll('.shoptalk').forEach(b=>{ const i=+b.dataset.i; b.onmouseenter=()=>shopSelect(i,true); b.onclick=()=>{ shopSelect(i,false); shopActivate(); }; });
     document.getElementById('shop-ushine-btn').onclick=()=>{ blip(880,0.09); setShopUShine(!shopShineOn); };   // (also what the U key presses)
     document.getElementById('shop-talk-btn').onclick=()=>{
       if(!shopKeeper||!actions.ShopIdleAnimationIntoTalk) return;
-      blip(880,0.09);
+      if(!shopDlg.quiet) blip(880,0.09);
       shopFaceSet(['talking','angrytalking'][Math.floor(Math.random()*2)]); shopTalkOn=true;   // one of the talking faces, and the camera centres on the shop and zooms in
       const playShopClip=(name,loop,next)=>{
         const cl=actions[name]&&actions[name].getClip(); if(!cl) return;
@@ -4699,7 +4801,7 @@ function enterShop(){
     };
     document.getElementById('shop-endtalk-btn').onclick=()=>{
       if(!shopKeeper||!actions.ShopIdleAnimationOutroTalk) return;
-      blip(880,0.09); shopFaceSet('normal'); shopTalkOn=false;   // back to the normal face, and the camera zooms back out
+      if(!shopDlg.quiet) blip(880,0.09); shopFaceSet('normal'); shopTalkOn=false;   // back to the normal face, and the camera zooms back out
       const cl=actions.ShopIdleAnimationOutroTalk.getClip();
       const a=shopKeeper.mixer.clipAction(cl);
       a.reset(); a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true;
@@ -4717,7 +4819,7 @@ function enterShop(){
     shopSongBtn.addEventListener('click',e=>{ e.stopPropagation(); shopSongNext(); }); shopSongBtn.addEventListener('pointerdown',e=>e.stopPropagation());
     shopLbl=document.createElement('div'); shopLbl.id='shoplbl'; shopLbl.innerHTML='SHOP<small>ESC: LEAVE</small>'; document.body.appendChild(shopLbl);
   }
-  shopSetView('main');   // every visit starts on the main panel
+  shopDlgInit(); shopSetView('main');   // every visit starts on the main panel
 }
 let shopTalkOn=false, shopTalkK=0; const _tkV=new THREE.Vector3(); const SHOP_TALK_DIST=1.2;   // SHOP_TALK_DIST: how far (knight-heights) in front of the keeper's face the camera stops while he talks
 function shopTalkCam(dt,u){
@@ -4738,11 +4840,12 @@ function shopStep(dt){
   U.uFogNear.value=mapLerp(shopFog[0],SHOP_FOG[0]*H,kx); U.uFogFar.value=mapLerp(shopFog[1],SHOP_FOG[1]*H,kx);   // thin haze instead of the menu's thick fog
   const tk=shopTalkK*shopTalkK*(3-2*shopTalkK), vk=mapLerp(shopFrom.view,SHOP_VIEW,kx)*(1-tk); if(Math.abs(vk-mapViewK)>1e-4){ mapViewK=vk; applyView(); }   // the stall slides a little right of center
   if(shopUi) shopUi.classList.toggle('on',u>=1&&!shopOut);
+  if(u>=1&&!shopOut&&!shopDlg.greeted){ shopDlg.greeted=true; shopGreet(); }   // she says hello once you are at the stall
   if(shopLbl) shopLbl.classList.toggle('on',u>=1&&!shopOut); if(shopSongBtn) shopSongBtn.classList.toggle('on',u>=1&&!shopOut);
   shopSpin(dt);
 }
 function exitShop(){
-  if(shopOut||shopT<0) return; shopTalkOn=false; helmet6Face('normal'); shopOut=true; setShopMusic(false); blip(300,0.08); if(shopLbl) shopLbl.classList.remove('on'); if(shopSongBtn) shopSongBtn.classList.remove('on'); if(shopUi) shopUi.classList.remove('on');
+  if(shopOut||shopT<0) return; shopDlgReset(); shopTalkOn=false; helmet6Face('normal'); shopOut=true; setShopMusic(false); blip(300,0.08); if(shopLbl) shopLbl.classList.remove('on'); if(shopSongBtn) shopSongBtn.classList.remove('on'); if(shopUi) shopUi.classList.remove('on');
   shopSetView('main');
   fadeThen(()=>{ shopT=-1; shopOut=false; mapSnap(); });   // under the black: back to the menu camera
 }
@@ -4844,6 +4947,35 @@ function invIcon(k){ if(WEAPON_ICONS[k]) return '<span class="wico" style="--m:u
 const invLightStats=()=>[['DAMAGE',''+SWING_DAMAGE],['GRIP','ONE-HANDED'],['SWING','SWING'],['SPECIAL','NONE']];
 const invHeavyStats=()=>[['DAMAGE',''+SWING_DAMAGE],['GRIP','TWO-HANDED'],['SWING','AXE SWING'],['SPECIAL','RENDER ('+RENDER_DAMAGE+' TO ALL)']];
 /* A weapon row says which weapon slot it fills (w: 'sword' = light, 'axe' = heavy) and which style (ss: swordStyle, or as: axeStyle). */
+/* ---------- SAVE: what you own and how much gold you have ----------
+   One object, `save`, is the single source of truth: the inventory lists only what owns(id) says you have, OPTIONS > KNIGHT's weapon rows skip what you do not own, and enemies pay gold into it.
+   It is kept in localStorage. DEV MODE (open the game with ?dev on the end of the address, or dbg.dev(true) in the console; ?dev=0 turns it off) makes owns() say yes to everything, and it uses a
+   SEPARATE save slot, so testing never touches a real playthrough. In the console, dbg.give('hammer'), dbg.give('all'), dbg.add(500), dbg.gold(0), dbg.reset(), dbg.dev(true/false).
+   Item ids: sword hatchet hammer knightly morningstar | axe shovel | potion haste. START_OWNED is what a new game begins with. GOLD_FOR is what each enemy pays. */
+const DEV=(function(){ try{ const q=new URLSearchParams(location.search); if(q.has('dev')){ if(q.get('dev')==='0') localStorage.removeItem('knight-dev'); else localStorage.setItem('knight-dev','1'); } return localStorage.getItem('knight-dev')==='1'; }catch(e){ return /[?&]dev(?!=0)/.test(location.search); } })();
+const SAVE_KEY=DEV?'knight-save-dev':'knight-save', START_OWNED=['sword','potion','haste'], ALL_IDS=['sword','hatchet','hammer','knightly','morningstar','axe','shovel','potion','haste'];
+const GOLD_FOR={slime:10,sporeling:10,treeling:15,golem:25};
+function saveLoad(){ const f={gold:0,owned:START_OWNED.slice()}; try{ const r=JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); if(r){ if(typeof r.gold==='number') f.gold=Math.max(0,Math.floor(r.gold)); if(Array.isArray(r.owned)) f.owned=r.owned.filter(x=>ALL_IDS.indexOf(x)>=0); } }catch(e){} if(f.owned.indexOf('sword')<0) f.owned.push('sword'); return f; }
+let save=saveLoad();
+function savePut(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(save)); }catch(e){} if(typeof invUi!=='undefined'&&invUi&&invOn) invGoldText(); }
+const owns=id=>DEV||save.owned.indexOf(id)>=0;
+function addGold(n){ save.gold=Math.max(0,save.gold+n); savePut(); }
+function goldFor(e){ return e.isSlime?GOLD_FOR.slime:e.mobName==='SPORELING'?GOLD_FOR.sporeling:e.mobName==='TREELING'?GOLD_FOR.treeling:e.isGolem?GOLD_FOR.golem:0; }   // (the enemy knights pay nothing)
+function awardGold(e){
+  if(e.goldGiven) return; e.goldGiven=true; const g=goldFor(e); if(!g) return; addGold(g);
+  setTimeout(()=>popup('+'+g+' G',headPos({isPl:false,ent:e},new THREE.Vector3()),'gold'),500);
+}
+(function(){ const st=document.createElement('style'); st.textContent='.dmg.gold{color:#f0c030}'; document.head.appendChild(st); })();
+function invGoldText(){ const el=invUi&&invUi.querySelector('#inv-gold'); if(el) el.textContent='GOLD '+save.gold+(DEV?'  [DEV]':''); }
+window.dbg={
+  give:id=>{ (id==='all'?ALL_IDS:[id]).forEach(x=>{ if(ALL_IDS.indexOf(x)<0) return console.warn('unknown item',x,'- ids:',ALL_IDS.join(' ')); if(save.owned.indexOf(x)<0) save.owned.push(x); }); savePut(); return save.owned.slice(); },
+  take:id=>{ save.owned=save.owned.filter(x=>x!==id||x==='sword'); savePut(); return save.owned.slice(); },
+  add:n=>{ addGold(n); return save.gold; }, gold:n=>{ save.gold=Math.max(0,Math.floor(n)); savePut(); return save.gold; },
+  reset:()=>{ save={gold:0,owned:START_OWNED.slice()}; savePut(); return 'reset (reload to see it)'; },
+  dev:on=>{ try{ if(on) localStorage.setItem('knight-dev','1'); else localStorage.removeItem('knight-dev'); }catch(e){} return 'dev '+(on?'ON':'OFF')+' - reload the page'; },
+  save:()=>JSON.parse(JSON.stringify(save)), DEV:DEV
+};
+if(DEV) console.log('%c[DEV MODE] everything is owned; separate save slot. dbg.give / dbg.add / dbg.gold / dbg.reset / dbg.dev(false)','color:#f0c030');
 const INV_TABS=[
   {t:'WEAPONS',subs:[{t:'LIGHT',cls:'light'},{t:'HEAVY',cls:'heavy'}],items:[
     {t:'SWORD',cls:'light',icon:'sword',kind:'LIGHT WEAPON',w:'sword',ss:'sword',stats:invLightStats,desc:'A plain, balanced blade. Quick to swing and easy to trust.'},
@@ -4866,7 +4998,8 @@ function invApply(c){   // put this weapon on him (skipped when he already has i
   swordStyle=c.ss; axeStyle=c.as; setWeapon(c.w); if(c.w==='axe') showWeapons(); refreshAnim();
 }
 function invPreview(){ const it=invList()[invCur]; invApply(it&&it.w?{w:it.w,ss:it.ss||invCommit.ss,as:it.as||invCommit.as}:invCommit); }
-function invList(){ const T=INV_TABS[invTab]; return T.subs?T.items.filter(i=>i.cls===T.subs[invSub[invTab]].cls):T.items; }
+const itemId=it=>it.ss||it.as||(it.haste?'haste':'potion');
+function invList(){ const T=INV_TABS[invTab], own=T.items.filter(i=>owns(itemId(i))); return T.subs?own.filter(i=>i.cls===T.subs[invSub[invTab]].cls):own; }   // only what you own
 function invKey(){ return invTab+':'+invSub[invTab]; }
 function invResetState(){   // opening: the WEAPONS tab, on the type he is holding, with the equipped weapon highlighted (as Elden Ring does)
   invCommit={w:weapon,ss:swordStyle,as:axeStyle};
@@ -4877,7 +5010,7 @@ function invGoto(tab,sub,sound){   // switch tab / type, remembering where the c
   invCurs[invKey()]=invCur;
   if(tab!==undefined) invTab=((tab%INV_TABS.length)+INV_TABS.length)%INV_TABS.length;
   const T=INV_TABS[invTab]; if(sub!==undefined&&T.subs) invSub[invTab]=((sub%T.subs.length)+T.subs.length)%T.subs.length;
-  invCur=Math.min(invCurs[invKey()]||0,invList().length-1); if(sound) blip(620,0.06); invPreview(); invRefresh();
+  invCur=Math.max(0,Math.min(invCurs[invKey()]||0,invList().length-1)); if(sound) blip(620,0.06); invPreview(); invRefresh();
 }
 function invRefresh(){
   if(!invUi) return;
@@ -4885,8 +5018,8 @@ function invRefresh(){
   invUi.querySelector('#inv-tabs').innerHTML='<span class="ik">Q</span>'+INV_TABS.map((t,i)=>'<button type="button" class="it'+(i===invTab?' on':'')+'" data-tab="'+i+'">'+t.t+'</button>').join('')+'<span class="ik">E</span>';
   invUi.querySelector('#inv-subs').innerHTML=T.subs?('<span class="ik">A</span>'+T.subs.map((t,i)=>'<button type="button" class="is'+(i===invSub[invTab]?' on':'')+'" data-sub="'+i+'">'+t.t+'</button>').join('')+'<span class="ik">D</span>'):'<span class="ih">'+T.t+'</span>';
   const list=invUi.querySelector('#inv-list');
-  list.innerHTML=L.map((it,i)=>'<button type="button" class="ir'+(i===invCur?' on':'')+'" data-i="'+i+'"><span class="ii">'+invIcon(it.icon)+'</span><span class="in">'+it.t+'</span><span class="iv">'+(it.w?(invIsEq(it)?'<b class="eb">E</b>':''):(it.qty?it.qty():''))+'</span></button>').join('');
-  invUi.querySelector('#inv-count').textContent=(T.subs?T.subs[invSub[invTab]].t+' ':'')+L.length;
+  list.innerHTML=!L.length?'<div class="ih" style="padding:10px">NOTHING YET</div>':L.map((it,i)=>'<button type="button" class="ir'+(i===invCur?' on':'')+'" data-i="'+i+'"><span class="ii">'+invIcon(it.icon)+'</span><span class="in">'+it.t+'</span><span class="iv">'+(it.w?(invIsEq(it)?'<b class="eb">E</b>':''):(it.qty?it.qty():''))+'</span></button>').join('');
+  invGoldText(); invUi.querySelector('#inv-count').textContent=(T.subs?T.subs[invSub[invTab]].t+' ':'')+L.length;
   invDetail(); invSpinLabel();
 }
 function invSpinLabel(){ if(invUi) invUi.querySelector('#inv-spin').textContent='TURNTABLE: '+(spin?'ON':'OFF'); }
@@ -4939,7 +5072,7 @@ function invBuild(){
 @media (max-aspect-ratio:9/10){#invui{grid-template-columns:1fr;grid-template-rows:auto minmax(0,40vh) auto;bottom:auto;gap:8px;font-size:min(22px,3.4vh)}#invtop{grid-column:1;flex-wrap:wrap;gap:8px}#invtop .ttl{display:none}#invleft{grid-column:1}#invright,#invhint{display:none}}`;
   document.head.appendChild(st);
   invUi=document.createElement('div'); invUi.id='invui';
-  invUi.innerHTML='<div id="invtop" class="ip"><span class="ttl">INVENTORY</span><div id="inv-tabs"></div><button type="button" id="inv-spin">TURNTABLE: OFF</button><button type="button" id="inv-cust">CUSTOMIZE</button></div>'
+  invUi.innerHTML='<div id="invtop" class="ip"><span class="ttl">INVENTORY</span><div id="inv-tabs"></div><span id="inv-gold" style="color:#f0c030;white-space:nowrap;margin:0 .8em"></span><button type="button" id="inv-spin">TURNTABLE: OFF</button><button type="button" id="inv-cust">CUSTOMIZE</button></div>'
     +'<div id="invleft" class="ip"><div id="inv-subs"></div><div id="inv-list"></div><div id="inv-count"></div></div>'
     +'<div id="invright" class="ip"><div id="inv-det"></div></div>'
     +'<div id="invhint" class="ip"><span>Q / E: TABS</span><span>A / D: TYPE</span><span>W / S: SELECT</span><span>ENTER / CLICK: EQUIP</span><span>T: TURNTABLE</span><span>C: CUSTOMIZE</span><span>ESC: BACK</span></div>';

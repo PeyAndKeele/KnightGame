@@ -488,5 +488,10 @@
     "id": "chest-data",
     "type": "application/json",
     "url": "chest-data.json"
+  },
+  {
+    "id": "shop-meow-data",
+    "type": "application/json",
+    "url": "shop-meow-data.json"
   }
 ]
