@@ -4175,8 +4175,6 @@ addEventListener('keydown',e=>{
       else if(shopView==='main'&&((k==='ArrowRight'&&shopCur<3)||(k==='ArrowLeft'&&shopCur===2))){ e.preventDefault(); shopActivate(); }   // right opens BUY; left / right flip USHINE
       else if(shopView!=='main'&&k==='ArrowLeft'){ e.preventDefault(); shopBack(); }
       else if(k==='u'||k==='U') document.getElementById('shop-ushine-btn').click();
-      else if(k==='t'||k==='T') document.getElementById('shop-talk-btn').click();
-      else if(k==='e'||k==='E') document.getElementById('shop-endtalk-btn').click();
     }
     return;
   }   // in the shop, Escape walks back out
@@ -4200,7 +4198,7 @@ const SHOP_CLEAR=2.3, SHOP_LANE=1.4;   // trees are cleared inside this radius a
 const shopF=new THREE.Vector3(1,0,0); let shopCleared=null;   // shopF: the way the front of the stall faces (set when it is placed: toward the knight)
 /* ---------- the shop's item list ----------
    One entry per labelled cylinder in the stall model, named from its label ('SWORD HANDLE HERE. BLADE POINT DOWN.' -> SWORD, 'HATCHED HERE. POINT UP.' -> HATCHET, ...), in the order they are in the model.
-   The picked entry's item turns slowly on its hook. UP / DOWN (or W / S) pick, the mouse works too. The old test controls (shine, talk, end talk) are no longer on the panel: U, T and E still do them. */
+   The picked entry's item turns slowly on its hook. UP / DOWN (or W / S) pick, the mouse works too. The old test controls are gone (talk / end talk) or hidden (shine: the U key still does it). */
 let shopItems=[], shopSel=-1, shopView='main', shopCur=0;   // shopView: 'main' (BUY, USHINE) or 'buy' (the items, then BACK); shopCur: the highlighted row of that view; shopSel: the picked item (only in 'buy')
 function shopLabel(n){ let s=n.split(/[\s_]+HERE(?=[\s_.]|$)/i)[0].trim().toUpperCase().replace(/[\s_]+HANDLE$/,'').replace(/_/g,' '); return s==='HATCHED'?'HATCHET':s; }
 function shopRowCount(){ return shopView==='buy'?shopItems.length+1:shopView==='talk'?SHOP_VOICE.talk.length+1:4; }   // main: BUY, TALK, USHINE, BACK - buy: every item, then BACK - talk: each question, then BACK
@@ -4677,17 +4675,41 @@ const SHOP_VOICE={
   bye:["Um. Okay. Bye."],
   cps:30, pause:{',':0.16,'.':0.3,'!':0.3,'?':0.3}, every:2, gain:0.55, byeWait:0.9   // letters per second, the wait after punctuation (s), a meow every N letters, meow volume, how long she waits before you leave
 };
-const shopDlg={on:false,lines:[],li:0,pos:0,acc:0,wait:0,typing:false,done:null,auto:0,autoT:0,raf:0,last:0,el:null,txt:null,quiet:false,greeted:false,animOn:false,count:0,lastBlip:0};
+const SHOP_CSS=`
+/* Where everything sits (landscape): the shop panel top-left, the song button top-right, the chat bar along the bottom. --sdH is the room the chat bar can take (three lines of text,
+   its padding, the gap under it), and the panel is never allowed to grow into it, so they can not overlap whatever the window size. On a tall narrow screen the panel runs across the top,
+   the chat bar across the bottom and the song button sits just above the chat bar. */
+:root{--sdF:min(30px,4.6vh);--sdH:calc(var(--sdF)*3.6 + 52px + 18px + env(safe-area-inset-bottom,0px))}
+#shoplbl{position:fixed;left:50%;bottom:calc(34px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);text-align:center;color:#ffd45e;text-shadow:3px 3px 0 #000;font-size:46px;letter-spacing:.14em;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15;line-height:1}
+#shoplbl small{display:block;margin-top:6px;font-size:22px;letter-spacing:.1em;color:#fff}
+#shoplbl.on{opacity:1}#shoplbl.hush{opacity:0!important;transition-duration:.12s}
+#shopui{position:fixed;left:3vw;top:9vh;width:min(32vw,440px);height:auto;max-height:calc(100vh - 9vh - var(--sdH) - 46px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;box-sizing:border-box;border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:24px;gap:12px;font-size:min(34px,5vh);letter-spacing:.14em;color:var(--ui-text);text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}
+#shopui::-webkit-scrollbar{display:none}#shopui>*{flex-shrink:0}
+#shopui.on{opacity:1;pointer-events:auto}#shopui .mi{display:flex;justify-content:space-between}
+#shopui .shoplist,#shopui .shoptalklist{display:flex;flex-direction:column;gap:12px;flex:0 0 auto}
+#shopui:not(.buy) .shoplist{display:none}#shopui.buy .shopmain{display:none}
+#shopui.talk .shopmain{display:none}#shopui:not(.talk) .shoptalklist{display:none}
+#shopui.busy .mi{opacity:.45}
+#shopsong{position:fixed;right:max(14px,env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));z-index:16;font:inherit;font-size:22px;letter-spacing:.08em;color:var(--ui-text);background:var(--ui-panel);border:2px solid var(--ui-edge);box-shadow:0 0 0 2px #000;padding:4px 12px;opacity:0;pointer-events:none;transition:opacity .6s,background .15s;text-shadow:2px 2px 0 #000;text-align:right;cursor:pointer;user-select:none;-webkit-user-select:none}
+#shopsong small{display:block;margin-top:2px;font-size:13px;letter-spacing:.1em;color:var(--ui-dim)}
+#shopsong:hover{background:var(--ui-hover)}#shopsong.on{opacity:1;pointer-events:auto}
+#shopdlg{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(64vw,900px);box-sizing:border-box;border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);padding:16px 26px 30px;font-size:var(--sdF);letter-spacing:.06em;line-height:1.2;color:var(--ui-text);text-shadow:3px 3px 0 #000;opacity:0;pointer-events:none;transition:opacity .25s;z-index:16;cursor:pointer;user-select:none;-webkit-user-select:none}
+#shopdlg.on{opacity:1;pointer-events:auto}#shopdlg .dtxt{min-height:2.4em;max-height:3.6em;overflow-y:auto;scrollbar-width:none;white-space:pre-wrap}#shopdlg b{font-weight:normal;color:#ffd45e}
+#shopdlg::before{content:"KRIS";position:absolute;left:18px;top:-1.15em;padding:0 .6em;font-size:.72em;letter-spacing:.22em;color:#ffd45e;background:var(--ui-panel);border:3px solid var(--ui-edge);box-shadow:0 0 0 3px #000}
+#shopdlg .dhint{position:absolute;left:26px;bottom:6px;font-size:.5em;letter-spacing:.12em;color:var(--ui-dim)}
+#shopdlg .dnxt{position:absolute;right:22px;bottom:10px;width:0;height:0;border:9px solid transparent;border-top:12px solid var(--ui-text);border-bottom:0;display:none;animation:dnxt .7s steps(2) infinite}#shopdlg.wait .dnxt{display:block}@keyframes dnxt{50%{opacity:0}}
+@media (max-width:760px){#shopdlg{width:92vw}}
+@media (max-aspect-ratio:9/10){
+#shopui{left:4vw;width:92vw;top:4vh;max-height:min(46vh,calc(100vh - 4vh - var(--sdH) - 100px))}
+#shopdlg{width:92vw}
+#shopsong{top:auto;bottom:calc(var(--sdH) + 40px);max-width:92vw;box-sizing:border-box;font-size:18px}
+}
+`;
+function shopCssInit(){ if(document.getElementById('shopcss')) return; const st=document.createElement('style'); st.id='shopcss'; st.textContent=SHOP_CSS; document.head.appendChild(st); }
+const shopDlg={on:false,lines:[],li:0,pos:0,acc:0,wait:0,typing:false,done:null,auto:0,autoT:0,raf:0,last:0,el:null,txt:null,lastGreet:-1,greeted:false,animOn:false,count:0,lastBlip:0};
 function shopDlgInit(){
   if(shopDlg.el) return;
-  const st=document.createElement('style');
-  st.textContent='#shopui.talk .shopmain,#shopui.talk .shopctl{display:none}#shopui:not(.talk) .shoptalklist{display:none}#shopui .shoptalklist{display:flex;flex-direction:column;gap:12px}#shopui.busy .mi{opacity:.45}#shoplbl.hush{opacity:0!important}'
-   +'#shopdlg{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(60vw,880px);box-sizing:border-box;border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);padding:16px 26px 30px;font-size:min(30px,4.6vh);letter-spacing:.06em;line-height:1.2;color:var(--ui-text);text-shadow:3px 3px 0 #000;opacity:0;pointer-events:none;transition:opacity .25s;z-index:16;cursor:pointer;user-select:none;-webkit-user-select:none}'
-   +'#shopdlg.on{opacity:1;pointer-events:auto}#shopdlg .dtxt{min-height:2.4em;white-space:pre-wrap}#shopdlg b{font-weight:normal;color:#ffd45e}'
-   +'#shopdlg::before{content:"KRIS";position:absolute;left:18px;top:-1.15em;padding:0 .6em;font-size:.72em;letter-spacing:.22em;color:#ffd45e;background:var(--ui-panel);border:3px solid var(--ui-edge);box-shadow:0 0 0 3px #000}'
-   +'#shopdlg .dhint{position:absolute;left:26px;bottom:6px;font-size:.5em;letter-spacing:.12em;color:var(--ui-dim)}'
-   +'#shopdlg .dnxt{position:absolute;right:22px;bottom:10px;width:0;height:0;border:9px solid transparent;border-top:12px solid var(--ui-text);border-bottom:0;display:none;animation:dnxt .7s steps(2) infinite}#shopdlg.wait .dnxt{display:block}@keyframes dnxt{50%{opacity:0}}';
-  document.head.appendChild(st);
+  shopCssInit();
   const el=document.createElement('div'); el.id='shopdlg'; el.innerHTML='<div class="dtxt"></div><div class="dhint">ENTER: NEXT &nbsp; ESC: SKIP</div><div class="dnxt"></div>';
   document.body.appendChild(el); shopDlg.el=el; shopDlg.txt=el.querySelector('.dtxt');
   el.addEventListener('pointerdown',e=>{ e.stopPropagation(); if(shopDlg.on) shopDlgAdvance(); });
@@ -4702,9 +4724,33 @@ function shopMeow(emph){   // one short slice of a random meow, a different pitc
     src.connect(g); g.connect(sfx.destination); src.start(t,0.02+Math.random()*0.22,d+0.03);
   }catch(_){}
 }
-function shopTalkAnim(on){   // the talking animation + the camera moving in (the same code the T / E keys run), without their menu beep
-  if(!shopKeeper||shopDlg.animOn===on) return; shopDlg.animOn=on; shopDlg.quiet=true;
-  try{ document.getElementById(on?'shop-talk-btn':'shop-endtalk-btn').onclick(); }catch(e){} shopDlg.quiet=false;
+function shopPlayClip(name,loop,next){
+  const cl=actions[name]&&actions[name].getClip(); if(!cl||!shopKeeper) return;
+  const a=shopKeeper.mixer.clipAction(cl);
+  a.reset(); a.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1); a.clampWhenFinished=!loop;
+  shopKeeper.curAct.crossFadeTo(a,0.2,false); a.play(); shopKeeper.curAct=a;
+  if(next){
+    const onFin=e=>{ if(e.action===a){ shopKeeper.mixer.removeEventListener('finished',onFin); next(); } };
+    shopKeeper.mixer.addEventListener('finished',onFin);
+  }
+}
+function shopTalkAnim(on){   // the talking animation + the camera moving in on her (on), or the outro + the camera pulling back (off)
+  if(!shopKeeper||shopDlg.animOn===on) return; shopDlg.animOn=on;
+  if(on){
+    if(actions.ShopIdleAnimationIntoTalk){ shopTalkOn=true; shopPlayClip('ShopIdleAnimationIntoTalk',false,()=>shopPlayClip('ShopIdleAnimationWhileTalking',true)); }
+  } else if(actions.ShopIdleAnimationOutroTalk){
+    shopTalkOn=false;   // the camera zooms back out
+    const a=shopKeeper.mixer.clipAction(actions.ShopIdleAnimationOutroTalk.getClip());
+    a.reset(); a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true;
+    shopKeeper.curAct.crossFadeTo(a,0.2,false); a.play(); shopKeeper.curAct=a;
+    const onFin=e=>{
+      if(e.action===a){
+        shopKeeper.mixer.removeEventListener('finished',onFin);
+        const idle=shopKeeper.idleAct; idle.reset(); shopKeeper.curAct.crossFadeTo(idle,0.25,false); idle.play(); shopKeeper.curAct=idle;
+      }
+    };
+    shopKeeper.mixer.addEventListener('finished',onFin);
+  }
   if(!on&&shopView==='talk') shopTalkOn=true;   // in the TALK panel the camera stays close
 }
 const _dlgEsc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/[A-Z]{2,}/g,'<b>$&</b>');
@@ -4713,8 +4759,8 @@ function shopDlgStart(){
   shopDlg.el.classList.remove('wait'); shopDlg.txt.innerHTML=''; shopFaceSet(c.f||'talking');
 }
 function shopDlgDrawn(){ shopDlg.txt.innerHTML=_dlgEsc(shopDlg.cur.t.slice(0,shopDlg.pos)); }
-function shopDlgDone(){   // the line is fully typed: her mouth closes and the little arrow blinks
-  shopDlg.typing=false; shopFaceSet('normal'); shopDlg.el.classList.add('wait');
+function shopDlgDone(){   // the line is fully typed: the little arrow blinks
+  shopDlg.typing=false; shopDlg.el.classList.add('wait');   // (her face stays as the line set it - it goes back to normal only when the box closes, see shopDlgEnd)
   if(shopDlg.auto&&shopDlg.li>=shopDlg.lines.length-1) shopDlg.autoT=shopDlg.auto;
 }
 function shopDlgLoop(now){
@@ -4756,7 +4802,10 @@ function shopDlgReset(){   // a new visit (or leaving): nothing half-said, the t
   if(shopUi) shopUi.classList.remove('busy'); if(shopLbl) shopLbl.classList.remove('hush');
   if(shopDlg.animOn) shopTalkAnim(false); shopDlg.animOn=false; shopDlg.greeted=false;
 }
-function shopGreet(){ shopSay(SHOP_VOICE.greet); }
+function shopGreet(){   // she says ONE of the greet lines, picked at random (never the same one twice in a row)
+  const g=SHOP_VOICE.greet; let i=Math.floor(Math.random()*g.length); if(g.length>1&&i===shopDlg.lastGreet) i=(i+1+Math.floor(Math.random()*(g.length-1)))%g.length;
+  shopDlg.lastGreet=i; shopSay([g[i]]);
+}
 function shopAsk(i){ shopSay(SHOP_VOICE.talk[i].a); }
 function shopFarewell(){ if(shopDlg.on||shopOut||shopT<0) return; shopSay(SHOP_VOICE.bye,()=>exitShop(),SHOP_VOICE.byeWait); }   // she says bye, then it is the map (not the main menu) again
 function enterShop(){
@@ -4765,9 +4814,8 @@ function enterShop(){
   document.body.classList.remove('mapui'); mapPings.forEach(q=>q.el.classList.remove('on'));
   shopTalkOn=false; shopTalkK=0; setShopMusic(true); shopFrom={p:camera.position.clone(),pit:camera.rotation.x,yaw:camera.rotation.y,view:mapViewK}; shopFog=[U.uFogNear.value,U.uFogFar.value]; shopOut=false; shopT=0;
   if(!shopLbl){
-    const st=document.createElement('style'); st.textContent='#shoplbl{position:fixed;left:50%;bottom:calc(34px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);text-align:center;color:#ffd45e;text-shadow:3px 3px 0 #000;font-size:46px;letter-spacing:.14em;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15;line-height:1}#shoplbl small{display:block;margin-top:6px;font-size:22px;letter-spacing:.1em;color:#fff}#shoplbl.on{opacity:1}'; document.head.appendChild(st);
     /* Shop UI on the left with toggleable uShine and Talk controls */
-    const st2=document.createElement('style'); st2.textContent='#shopui{position:fixed;left:3vw;top:9vh;width:min(32vw,440px);height:auto;max-height:74vh;box-sizing:border-box;border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:24px;gap:12px;font-size:min(34px,5vh);letter-spacing:.14em;color:var(--ui-text);text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}#shopui.on{opacity:1;pointer-events:auto}#shopui .shopctl{display:none}#shopui .mi{display:flex;justify-content:space-between}#shopui .shoplist{display:flex;flex-direction:column;gap:12px;flex:0 0 auto}#shopui:not(.buy) .shoplist{display:none}#shopui.buy .shopmain,#shopui.buy .shopctl{display:none}@media (max-aspect-ratio:9/10){#shopui{left:4vw;width:92vw;top:4vh;height:auto;max-height:46vh}}'; document.head.appendChild(st2);
+    shopCssInit();
     shopUi=document.createElement('div'); shopUi.id='shopui';
     shopUi.innerHTML='<div class="shophead" style="border-bottom:2px solid var(--ui-edge);padding-bottom:6px;margin-bottom:8px">SHOP</div>'
       +'<button class="mi shopmain" data-m="0" type="button"><span>BUY</span><span class="v">&#9654;</span></button>'
@@ -4775,46 +4823,12 @@ function enterShop(){
       +'<button class="mi shopmain" id="shop-ushine-btn" data-m="2" type="button"><span>USHINE</span><span class="v">'+(shopShineOn?'ON':'OFF')+'</span></button>'
       +'<button class="mi shopmain" data-m="3" type="button"><span>BACK</span></button>'
       +'<div class="shoptalklist">'+SHOP_VOICE.talk.map((q,k)=>'<button class="mi shoptalk" data-i="'+k+'" type="button"><span>'+q.q+'</span></button>').join('')+'<button class="mi shoptalk" data-i="'+SHOP_VOICE.talk.length+'" type="button"><span>BACK</span></button></div>'
-      +'<div class="shoplist">'+shopItems.map((it,k)=>'<button class="mi shopbuy" data-i="'+k+'" type="button"><span>'+it.label+'</span></button>').join('')+'<button class="mi shopbuy" data-i="'+shopItems.length+'" type="button"><span>BACK</span></button></div>'
-      +'<button class="mi shopctl" id="shop-talk-btn" type="button"><span>TALK</span></button>'
-      +'<button class="mi shopctl" id="shop-endtalk-btn" type="button"><span>END TALK</span></button>';
+      +'<div class="shoplist">'+shopItems.map((it,k)=>'<button class="mi shopbuy" data-i="'+k+'" type="button"><span>'+it.label+'</span></button>').join('')+'<button class="mi shopbuy" data-i="'+shopItems.length+'" type="button"><span>BACK</span></button></div>';
     document.body.appendChild(shopUi);
     shopUi.querySelectorAll('.shopmain').forEach(b=>{ const i=+b.dataset.m; b.onmouseenter=()=>shopSelect(i,true); b.onclick=()=>{ shopSelect(i,false); shopActivate(); }; });
     shopUi.querySelectorAll('.shopbuy').forEach(b=>{ const i=+b.dataset.i; b.onmouseenter=()=>shopSelect(i,true); b.onclick=()=>{ shopSelect(i,false); shopActivate(); }; });
     shopUi.querySelectorAll('.shoptalk').forEach(b=>{ const i=+b.dataset.i; b.onmouseenter=()=>shopSelect(i,true); b.onclick=()=>{ shopSelect(i,false); shopActivate(); }; });
     document.getElementById('shop-ushine-btn').onclick=()=>{ blip(880,0.09); setShopUShine(!shopShineOn); };   // (also what the U key presses)
-    document.getElementById('shop-talk-btn').onclick=()=>{
-      if(!shopKeeper||!actions.ShopIdleAnimationIntoTalk) return;
-      if(!shopDlg.quiet) blip(880,0.09);
-      shopFaceSet(['talking','angrytalking'][Math.floor(Math.random()*2)]); shopTalkOn=true;   // one of the talking faces, and the camera centres on the shop and zooms in
-      const playShopClip=(name,loop,next)=>{
-        const cl=actions[name]&&actions[name].getClip(); if(!cl) return;
-        const a=shopKeeper.mixer.clipAction(cl);
-        a.reset(); a.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce,loop?Infinity:1); a.clampWhenFinished=!loop;
-        shopKeeper.curAct.crossFadeTo(a,0.2,false); a.play(); shopKeeper.curAct=a;
-        if(next){
-          const onFin=e=>{ if(e.action===a){ shopKeeper.mixer.removeEventListener('finished',onFin); next(); } };
-          shopKeeper.mixer.addEventListener('finished',onFin);
-        }
-      };
-      playShopClip('ShopIdleAnimationIntoTalk',false,()=>playShopClip('ShopIdleAnimationWhileTalking',true));
-    };
-    document.getElementById('shop-endtalk-btn').onclick=()=>{
-      if(!shopKeeper||!actions.ShopIdleAnimationOutroTalk) return;
-      if(!shopDlg.quiet) blip(880,0.09); shopFaceSet('normal'); shopTalkOn=false;   // back to the normal face, and the camera zooms back out
-      const cl=actions.ShopIdleAnimationOutroTalk.getClip();
-      const a=shopKeeper.mixer.clipAction(cl);
-      a.reset(); a.setLoop(THREE.LoopOnce,1); a.clampWhenFinished=true;
-      shopKeeper.curAct.crossFadeTo(a,0.2,false); a.play(); shopKeeper.curAct=a;
-      const onFin=e=>{
-        if(e.action===a){
-          shopKeeper.mixer.removeEventListener('finished',onFin);
-          const idle=shopKeeper.idleAct; idle.reset(); shopKeeper.curAct.crossFadeTo(idle,0.25,false); idle.play(); shopKeeper.curAct=idle;
-        }
-      };
-      shopKeeper.mixer.addEventListener('finished',onFin);
-    };
-    const stb=document.createElement('style'); stb.textContent='#shopsong{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:16;font:inherit;font-size:22px;letter-spacing:.08em;color:var(--ui-text);background:var(--ui-panel);border:2px solid var(--ui-edge);box-shadow:0 0 0 2px #000;padding:4px 12px;opacity:0;pointer-events:none;transition:opacity .6s,background .15s;text-shadow:2px 2px 0 #000;text-align:right;cursor:pointer;user-select:none;-webkit-user-select:none}#shopsong small{display:block;margin-top:2px;font-size:13px;letter-spacing:.1em;color:var(--ui-dim)}#shopsong:hover{background:var(--ui-hover)}#shopsong.on{opacity:1;pointer-events:auto}'; document.head.appendChild(stb);
     shopSongBtn=document.createElement('div'); shopSongBtn.id='shopsong'; shopSongLabel(); document.body.appendChild(shopSongBtn);
     shopSongBtn.addEventListener('click',e=>{ e.stopPropagation(); shopSongNext(); }); shopSongBtn.addEventListener('pointerdown',e=>e.stopPropagation());
     shopLbl=document.createElement('div'); shopLbl.id='shoplbl'; shopLbl.innerHTML='SHOP<small>ESC: LEAVE</small>'; document.body.appendChild(shopLbl);
