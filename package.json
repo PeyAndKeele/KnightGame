@@ -1,0 +1,14 @@
+{
+  "name": "knight-game",
+  "private": true,
+  "description": "A PS1-style knight game that runs in the browser (three.js).",
+  "scripts": {
+    "serve": "python3 -m http.server 8000",
+    "format": "prettier --write main.js index.html",
+    "format:check": "prettier --check main.js index.html",
+    "map": "node scripts/codemap.js"
+  },
+  "devDependencies": {
+    "prettier": "^3.0.0"
+  }
+}

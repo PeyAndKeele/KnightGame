@@ -38,11 +38,13 @@
     uMagmaPulse: { value: 0 },
     uLamp2Pos: { value: new THREE.Vector3() },
     uLamp2P: { value: new THREE.Vector4(1, 0, 10, 0) },
-    uLamp2Col: { value: new THREE.Vector3(1, 0.86, 0.62) }, // the shop's sign light (updateShopLamp)   // the shop lantern (updateShopLamp)
+    // the shop's sign light (updateShopLamp)   // the shop lantern (updateShopLamp)
+    uLamp2Col: { value: new THREE.Vector3(1, 0.86, 0.62) },
     uOccF: { value: Array.from({ length: 6 }, () => new THREE.Vector4()) },
     uOccN: { value: 0 },
     uOccGap: { value: 1 },
-    uOccNear: { value: new THREE.Vector2(-1, -0.5) }, // see-through obstacles (occUpdate): where up to 6 characters are on screen
+    // see-through obstacles (occUpdate): where up to 6 characters are on screen
+    uOccNear: { value: new THREE.Vector2(-1, -0.5) },
   };
   const VS = `
 uniform vec2 uRes; uniform float uSnap; uniform vec3 uSunDir; uniform vec3 uFillDir;
@@ -257,7 +259,8 @@ void main(){
         },
         U,
       ),
-    }); // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
+    // uOccOn: 1 on walls and trees (occMark), which dither away when they are in front of someone
+    });
   }
   function ps1FloorMat(texG, texF, texI, uvScale, H) {
     [texG, texF, texI].forEach((tex) => {
@@ -313,14 +316,17 @@ void main(){
       typeof _look.amt === "number" && _look.amt >= 0 && _look.amt <= 1
         ? _look.amt
         : 0.55;
-  let shiny = true; // fake metal shading on the armor and sword (Customize > Shiny metal)
+  // fake metal shading on the armor and sword (Customize > Shiny metal)
+  let shiny = true;
   function shineMat(m) {
     m.uniforms.uShine.value = shiny ? 1 : 0;
   }
   const swordMats = [];
   let swordHex = null,
-    swordMatch = true; // the blade has its own tint, or follows the armor's while swordMatch is on
-  const SHOP_ARMOR_TINT = 0.87; // how strongly the shopkeeper's armor takes its colour (0..1)
+    // the blade has its own tint, or follows the armor's while swordMatch is on
+    swordMatch = true;
+  // how strongly the shopkeeper's armor takes its colour (0..1)
+  const SHOP_ARMOR_TINT = 0.87;
   function tintMat(m, hex, amt) {
     // amt: tint strength 0..1 (default: the ARMOR slider's armorAmt)
     shineMat(m);
@@ -330,13 +336,15 @@ void main(){
       return;
     }
     const c = new THREE.Color(hex),
-      mx = Math.max(c.r, c.g, c.b, 1e-4); // brightest channel = 1, so it recolors without darkening
+      // brightest channel = 1, so it recolors without darkening
+      mx = Math.max(c.r, c.g, c.b, 1e-4);
     const a =
       amt !== undefined
         ? amt
         : m.userData.tintAmt !== undefined
           ? m.userData.tintAmt
-          : armorAmt; // (a material can carry its own strength in userData.tintAmt)
+          // (a material can carry its own strength in userData.tintAmt)
+          : armorAmt;
     v.set(
       1 + (c.r / mx - 1) * a,
       1 + (c.g / mx - 1) * a,
@@ -417,9 +425,11 @@ void main(){
     if (!c) {
       UI_THEME.forEach((t) => root.removeProperty(t[0]));
       return;
-    } // no armor colour: the stylesheet's blues
+    // no armor colour: the stylesheet's blues
+    }
     const a = _uiHsl(c[0], c[1], c[2]),
-      k = a[1] < 0.1 ? 0 : Math.max(0.25, Math.min(1, a[1] / 0.6)); // a grey / white / black armor has no hue to follow: neutral grey panels
+      // a grey / white / black armor has no hue to follow: neutral grey panels
+      k = a[1] < 0.1 ? 0 : Math.max(0.25, Math.min(1, a[1] / 0.6));
     UI_THEME.forEach((t) => {
       const b = _uiRgb(t[1]),
         hs = _uiHsl(b[0], b[1], b[2]),
@@ -456,7 +466,8 @@ void main(){
     size: 0.3,
   };
   const SHINE_MIN = 2.5,
-    SHINE_MAX = 7; // seconds between glints
+    // seconds between glints
+    SHINE_MAX = 7;
   const SHINE_PX = 14;
   function makeShineFrames() {
     // frames come from glint_silver.gif (2 frames, 500 ms each), embedded as PNGs
@@ -470,7 +481,8 @@ void main(){
       img.onload = () => {
         c.getContext("2d").drawImage(img, 0, 0);
         shine.fi = -1;
-      }; // redraw the sprite once the png has decoded
+      // redraw the sprite once the png has decoded
+      };
       img.src = src;
       return c;
     });
@@ -520,7 +532,8 @@ void main(){
       const hit = rc.intersectObjects(meshes, false)[0];
       if (hit) {
         shine.obj = hit.object;
-        shine.local.copy(hit.object.worldToLocal(hit.point.clone())); // stuck to that body part, so it follows the animation
+        // stuck to that body part, so it follows the animation
+        shine.local.copy(hit.object.worldToLocal(hit.point.clone()));
         shine.t = 0;
         shine.dur = 1.0;
         shine.fi = -1;
@@ -538,7 +551,8 @@ void main(){
     CS_RATE = 28,
     CS_BURST = 16,
     CS_POOL = 60,
-    CS_GRAV = 3.2; // seconds before the finisher they start, glints per second, the extra burst when the blow lands, sprites in the pool, gravity (knight heights / s²)
+    // seconds before the finisher they start, glints per second, the extra burst when the blow lands, sprites in the pool, gravity (knight heights / s²)
+    CS_GRAV = 3.2;
   const csPool = [],
     csTex = [null, null];
   let csPrevT = -1,
@@ -585,12 +599,14 @@ void main(){
       x.drawImage(shineFrames[Math.min(i, shineFrames.length - 1)], 0, 0);
       t.needsUpdate = true;
     });
-  } // the png frames have decoded by now
+  // the png frames have decoded by now
+  }
   const _csA = new THREE.Vector3(),
     _csB = new THREE.Vector3();
   function csSpawn(n) {
     const ground = (blobHome ? blobHome.y : 0) + 0.01 * playerH;
-    swTip.getWorldPosition(_csB); // they shoot out of the floor right under the blade's point, where the sword lands
+    // they shoot out of the floor right under the blade's point, where the sword lands
+    swTip.getWorldPosition(_csB);
     for (let k = 0; k < n; k++) {
       const p = csPool.find((q) => q.life <= 0);
       if (!p) return;
@@ -606,13 +622,15 @@ void main(){
         Math.cos(a) * hs,
         (0.9 + Math.random() * 1.7) * playerH,
         Math.sin(a) * hs,
-      ); // sprayed out in every direction, then they fall back
+      // sprayed out in every direction, then they fall back
+      );
       p.ground = ground;
       p.age = 0;
       p.life = 0.7 + Math.random() * 0.6;
       p.size = playerH * (0.12 + Math.random() * 0.14);
       p.seed = (Math.random() * 2) | 0;
-      p.sp.material.color.setHSL(Math.random(), 1, 0.55).multiplyScalar(1.8); // fully saturated and over-bright: very bright tints
+      // fully saturated and over-bright: very bright tints
+      p.sp.material.color.setHSL(Math.random(), 1, 0.55).multiplyScalar(1.8);
       p.sp.scale.set(p.size, p.size, 1);
       p.sp.visible = true;
       csLive++;
@@ -634,7 +652,8 @@ void main(){
       if (csPrevT < 0 || t < csPrevT) {
         csAcc = 0;
         csRefresh();
-      } // (re)started or looped
+      // (re)started or looped
+      }
       if (t >= a && t <= HEAVY_COMBO_FINISH_T) {
         csAcc += CS_RATE * dt;
         const n = Math.floor(csAcc);
@@ -666,18 +685,21 @@ void main(){
         p.sp.visible = false;
         csLive--;
         return;
-      } // arcs up and back down to the floor
+      // arcs up and back down to the floor
+      }
       p.sp.material.opacity = Math.min(
         1,
         p.age / 0.08,
         (p.life - p.age) / (p.life * 0.5),
       );
-      p.sp.material.map = csTex[(Math.floor(p.age / 0.09) + p.seed) & 1]; // flickers between the two glint frames
+      // flickers between the two glint frames
+      p.sp.material.map = csTex[(Math.floor(p.age / 0.09) + p.seed) & 1];
     });
   }
   function updateShine(dt) {
     if (shine.active) {
-      if (!shine.obj.visible) shine.t = Math.max(shine.t, shine.dur - 0.2); // e.g. the helmet it was on got swapped out
+      // e.g. the helmet it was on got swapped out
+      if (!shine.obj.visible) shine.t = Math.max(shine.t, shine.dur - 0.2);
       shine.t += dt;
       if (shine.t >= shine.dur) {
         shine.active = false;
@@ -689,7 +711,8 @@ void main(){
       shineSpr.material.opacity = Math.max(
         0,
         Math.min(1, shine.t / 0.3, (shine.dur - shine.t) / 0.45),
-      ); // fade in, then fade out
+      // fade in, then fade out
+      );
       const fi = Math.min(
         shineFrames.length - 1,
         Math.floor((shine.t / shine.dur) * shineFrames.length),
@@ -707,7 +730,8 @@ void main(){
           .sub(p)
           .normalize()
           .multiplyScalar(playerH * 0.03),
-      ); // nudge toward the camera so the body does not hide it
+      // nudge toward the camera so the body does not hide it
+      );
       shineSpr.position.copy(p);
     } else if (shineOn) {
       shine.wait -= dt;
@@ -717,7 +741,8 @@ void main(){
   function toggleShine() {
     shineOn = !shineOn;
     if (!shineOn && shine.active)
-      shine.t = Math.max(shine.t, shine.dur - 0.45); // let a glint in progress fade out
+      // let a glint in progress fade out
+      shine.t = Math.max(shine.t, shine.dur - 0.45);
     else if (shineOn && !shine.active) shine.wait = 0.6;
   }
 
@@ -729,9 +754,11 @@ void main(){
     invK = 0,
     invPrev = null,
     invCur = 0,
-    invUi = null; // inventory (main menu > INVENTORY)
+    // inventory (main menu > INVENTORY)
+    invUi = null;
   let editOn = false,
-    editRoll = 0; // (EDIT mode, see editStart: declared up here because showWeapons and the frame loop look at them)
+    // (EDIT mode, see editStart: declared up here because showWeapons and the frame loop look at them)
+    editRoll = 0;
   let exploring = false,
     ps1 = true,
     spin = false,
@@ -745,7 +772,8 @@ void main(){
     startScr = false,
     mapS = 0,
     mapDir = 0,
-    mapViewK = 1; // the map (see MAP below): mapS 0 = menu camera ... 3 = the map, mapDir +1 opening / -1 closing / 0 resting, mapViewK 1 = picture shifted right for the menu ... 0 = centered
+    // the map (see MAP below): mapS 0 = menu camera ... 3 = the map, mapDir +1 opening / -1 closing / 0 resting, mapViewK 1 = picture shifted right for the menu ... 0 = centered
+    mapViewK = 1;
   let yaw = Math.PI + 0.65,
     pitch = 0.1,
     zoom = 0.82,
@@ -769,7 +797,8 @@ void main(){
       AxeFlaunt: "Flaunt",
       FlauntIdleAxe: "Flaunt",
     },
-    FLAUNT_IDLE = "FlauntIdleAxe"; // FlauntIdleAxe: the loop that follows AxeFlaunt; no menu entry of its own, it lights up Flaunt
+    // FlauntIdleAxe: the loop that follows AxeFlaunt; no menu entry of its own, it lights up Flaunt
+    FLAUNT_IDLE = "FlauntIdleAxe";
   /* Flip the whole knight left-to-right: every animation, the sword hand, the seated pose and the look-around all swap sides together.
    (The skeleton is not symmetric, so swapping the left/right animation tracks would not line up; mirroring the model does.) Set false for the original handedness. */
   const MIRROR_MODEL = true;
@@ -789,7 +818,8 @@ void main(){
     evtDue = false,
     evtGo = false,
     evtDone = false;
-  const SEAT_TAIL = 0.583; // seconds added to the Pose2 loop so it can ease back to its first pose instead of snapping
+  // seconds added to the Pose2 loop so it can ease back to its first pose instead of snapping
+  const SEAT_TAIL = 0.583;
 
   /* ---------- SNAP: pose-to-pose snappiness for the action clips (the golem's attack feel) ----------
    Keys stay exactly where they are, so every hit time, whoosh and sound that is tied to a key still lines up; only the motion BETWEEN keys changes. In each track the single fastest big move
@@ -810,7 +840,8 @@ void main(){
   const SNAP_ANGLE = 0.45,
     SNAP_MOVE = 0.08,
     SNAP_SPAN = 0.6,
-    SNAP_STEPS = 6; // what counts as a big move (radians / units), how much of a segment a pop takes, samples per snapped segment
+    // what counts as a big move (radians / units), how much of a segment a pop takes, samples per snapped segment
+    SNAP_STEPS = 6;
   function snapClip(clip) {
     clip.tracks = clip.tracks.map((tr) => {
       const T = Array.from(tr.times),
@@ -904,14 +935,16 @@ void main(){
         }
       });
       armorMats.forEach(shineMat);
-      if (armorHex) applyArmorTint(); // a remembered armor colour
+      // a remembered armor colour
+      if (armorHex) applyArmorTint();
       const pl = gltf.scene.getObjectByName("Plume");
       if (pl) setupPlume(pl.material);
       if (pl) initHelmets(pl.parent, pl.parent.children.slice());
       const rig = new THREE.Group();
       rig.add(gltf.scene);
       if (MIRROR_MODEL) gltf.scene.scale.x = -1;
-      rig.rotation.y = Math.PI; // model faces -Z; turn him toward the camera
+      // model faces -Z; turn him toward the camera
+      rig.rotation.y = Math.PI;
       scene.add(rig);
       rig.updateMatrixWorld(true);
       playerRig = rig;
@@ -1085,11 +1118,13 @@ void main(){
         if (id === "block-data") {
           const old = gltf.animations.findIndex((a) => a.name === "Block");
           if (old >= 0) gltf.animations.splice(old, 1);
-        } // the new Block replaces the rig's own
+        // the new Block replaces the rig's own
+        }
         if (id === "swing2-data") {
           const old = gltf.animations.findIndex((a) => a.name === "Swing");
           if (old >= 0) gltf.animations.splice(old, 1);
-        } // Swing2 (from the rig) replaces the knight's own Swing; it keeps the name Swing so everything keyed on it still works
+        // Swing2 (from the rig) replaces the knight's own Swing; it keeps the name Swing so everything keyed on it still works
+        }
         gltf.animations.push(new THREE.AnimationClip(D.name, -1, tr));
       });
       /* Chestopen: the rig's own chest-opening clip (embedded below as CHESTOPEN_CLIP, same track format as the other embedded clips). It lists itself in the animation menus; the chest it opens is built in initChest. */
@@ -1193,7 +1228,8 @@ void main(){
           gltf.animations.push(
             new THREE.AnimationClip("UALX_ConsumeM", -1, tr),
           );
-        })(); // (the heavy combo is just called HeavyCombo: it is not one of the hidden UAL_ clips)
+        // (the heavy combo is just called HeavyCombo: it is not one of the hidden UAL_ clips)
+        })();
       })();
       /* EDIT: six still poses (Mixamo poses, retargeted onto this rig offline: editposes-data). They are hidden from the menus (UALX_) and only used by the EDIT mode (see editStart). */
       (function () {
@@ -1229,7 +1265,8 @@ void main(){
           const p3 = gltf.animations.find((a) => a.name === cn);
           if (p3) setLeftShin(p3, LEFT_SHIN_DEG);
         });
-      } // Pose3 shares Pose2's legs, so it gets the same tweak and sits on the same rock. Its head is left as authored; the occasional look at the sky is added on top, see headLook()
+      // Pose3 shares Pose2's legs, so it gets the same tweak and sits on the same rock. Its head is left as authored; the occasional look at the sky is added on top, see headLook()
+      }
       /* AxeFlaunt is the rig's own "animation" clip, played exactly as authored (arms, body, legs and head are not touched). Only the axe moves: it rests on his back, see AXE_STOW_CLIPS. */
       mixer = new THREE.AnimationMixer(gltf.scene);
       const order = [
@@ -1251,7 +1288,8 @@ void main(){
         );
       menuNames = names.filter(
         (n) => !AXE_BASE[n] && n !== START_CLIP && !/^UALX_/.test(n),
-      ); // what the menus list: the axe variants are folded into Idle / Swing / Flaunt, and the start-screen pose (Pose3) is not an animation to browse
+      // what the menus list: the axe variants are folded into Idle / Swing / Flaunt, and the start-screen pose (Pose3) is not an animation to browse
+      );
       {
         const gi = { enemies: 0, self: 1, shop: 2 };
         menuNames = menuNames
@@ -1260,11 +1298,13 @@ void main(){
             (a, b) => gi[animGroup(a[0])] - gi[animGroup(b[0])] || a[1] - b[1],
           )
           .map((x) => x[0]);
-      } // grouped in the order the ANIMATIONS menu shows them (so the cycle keys follow it too)
+      // grouped in the order the ANIMATIONS menu shows them (so the cycle keys follow it too)
+      }
       if (SNAP_ON)
         gltf.animations.forEach((a) => {
           if (SNAP_CLIPS.includes(a.name)) snapClip(a);
-        }); // see SNAP
+        // see SNAP
+        });
       gltf.animations.forEach((a) => {
         actions[a.name] = mixer.clipAction(a);
       });
@@ -1272,7 +1312,8 @@ void main(){
         ualApply();
       } catch (e) {
         console.error(e);
-      } // the default ANIM SET (IDEAL) takes effect from the start
+      // the default ANIM SET (IDEAL) takes effect from the start
+      }
       mixer.addEventListener("finished", (e) => {
         if (e.action === actions[EVT_CLIP]) evtDone = true;
         else if (e.action === actions.Swing || e.action === actions.AxeSwing)
@@ -1302,11 +1343,13 @@ void main(){
             : names[0],
       );
       initMainMenu();
-      setTimeMode("auto"); // the default look follows the local clock (set 'night' here for the old always-night start)
+      // the default look follows the local clock (set 'night' here for the old always-night start)
+      setTimeMode("auto");
       if (actions[START_CLIP]) {
         startCam();
         syncRockMeshes();
-      } // the start screen's low camera; he sits in Pose3 without the rock
+      // the start screen's low camera; he sits in Pose3 without the rock
+      }
     },
     function (e) {
       console.error(e);
@@ -1436,11 +1479,14 @@ void main(){
     t.minFilter = t.magFilter = THREE.NearestFilter;
     return t;
   }
-  const IGNIS_DIST = 52; // Ignis Mourne sits another FROST_DIST north of The Veiled Frost
-  const FROST_DIST = 26; // how far north (-Z, in knight-heights) The Veiled Frost sits from The Greenfield
+  // Ignis Mourne sits another FROST_DIST north of The Veiled Frost
+  const IGNIS_DIST = 52;
+  // how far north (-Z, in knight-heights) The Veiled Frost sits from The Greenfield
+  const FROST_DIST = 26;
   let mapAreaK = 0,
     mapAreaTarget = 0;
-  const mapAreaV = { v: 0 }; // 0 = The Greenfield, 1 = The Veiled Frost, 2 = Ignis Mourne; smoothly glides between them
+  // 0 = The Greenfield, 1 = The Veiled Frost, 2 = Ignis Mourne; smoothly glides between them
+  const mapAreaV = { v: 0 };
   let greenRockMesh = null,
     frostRockMesh = null,
     ignisRockMesh = null,
@@ -1450,8 +1496,10 @@ void main(){
   const AREA_FOG = {
     frost: new THREE.Color(0xcfd4da),
     ignis: new THREE.Color(0xe8761e),
-  }; // The Veiled Frost: a greyish white - Ignis Mourne: a hellish orange-yellow (dimmer at night)
-  const AREA_FOG_MIX = 0.7; // how strongly the area colours take over the normal sky colour (1 = fully, 0 = not at all)
+  // The Veiled Frost: a greyish white - Ignis Mourne: a hellish orange-yellow (dimmer at night)
+  };
+  // how strongly the area colours take over the normal sky colour (1 = fully, 0 = not at all)
+  const AREA_FOG_MIX = 0.7;
   const _fogC = new THREE.Color(),
     _fogB = new THREE.Color();
   let fogBase = SKY;
@@ -1496,7 +1544,8 @@ void main(){
     floorMat.uniforms.uFrostZ.value =
       -0.5 * FROST_DIST * H + (kF - 0.5) * 2.0 * H;
     floorMat.uniforms.uIgnisZ.value =
-      -1.5 * FROST_DIST * H + (kI - 0.5) * 2.0 * H; // the border between The Veiled Frost and Ignis Mourne
+      // the border between The Veiled Frost and Ignis Mourne
+      -1.5 * FROST_DIST * H + (kI - 0.5) * 2.0 * H;
     floorMat.uniforms.uFrostSpan.value = 4.2 * H;
   }
   function syncRockMeshes() {
@@ -1529,7 +1578,8 @@ void main(){
   }
   function setWorld(f) {
     forest = f;
-    todApplied = null; // (the time-of-day look is redone next frame with the new world's day colours)
+    // (the time-of-day look is redone next frame with the new world's day colours)
+    todApplied = null;
     if (floorMat) {
       floorMat.uniforms.map.value = f ? floorTexForest : floorTexClassic;
       syncFrostBlend();
@@ -1569,15 +1619,18 @@ void main(){
       homeTarget.y + playerH * START_TARGET_Y,
       homeTarget.z + zOff,
     );
-  } // low and close, looking up at him
+  // low and close, looking up at him
+  }
   function menuCam() {
     const zOff = areaZOffset();
     yaw = Math.PI + 0.65;
     pitch = 0.1;
     zoom = 0.82;
     target.set(homeTarget.x, homeTarget.y, homeTarget.z + zOff);
-  } // the usual menu view
-  let fogT = 5; // OPTIONS > WORLD > FOG: 1 (thin) .. 9 (thick); 5 = the normal fog
+  // the usual menu view
+  }
+  // OPTIONS > WORLD > FOG: 1 (thin) .. 9 (thick); 5 = the normal fog
+  let fogT = 5;
   const fogRec = { base: null, set: null };
   function applyFogThickness() {
     if (mapMode || dungeon || shopT >= 0 || fogBak) return;
@@ -1619,7 +1672,8 @@ void main(){
     lookSnap = true,
     todDome = null,
     todD = 1,
-    todApplied = null; // todHold 'day': the inventory / editor force daylight
+    // todHold 'day': the inventory / editor force daylight
+    todApplied = null;
   const todL = { e: -45, azi: 0, dp: 0 },
     todT = { e: -45, azi: 0, dp: 0 };
   const _tdG = new THREE.Color(),
@@ -1635,7 +1689,8 @@ void main(){
   };
   function setTimeMode(m) {
     todHour = m === "auto" ? null : m;
-  } // 'auto' = the local clock, or an hour 0..23
+  // 'auto' = the local clock, or an hour 0..23
+  }
   function clockHour() {
     const t = new Date();
     return t.getHours() + t.getMinutes() / 60 + t.getSeconds() / 3600;
@@ -1666,7 +1721,8 @@ void main(){
   function setNight(on) {
     todHold = on ? null : "day";
     lookSnap = true;
-  } // (kept for old callers)
+  // (kept for old callers)
+  }
   function clockSun(o, hr) {
     // sun elevation / bearing from the local clock: noon at 12:30, day length swinging with the season
     const t = new Date(),
@@ -1700,16 +1756,20 @@ void main(){
       dayHor = forest ? SKY_FOREST : SKY_CLASSIC;
     night = d > 0.5;
     todD = d;
-    _tdG.setHex(TOD.duskGlow).lerp(_tdC.setHex(TOD.dawnGlow), dp); // the glow
-    _tdP.setHex(TOD.duskPlum).lerp(_tdC.setHex(TOD.dawnPlum), dp); // the colour the horizon deepens to as the light goes
-    _tdH.setHex(dayHor).lerp(_tdC.setHex(SKY_NIGHT), d); // horizon = fog
+    // the glow
+    _tdG.setHex(TOD.duskGlow).lerp(_tdC.setHex(TOD.dawnGlow), dp);
+    // the colour the horizon deepens to as the light goes
+    _tdP.setHex(TOD.duskPlum).lerp(_tdC.setHex(TOD.dawnPlum), dp);
+    // horizon = fog
+    _tdH.setHex(dayHor).lerp(_tdC.setHex(SKY_NIGHT), d);
     _tdW
       .copy(_tdG)
       .multiplyScalar(0.9)
       .lerp(_tdP, Math.min(1, d * 1.15));
     _tdH.lerp(_tdW, w * 0.85);
     if (forest) _tdT.setHex(dayHor).lerp(_tdC.setHex(0x2c5cc0), 0.6);
-    else _tdT.setHex(dayHor).multiplyScalar(0.55); // zenith
+    // zenith
+    else _tdT.setHex(dayHor).multiplyScalar(0.55);
     _tdT.lerp(_tdC.setHex(TOD.nightTop), d);
     _tdW
       .setHex(TOD.duskTop)
@@ -1737,7 +1797,8 @@ void main(){
       nightFogDay[0] + (playerH * NIGHT_FOG[0] - nightFogDay[0]) * d;
     U.uFogFar.value =
       nightFogDay[1] + (playerH * NIGHT_FOG[1] - nightFogDay[1]) * d;
-    const sa = sstep(0.18, 0.95, d); // stars and moon fade in (a few show at dusk)
+    // stars and moon fade in (a few show at dusk)
+    const sa = sstep(0.18, 0.95, d);
     if (nightGroup) {
       nightGroup.visible = d > 0.12;
       nightStars.material.opacity = sa;
@@ -1780,7 +1841,8 @@ void main(){
       todL.azi += (todT.azi - todL.azi) * f;
       todL.dp += (todT.dp - todL.dp) * f;
     }
-    const guard = mapMode || dungeon || shopT >= 0 || fogBak; // the map / dungeon / shop have their own fog: leave it alone, catch up afterwards
+    // the map / dungeon / shop have their own fog: leave it alone, catch up afterwards
+    const guard = mapMode || dungeon || shopT >= 0 || fogBak;
     if (
       !guard &&
       (lookSnap ||
@@ -1794,7 +1856,8 @@ void main(){
       lookSnap = false;
     }
     const u = todDome.material.uniforms,
-      fc = U.uFogColor.value; // the horizon is always exactly the fog colour (areas, dungeon ...); the zenith follows it
+      // the horizon is always exactly the fog colour (areas, dungeon ...); the zenith follows it
+      fc = U.uFogColor.value;
     u.uHor.value.copy(fc);
     u.uTop.value.set(
       Math.min(1, Math.max(0, _todBase.top.r + (fc.r - _todBase.hor.r) * 0.75)),
@@ -1869,7 +1932,8 @@ void main(){
     const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)),
       asp = SKY_REF.w / SKY_REF.h;
     const nx = ((px - 0.2 * SKY_REF.w) / SKY_REF.w) * 2 - 1,
-      ny = 1 - (2 * py) / SKY_REF.h; // the start picture sits 0.2 of the width to the right of centre (see applyView)
+      // the start picture sits 0.2 of the width to the right of centre (see applyView)
+      ny = 1 - (2 * py) / SKY_REF.h;
     return {
       C: C,
       dir: f
@@ -1904,7 +1968,8 @@ void main(){
     head: [3.5, 28.5],
     headDeg: -136.5,
     png: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOAAAAAgCAYAAAALxXRVAAAB1klEQVR42u2ZsUoDQRRF3wRBTBob/8P9CK0tBJEtFCEIdn6JnSBpbJY0Ftb6EfE/bGwSsXEtZMO6TIKIeXfYOecHzmb33bkzEzMAAAAAAACADTF5ea15CwCED4DwAUDPw0f4gfARPgDCB0D4CB/A5gY/9/ARfiB8hA9yDJ9yAAkfED6aF+DXhP8cuvH+XlANvbe7+wwqP2TeeotZJWmftl/5DpR+MzO1HwQNmFLzqdpH3Xw0bz8Y/OXDl/WTNHxKfwqt0/hV4aN1BQ0Y22bm1nw077ef1nVuwOajq5qnOe/l3Lzt8ybNlxHdyxbvCxe1vz38yr9ZlP6Utt19Yyv15kvNr9huqvyx5geHM2Dsw1fh0C0Aq/ze4cvZ326dYVHKznyLWVUr/e4NGFvxvMMX83sN39IvHP7FrKpNHL6ULl76fPETCN/6s0Zu/u4zKNpH7ZcE8OTsot4dfZqZ2c34wD18q/xew4c/Lf+wKINn87X9d7f3bqEfmJkdHZ/+WHWvJ8+ulx7r/B6k6vcavph/WJRB6Vf+/sur89o1gA1v84F065OS33MAV/m9t0Ntv4Ic/ctLmI/5u22PdpYP4T18qfm9wZ+nP8Rq+PFh6r764sefsx8ABHwB0QhLivJbZsEAAAAASUVORK5CYII=",
-  }; // head = the head's pixel in each 32x32 frame; headDeg = the way the head travels inside the gif (y up)
+  // head = the head's pixel in each 32x32 frame; headDeg = the way the head travels inside the gif (y up)
+  };
   let comet = null,
     cometAge = -1,
     cometWait = 4 + Math.random() * 6,
@@ -1918,7 +1983,8 @@ void main(){
   function cometAt(t, out) {
     _cd.copy(cometA).lerp(cometB, t).normalize();
     return out.copy(skyHit(cometO, _cd, cometR));
-  } // straight on the start screen: the ray is blended between the two ends
+  // straight on the start screen: the ray is blended between the two ends
+  }
   function initComet(H, groundY, grp, R) {
     const A = startSkyRay(COMET.from[0], COMET.from[1]),
       B = startSkyRay(COMET.to[0], COMET.to[1]);
@@ -1948,7 +2014,8 @@ void main(){
         const size =
           2 * cometR * Math.tan(THREE.MathUtils.degToRad(COMET.sizeDeg / 2));
         sp.scale.set(size, size, 1);
-        sp.center.set(COMET.head[0] / 32, 1 - COMET.head[1] / 32); // placed and turned about the comet's head, not the middle of the picture
+        // placed and turned about the comet's head, not the middle of the picture
+        sp.center.set(COMET.head[0] / 32, 1 - COMET.head[1] / 32);
         sp.visible = false;
         sp.renderOrder = 4;
         sp.frustumCulled = false;
@@ -1967,7 +2034,8 @@ void main(){
     }
     cometAge += dt;
     const age = ps1 ? Math.floor(cometAge * 15) / 15 : cometAge,
-      total = COMET.hold + ((COMET.frames - 1) * COMET.frameMs) / 1000; // steps at 15 fps in the PS1 look, like the rest
+      // steps at 15 fps in the PS1 look, like the rest
+      total = COMET.hold + ((COMET.frames - 1) * COMET.frameMs) / 1000;
     if (age >= total) {
       comet.visible = false;
       cometAge = -1;
@@ -1986,7 +2054,8 @@ void main(){
     cometAt(t, comet.position);
     comet.material.map.offset.x = fr / COMET.frames;
     const fi = Math.min(1, cometAge / COMET.fadeIn),
-      fo = Math.min(1, Math.max(0, (total - cometAge) / COMET.fadeOut)); // the fade runs on real time (not the 15 fps steps) so it is smooth: in over `fadeIn` seconds, out over the last `fadeOut`
+      // the fade runs on real time (not the 15 fps steps) so it is smooth: in over `fadeIn` seconds, out over the last `fadeOut`
+      fo = Math.min(1, Math.max(0, (total - cometAge) / COMET.fadeOut));
     comet.material.opacity = fi * fi * (3 - 2 * fi) * fo * fo * (3 - 2 * fo);
     // turn it to follow its path as seen from the camera right now
     cometAt(Math.min(1, t + 0.03), _cp2);
@@ -2005,7 +2074,8 @@ void main(){
       let t = Math.imul(sd ^ (sd >>> 15), 1 | sd);
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    }; // fixed seed: the same sky every time
+    // fixed seed: the same sky every time
+    };
     const pos = new Float32Array(NIGHT_STARS * 3),
       col = new Float32Array(NIGHT_STARS * 3);
     for (let i = 0; i < NIGHT_STARS; i++) {
@@ -2076,8 +2146,10 @@ void main(){
   function updateNight(dt) {
     updateTime(dt);
     if (!nightGroup || !nightGroup.visible) return;
-    nightGroup.position.set(target.x, groundYNight, target.z); // rides along with the camera, so the sky never gets closer
-    nightStars.rotation.y += dt * 0.006; // the stars turn very slowly
+    // rides along with the camera, so the sky never gets closer
+    nightGroup.position.set(target.x, groundYNight, target.z);
+    // the stars turn very slowly
+    nightStars.rotation.y += dt * 0.006;
     nightMoon.lookAt(camera.position);
     if (todD > 0.6) updateComet(dt);
   }
@@ -2144,7 +2216,8 @@ void main(){
       }
       occMark(grp);
       scene.add(grp);
-      return grp; // trees dither away when they are in front of someone
+      // trees dither away when they are in front of someone
+      return grp;
     });
   }
   /* ---------- barrier: hills (Greenfield) and mountains (Veiled Frost) overlapping in a near-vertical line down each side of the area, past the trees ----------
@@ -2282,7 +2355,8 @@ void main(){
           grp.traverse((o) => {
             if (o.isMesh && o.material && o.material.uniforms)
               o.material.uniforms.uMagma.value = 1;
-          }); // the magma on these trees glows (see uMagma in the shader)
+          // the magma on these trees glows (see uMagma in the shader)
+          });
         })
         .catch((e) => console.error("ignis tree load failed", e));
     }
@@ -2294,10 +2368,12 @@ void main(){
     LEAF_ASPECT = 8 / 17;
   const LEAF_MAX = 12,
     LEAF_REACH = 3.8,
-    LEAF_W = 0.08; // max leaves at once, how far from the player a tree can drop one (knight-heights), leaf width (knight-heights)
+    // max leaves at once, how far from the player a tree can drop one (knight-heights), leaf width (knight-heights)
+    LEAF_W = 0.08;
   const LEAF_FALL = 0.22,
     LEAF_EVERY_MIN = 0.5,
-    LEAF_EVERY_MAX = 1.9; // fall speed (knight-heights/sec), seconds between new leaves
+    // fall speed (knight-heights/sec), seconds between new leaves
+    LEAF_EVERY_MAX = 1.9;
   const LEAF_ATLAS =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAO4AAAAICAYAAAD+88O9AAABY0lEQVR4nO2XMWrDQBREZ1U4BCGXgVxCW+kkuYC3N2p1hrSO+j2BTpLKvkQgpYwRSvNTCIEwOFg7n1g2+w4wfObP/JXM5sOK3+4NIpHI3ZD47d642krVFHLrYSLLImZiuSQAkKWC768flD6nCuxqGxe9ADQKVzWFdG1/8zkeGaYvCQDs3MFk6aDRtT1KnwcJar3errYSj0AYGoUrfa5SWlZj6bA5ZfpiRLkepc/leDLIUsHz+gnvb5/B/8+utpKlgp07UBrAYFKoxn9QNYUwXo0aXdtTfgG87xpzaPhxDRr5YPwK7Usyf8y/mb7erPFZKjieTPAXADAsRONL4NJ1nat5SYN9nVxtVV44trRz52D9YPeikQ8mp6F9UX9xtZmawVzw88sGhB2WMSQvryuM4Zo71zRojM5Ua1w+Uzgg/OVh5tDwg90Lmw+tnF7L4ouriYa551eVPSYaOo8C44fGXu5pH7+IuTgVPUs17gAAAABJRU5ErkJggg==";
   let leavesOn = true,
@@ -2467,7 +2543,8 @@ void main(){
       fz /= fl;
       const cx = camera.position.x + fx * S * 0.45,
         cz = camera.position.z + fz * S * 0.45,
-        cp = camera.position; // the box sits in front of the camera
+        // the box sits in front of the camera
+        cp = camera.position;
       const pos = snow.pos,
         col = snow.col,
         W = 2 * S;
@@ -2494,11 +2571,14 @@ void main(){
         pos[i * 3 + 2] = z;
         const dist = Math.hypot(x - cp.x, y - cp.y, z - cp.z);
         let f = Math.min(1, Math.max(0, (dist - near) / (far - near)));
-        f = f * f * (3 - 2 * f); // into the fog, like the trees
-        f = Math.max(f, Math.min(1, Math.max(0, (0.9 * H - dist) / (0.5 * H)))); // and out of the way when one drifts right up to the lens
+        // into the fog, like the trees
+        f = f * f * (3 - 2 * f);
+        // and out of the way when one drifts right up to the lens
+        f = Math.max(f, Math.min(1, Math.max(0, (0.9 * H - dist) / (0.5 * H))));
         col[i * 3] = nt.x + (fc.r - nt.x) * f;
         col[i * 3 + 1] = nt.y + (fc.g - nt.y) * f;
-        col[i * 3 + 2] = nt.z + (fc.b - nt.z) * f; // white (dimmed by the night tint) fading to the fog colour
+        // white (dimmed by the night tint) fading to the fog colour
+        col[i * 3 + 2] = nt.z + (fc.b - nt.z) * f;
       }
       snow.pa.needsUpdate = true;
       snow.ca.needsUpdate = true;
@@ -2539,7 +2619,8 @@ void main(){
         x = Math.round(x / snap) * snap;
         z = Math.round(z / snap) * snap;
         yy = Math.round(yy / snap) * snap;
-      } // chunky vertex-snap feel
+      // chunky vertex-snap feel
+      }
       l.spr.position.set(x, yy, z);
       const fi = Math.floor((l.t * 1000) / LEAF_MS + l.off) % LEAF_FRAMES;
       if (fi !== l.fi) {
@@ -2548,7 +2629,8 @@ void main(){
       }
       const d = camera.position.distanceTo(l.spr.position),
         f = Math.min(1, Math.max(0, (d - near) / (far - near))),
-        fog = 1 - f * f * (3 - 2 * f); // fades into the fog like the trees
+        // fades into the fog like the trees
+        fog = 1 - f * f * (3 - 2 * f);
       l.spr.material.opacity =
         Math.max(0, Math.min(1, l.t / 0.4, (y - gy) / (playerH * 0.15))) * fog;
     }
@@ -2585,7 +2667,8 @@ void main(){
       const m = new THREE.Mesh(geo, ps1Mat(tex, 1));
       m.name = name || "SeatRock";
       m.scale.set(sx, sy, sz);
-      m.position.set(seat.x, gnd.y - midY * sy, seat.z - ROCK_BACK); // middle of the rock at floor level = half of it is in the ground
+      // middle of the rock at floor level = half of it is in the ground
+      m.position.set(seat.x, gnd.y - midY * sy, seat.z - ROCK_BACK);
       return m;
     });
   }
@@ -2668,16 +2751,22 @@ void main(){
   }
 
   /* ---------- shortsword (sword-data: Blockbench glTF, same 1/16 units as the knight). Parented to the hand's forearm bone so it follows every animation ---------- */
-  const SWORD_HAND = "Left"; // 'Right' or 'Left' (character's own side)
-  const SWORD_GRIP_Y = 0.844; // where the handle's middle sits along the sword's own blade axis
-  const SWORD_ROT_DEG = [90, 0, 90]; // x,y,z (ZYX): 90,0,90 = blade pointing forward, edge up/down. Tweak to tilt it, e.g. 60,0,90 points it up a bit
-  const SWORD_NUDGE = [0, 0, 0]; // extra x,y,z shift in forearm space
-  const SWORD_ROLL_DEG = 90; // extra turn about the z axis, applied last. Use -90 to turn it the other way, 0 for none
+  // 'Right' or 'Left' (character's own side)
+  const SWORD_HAND = "Left";
+  // where the handle's middle sits along the sword's own blade axis
+  const SWORD_GRIP_Y = 0.844;
+  // x,y,z (ZYX): 90,0,90 = blade pointing forward, edge up/down. Tweak to tilt it, e.g. 60,0,90 points it up a bit
+  const SWORD_ROT_DEG = [90, 0, 90];
+  // extra x,y,z shift in forearm space
+  const SWORD_NUDGE = [0, 0, 0];
+  // extra turn about the z axis, applied last. Use -90 to turn it the other way, 0 for none
+  const SWORD_ROLL_DEG = 90;
   let swordGrp = null,
     swordOn = true,
     axeGrp = null,
     axeStyle = "axe",
-    weapon = "sword"; // axeStyle: 'axe' or 'shovel' (the shovel is the axe's alternate model: same rig, mount, animations and stats)   // weapon: 'sword' (light) or 'axe' (heavy)
+    // axeStyle: 'axe' or 'shovel' (the shovel is the axe's alternate model: same rig, mount, animations and stats)   // weapon: 'sword' (light) or 'axe' (heavy)
+    weapon = "sword";
   function initSword(parent) {
     const el = document.getElementById("sword-data");
     if (!el) return;
@@ -2762,7 +2851,8 @@ void main(){
   const HATCHET_GRIP_Y = 1.156,
     HATCHET_TURN_DEG = 0,
     HATCHET_NUDGE = [0, 0, 0];
-  let voice = "voice1"; // 'voice1' (original sounds) or 'voice2' (new sounds)
+  // 'voice1' (original sounds) or 'voice2' (new sounds)
+  let voice = "voice1";
   function setVoice(v) {
     voice = v === "voice2" ? "voice2" : "voice1";
     const b = document.getElementById("voice");
@@ -2777,12 +2867,14 @@ void main(){
       sfx.resume();
     } catch (e) {}
     playFlauntSfx();
-  } // preview: one of the voice's flaunt lines
+  // preview: one of the voice's flaunt lines
+  }
   let hatchetGrp = null,
     hammerGrp = null,
     knightlyGrp = null,
     morningstarGrp = null,
-    swordStyle = "sword"; // swordStyle: 'sword' or 'hatchet' (only shows while the weapon is the light one)
+    // swordStyle: 'sword' or 'hatchet' (only shows while the weapon is the light one)
+    swordStyle = "sword";
   function showWeapons() {
     applyAxeStyle();
     if (swordGrp)
@@ -2807,7 +2899,8 @@ void main(){
         axeGrp,
       ].forEach((g) => {
         if (g) g.visible = false;
-      }); // EDIT: no weapon
+      // EDIT: no weapon
+      });
     swooshUse();
   }
   function initHatchet(parent) {
@@ -2884,7 +2977,8 @@ void main(){
           tex.flipY = false;
           const hmat = ps1Mat(tex, 1);
           swordMats.push(hmat);
-          tintMat(hmat, swordMatch ? armorHex : swordHex); // the same weapon color as the sword
+          // the same weapon color as the sword
+          tintMat(hmat, swordMatch ? armorHex : swordHex);
           const m = new THREE.Mesh(geo, hmat);
           m.name = "hatchet_" + p.name;
           m.position.set(p.t[0], p.t[1], p.t[2]);
@@ -2967,10 +3061,12 @@ void main(){
             kmat = ps1Mat(tex, 1);
             shineMat(kmat);
             kmat.uniforms.uGem.value = 1;
-            kmat.uniforms.uBladeGlow.value = 0; // 0: no white wash on the steel any more (the gems still glow, uGem)
+            // 0: no white wash on the steel any more (the gems still glow, uGem)
+            kmat.uniforms.uBladeGlow.value = 0;
             kmat.userData.tintAmt = 1;
             swordMats.push(kmat);
-            tintMat(kmat, swordMatch ? armorHex : swordHex); // it follows the weapon colour like the other swords, at full strength
+            // it follows the weapon colour like the other swords, at full strength
+            tintMat(kmat, swordMatch ? armorHex : swordHex);
           } else {
             // the guard is the normal sword's own, copied into knightly-sword-data: built exactly as initSword builds it (no glow, no shine, the normal sword's tint). The pommel and grip are still the knightly sword's
             kmat = ps1Mat(tex, 1);
@@ -3080,7 +3176,8 @@ void main(){
           tex.flipY = false;
           const hmat = ps1Mat(tex, 1);
           swordMats.push(hmat);
-          tintMat(hmat, swordMatch ? armorHex : swordHex); // the same weapon color as the sword
+          // the same weapon color as the sword
+          tintMat(hmat, swordMatch ? armorHex : swordHex);
           const m = new THREE.Mesh(geo, hmat);
           m.name = "hammer_" + p.name;
           m.position.set(p.t[0], p.t[1], p.t[2]);
@@ -3187,7 +3284,8 @@ void main(){
           tex.flipY = false;
           const hmat = ps1Mat(tex, 1);
           swordMats.push(hmat);
-          tintMat(hmat, swordMatch ? armorHex : swordHex); // the same weapon color as the sword
+          // the same weapon color as the sword
+          tintMat(hmat, swordMatch ? armorHex : swordHex);
           const m = new THREE.Mesh(geo, hmat);
           m.name = "morningstar_" + p.name;
           m.position.set(p.t[0], p.t[1], p.t[2]);
@@ -3257,9 +3355,11 @@ void main(){
     const o = ["sword", "hatchet", "hammer", "knightly", "morningstar"].filter(
       owns,
     );
-    swordStyle = o[(o.indexOf(swordStyle) + 1) % o.length] || "sword"; // only styles you own
+    // only styles you own
+    swordStyle = o[(o.indexOf(swordStyle) + 1) % o.length] || "sword";
     if (weapon !== "sword") setWeapon("sword");
-    else showWeapons(); // a sword style only shows on the light weapon, so changing it brings that one out
+    // a sword style only shows on the light weapon, so changing it brings that one out
+    else showWeapons();
     refreshAnim();
   }
   /* ---------- the Axe (axe-data: Blockbench glTF). Heavy weapon: held across the body with the AxeIdle pose.
@@ -3273,11 +3373,15 @@ void main(){
     AXE_MOUNT_R = {
       p: [-1.25965, -0.92929, 0.54791],
       q: [-0.24072, -0.09709, -0.32458, 0.90955],
-    }; // the original mount, worked out for the unmirrored idle
+    // the original mount, worked out for the unmirrored idle
+    };
   const AXE_FLIP_ENDS = false,
-    AXE_FLIP_PIVOT = 1.1595; // true = the axe is turned end for end: the head ends up past his right hand instead of his left (butt past the left). The pivot is the middle of his two fists along the handle (right fist 0.953, left fist 1.366), so both hands stay on it. false = as before
-  const AXE_ROLL_DEG = 90; // turns the blades about the shaft: 90 = blades pointing front/back instead of up/down (0 = as before; 180 would look identical, the head is symmetric)
-  const AXE_SWING_REVERSE = false; // AxeSwing plays backwards, so the arc sweeps the other way. The clip starts and ends on the same pose, so it still joins up cleanly. false = as before
+    // true = the axe is turned end for end: the head ends up past his right hand instead of his left (butt past the left). The pivot is the middle of his two fists along the handle (right fist 0.953, left fist 1.366), so both hands stay on it. false = as before
+    AXE_FLIP_PIVOT = 1.1595;
+  // turns the blades about the shaft: 90 = blades pointing front/back instead of up/down (0 = as before; 180 would look identical, the head is symmetric)
+  const AXE_ROLL_DEG = 90;
+  // AxeSwing plays backwards, so the arc sweeps the other way. The clip starts and ends on the same pose, so it still joins up cleanly. false = as before
+  const AXE_SWING_REVERSE = false;
   function initAxe(parent) {
     const el = document.getElementById("axe-data");
     if (!el) return;
@@ -3328,7 +3432,8 @@ void main(){
         cy = Math.cos(th);
       const shaft = new THREE.Vector3(sx, cy, 0),
         blade = new THREE.Vector3(cy, -sx, 0),
-        face = new THREE.Vector3(0, 0, -1); // handle, blade axis (across the handle, in the plane of his back), and the flat of the head facing backwards
+        // handle, blade axis (across the handle, in the plane of his back), and the flat of the head facing backwards
+        face = new THREE.Vector3(0, 0, -1);
       grp.userData.stowQ = new THREE.Quaternion().setFromRotationMatrix(
         new THREE.Matrix4().makeBasis(face, shaft, blade),
       );
@@ -3336,10 +3441,12 @@ void main(){
         AXE_BACK_AT[0],
         AXE_BACK_AT[1],
         AXE_BACK_AT[2],
-      ).addScaledVector(shaft, -1.03); // 1.03 = half the handle's length, so AXE_BACK_AT is the middle of it
+      // 1.03 = half the handle's length, so AXE_BACK_AT is the middle of it
+      ).addScaledVector(shaft, -1.03);
     }
     grp.userData.basePos = grp.position.clone();
-    grp.userData.baseQ = grp.quaternion.clone(); // the mount's own rotation; axePose() turns it to follow the arms and adds a turn about the shaft each frame
+    // the mount's own rotation; axePose() turns it to follow the arms and adds a turn about the shaft each frame
+    grp.userData.baseQ = grp.quaternion.clone();
     Promise.all(AD.parts.map((p) => loadImg(p.tex)))
       .then((imgs) => {
         AD.parts.forEach((p, k) => {
@@ -3361,13 +3468,15 @@ void main(){
               ),
               2,
             ),
-          ); // see insetIslandUV: stops neighbouring texels (the stray bits past the cut-outs) bleeding in at face edges
+          // see insetIslandUV: stops neighbouring texels (the stray bits past the cut-outs) bleeding in at face edges
+          );
           geo.setIndex(p.i);
           const tex = new THREE.Texture(imgs[k]);
           tex.flipY = false;
           const amat = ps1Mat(tex, 1);
           swordMats.push(amat);
-          tintMat(amat, swordMatch ? armorHex : swordHex); // follows the same weapon color as the sword
+          // follows the same weapon color as the sword
+          tintMat(amat, swordMatch ? armorHex : swordHex);
           const m = new THREE.Mesh(geo, amat);
           m.name = "axe_" + p.name;
           m.position.set(p.t[0], p.t[1], p.t[2]);
@@ -3420,13 +3529,17 @@ void main(){
   /* Handedness and hands. The axe is held with the opposite handedness to the sword: while it is out the whole knight is mirrored left-to-right
    (the skeleton isn't symmetric, so swapping left/right animation tracks would not line up; mirroring the model is the exact way, and is what MIRROR_MODEL does).
    The top hand (the left forearm, which carries the axe) leads; the lower hand is solved every frame so it stays on the handle through the whole swing. */
-  const AXE_MIRROR = true; // false = same handedness as the sword
-  const AXE_STICK = true; // (no longer used: the arms are not moved any more, the axe follows them - see AXE_FOLLOW_ARMS)
+  // false = same handedness as the sword
+  const AXE_MIRROR = true;
+  // (no longer used: the arms are not moved any more, the axe follows them - see AXE_FOLLOW_ARMS)
+  const AXE_STICK = true;
   const AXE_OFF_HAND = AXE_HEAD_RIGHT ? "Left" : "Right",
-    AXE_OFF_GRIP = 0.953; // the lower hand, and where it grips along the handle (axe units; the top hand holds at 1.366)
+    // the lower hand, and where it grips along the handle (axe units; the top hand holds at 1.366)
+    AXE_OFF_GRIP = 0.953;
   let axeOff = null;
   const _sq = new THREE.Quaternion();
-  let blockFlipped = false; // true while the Block animation plays with the axe out: the model is turned back the other way round for it (see syncBlockFlip)
+  // true while the Block animation plays with the axe out: the model is turned back the other way round for it (see syncBlockFlip)
+  let blockFlipped = false;
   function applyHandedness() {
     if (knightScene)
       knightScene.scale.x =
@@ -3480,8 +3593,10 @@ void main(){
       o.arm,
       E,
       S.clone().addScaledVector(dir, a).addScaledVector(pole, h),
-    ); // upper arm: elbow to its new place
-    swingBone(o.fore, o.fore.localToWorld(o.hc.clone()), T); // forearm: fist onto the target
+    // upper arm: elbow to its new place
+    );
+    // forearm: fist onto the target
+    swingBone(o.fore, o.fore.localToWorld(o.hc.clone()), T);
   }
   /* The axe follows the arms, not the other way round. Nothing moves the arms any more: they play the animation as it is.
    The top grip stays where the mount puts it (in the right fist), and the whole axe is turned about that point so the handle runs through the left fist too.
@@ -3503,12 +3618,14 @@ void main(){
     AXE_BACK_SIDE = -1;
   const AXE_FOLLOW_ARMS = true,
     AXE_FOLLOW_EASE = 0.12,
-    AXE_TOP_GRIP = 1.366; // AXE_TOP_GRIP: where the right fist holds the handle (axe units); false = the axe just rides the right forearm
+    // AXE_TOP_GRIP: where the right fist holds the handle (axe units); false = the axe just rides the right forearm
+    AXE_TOP_GRIP = 1.366;
   /* The head's turn about the shaft is worked out live, so it can't end up facing the camera whatever pose the arms are in:
    in AxeIdle / Walk / anything but the swing, the blades are turned to point front and back, the way he faces (the head is symmetric, so either end is fine).
    In AxeSwing the mount's own roll is used; the turn is eased in and out over AXE_BLADES_EASE seconds. */
   const AXE_BLADES_FRONT_BACK = true,
-    AXE_BLADES_EASE = 0.15; // false = just use the mount's roll (AXE_ROLL_DEG)
+    // false = just use the mount's roll (AXE_ROLL_DEG)
+    AXE_BLADES_EASE = 0.15;
   const _aV = [
       new THREE.Vector3(),
       new THREE.Vector3(),
@@ -3527,7 +3644,8 @@ void main(){
   const AXE_SHOULDER_UP = 0.16,
     AXE_OVER_SHOULDER = 0.6,
     AXE_SHOULDER_OUT = 0.1,
-    AXE_SHOULDER_BACK = 0.15; // OUT / BACK move the resting point outward and behind the shoulder joint, so the haft lies on top of the shoulder and the head hangs behind his back
+    // OUT / BACK move the resting point outward and behind the shoulder joint, so the haft lies on top of the shoulder and the head hangs behind his back
+    AXE_SHOULDER_BACK = 0.15;
   function axePose(nm) {
     const g = axeGrp,
       q0 = g.userData.baseQ,
@@ -3544,7 +3662,8 @@ void main(){
         nm === "Walk" ||
         /^SwingHeavy/.test(nm))
         ? 1
-        : 0; // (the SwingHeavy clips of RENDER too: the lower hand stays on the handle)
+        // (the SwingHeavy clips of RENDER too: the lower hand stays on the handle)
+        : 0;
     axeFollowK += clamp(wantF - axeFollowK, dt / AXE_FOLLOW_EASE);
     const hand = g.userData.hand,
       back = g.userData.back;
@@ -3571,9 +3690,11 @@ void main(){
     if (g.parent !== hand) hand.add(g);
     g.quaternion.copy(q0);
     g.position.copy(p0);
-    knightScene.updateMatrixWorld(true); // the bones exactly as the animation has just posed them
+    // the bones exactly as the animation has just posed them
+    knightScene.updateMatrixWorld(true);
     if (nm === "AxeFlaunt" || nm === FLAUNT_IDLE) {
-      const G = _aV[0].set(0, AXE_TOP_GRIP, 0).applyQuaternion(q0).add(p0); // the fist, in the forearm's space
+      // the fist, in the forearm's space
+      const G = _aV[0].set(0, AXE_TOP_GRIP, 0).applyQuaternion(q0).add(p0);
       const sh = knightScene.getObjectByName(
         AXE_HEAD_RIGHT ? "Right_Arm" : "Left_Arm",
       );
@@ -3596,32 +3717,39 @@ void main(){
             P.addScaledVector(fw.normalize(), -AXE_SHOULDER_BACK);
         }
         P.y += AXE_SHOULDER_UP;
-        hand.worldToLocal(P); // the top of the shoulder, in the forearm's space
+        // the top of the shoulder, in the forearm's space
+        hand.worldToLocal(P);
         const d = _aV[2].subVectors(P, G),
           L = d.length();
         if (L > 1e-3) {
           d.divideScalar(L);
           const y0 = _aV[3].set(0, 1, 0).applyQuaternion(q0);
-          g.quaternion.copy(_aQ.setFromUnitVectors(y0, d).multiply(q0)); // the handle points from the fist to the shoulder...
+          // the handle points from the fist to the shoulder...
+          g.quaternion.copy(_aQ.setFromUnitVectors(y0, d).multiply(q0));
           g.position
             .copy(G)
-            .addScaledVector(d, -(AXE_SWOOSH.mid - (L + AXE_OVER_SHOULDER))); // ...with the fist still on it, and the head just past the shoulder
+            // ...with the fist still on it, and the head just past the shoulder
+            .addScaledVector(d, -(AXE_SWOOSH.mid - (L + AXE_OVER_SHOULDER)));
         }
       }
     } else if (axeFollowK > 0.001) {
-      const G = _aV[0].set(0, AXE_TOP_GRIP, 0).applyQuaternion(q0).add(p0); // the top grip, in the forearm's space
+      // the top grip, in the forearm's space
+      const G = _aV[0].set(0, AXE_TOP_GRIP, 0).applyQuaternion(q0).add(p0);
       const L = _aV[1].copy(axeOff.hc);
       axeOff.fore.localToWorld(L);
-      hand.worldToLocal(L); // the left fist, in the forearm's space
+      // the left fist, in the forearm's space
+      hand.worldToLocal(L);
       const d = _aV[2].subVectors(G, L);
       if (d.lengthSq() > 1e-4) {
         d.normalize();
         const y0 = _aV[3].set(0, 1, 0).applyQuaternion(q0);
-        _aQ.setFromUnitVectors(y0, d).multiply(q0); // turn the axe about the top grip so the handle points from the left fist through the right
+        // turn the axe about the top grip so the handle points from the left fist through the right
+        _aQ.setFromUnitVectors(y0, d).multiply(q0);
         g.quaternion.copy(q0).slerp(_aQ, axeFollowK);
         g.position
           .copy(G)
-          .sub(_aV[3].set(0, AXE_TOP_GRIP, 0).applyQuaternion(g.quaternion)); // keep the top grip where it was
+          // keep the top grip where it was
+          .sub(_aV[3].set(0, AXE_TOP_GRIP, 0).applyQuaternion(g.quaternion));
       }
     }
     const want =
@@ -3634,33 +3762,41 @@ void main(){
     const base = g.quaternion,
       M = hand.matrixWorld,
       yW = _aV[0].set(0, 1, 0).applyQuaternion(base).transformDirection(M),
-      bW = _aV[1].set(0, 0, 1).applyQuaternion(base).transformDirection(M); // shaft and blade axis now, in the world
+      // shaft and blade axis now, in the world
+      bW = _aV[1].set(0, 0, 1).applyQuaternion(base).transformDirection(M);
     const f =
       nm === "AxeFlaunt" || nm === FLAUNT_IDLE
         ? _aV[2].set(0, 1, 0)
         : knightScene.getWorldDirection(_aV[2]);
-    f.addScaledVector(yW, -f.dot(yW)); // the way he faces, across the shaft
+    // the way he faces, across the shaft
+    f.addScaledVector(yW, -f.dot(yW));
     if (f.lengthSq() < 1e-4) return;
     f.normalize();
     let phi = Math.atan2(yW.dot(_aV[3].crossVectors(bW, f)), bW.dot(f));
     if (phi > Math.PI / 2) phi -= Math.PI;
     else if (phi < -Math.PI / 2) phi += Math.PI;
-    if (M.determinant() < 0) phi = -phi; // a mirrored model turns the other way round
-    g.quaternion.multiply(_aQ2.setFromAxisAngle(_aY, phi * axeRollK)); // a turn about the shaft, so the grip points don't move
+    // a mirrored model turns the other way round
+    if (M.determinant() < 0) phi = -phi;
+    // a turn about the shaft, so the grip points don't move
+    g.quaternion.multiply(_aQ2.setFromAxisAngle(_aY, phi * axeRollK));
   }
   /* ---------- Drinking_Potion: the potion in his left hand ----------
    potion-data is the bottle (potions.gltf), drinkpotion-data the clip. In the clip his left hand reaches back to the belt, comes round to the front (its lowest point is at 0.775 s) and then rises to his mouth.
    The bottle is NOT in his hand while the hand goes down for it: it only appears once the hand starts coming back up (POTION_OUT_AT), growing to full size over POTION_POP seconds like it is being pulled out,
    and it is gone again when the clip ends or another one starts. */
   const POTION_OUT_AT = 0.78,
-    POTION_POP = 0.12; // seconds into Drinking_Potion when the bottle appears, and how long it takes to grow to full size
+    // seconds into Drinking_Potion when the bottle appears, and how long it takes to grow to full size
+    POTION_POP = 0.12;
   const POTION_SCALE = 0.8,
-    POTION_PIVOT_Y = 1.34; // size (1 = as modeled) and the point of the bottle that sits in his fist (lower body)
-  const POTION_NECK = [-0.35, 0.3, 0.88]; // where the neck points, in forearm space: roughly along the thumb side so it tips toward his mouth at the end of the clip
+    // size (1 = as modeled) and the point of the bottle that sits in his fist (lower body)
+    POTION_PIVOT_Y = 1.34;
+  // where the neck points, in forearm space: roughly along the thumb side so it tips toward his mouth at the end of the clip
+  const POTION_NECK = [-0.35, 0.3, 0.88];
   let potionGrp = null,
     drinkEndAt = null,
     potionKind = "heal",
-    potionVariants = null; // potionKind: 'heal' (red) or 'haste' (green): which bottle is in his hand
+    // potionKind: 'heal' (red) or 'haste' (green): which bottle is in his hand
+    potionVariants = null;
   function initPotion(parent) {
     const el = document.getElementById("potion-data");
     if (!el) return;
@@ -3671,14 +3807,16 @@ void main(){
     const hc = new THREE.Box3()
       .setFromObject(Hd)
       .getCenter(new THREE.Vector3());
-    F.worldToLocal(hc); // middle of his fist, in forearm space
+    // middle of his fist, in forearm space
+    F.worldToLocal(hc);
     try {
       const raw = (function () {
         const t = atob(el.textContent.trim()),
           u = new Uint8Array(t.length);
         for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i);
         return u.buffer;
-      })(); // the bottle is embedded as a binary glb (a data: url buffer gets blocked)
+      // the bottle is embedded as a binary glb (a data: url buffer gets blocked)
+      })();
       new THREE.GLTFLoader().parse(
         raw,
         "",
@@ -3798,7 +3936,8 @@ void main(){
       grip: [0, SWORD_GRIP_Y, 0],
       roll: WAIST_ROLL_DEG,
       out: 0,
-    }, // (the knightly sword has the sword's shape)
+    // (the knightly sword has the sword's shape)
+    },
     hatchet: {
       grp: () => hatchetGrp,
       grip: [0, 0.95, 0],
@@ -3903,14 +4042,17 @@ void main(){
         P.updateWorldMatrix(true, false);
         const up = _invUp
           .set(0, 1, 0)
-          .transformDirection(_invInv.copy(P.matrixWorld).invert()); // world 'up', in the forearm's space (works with the mirrored model)
+          // world 'up', in the forearm's space (works with the mirrored model)
+          .transformDirection(_invInv.copy(P.matrixWorld).invert());
         g.quaternion.setFromUnitVectors(
           _invY.set(0, 1, 0),
           _invDir.copy(g.userData.n0).lerp(up, INV_DRINK_TILT).normalize(),
         );
-      } // the neck tilts toward straight up
+      // the neck tilts toward straight up
+      }
       else g.quaternion.copy(g.userData.q0);
-    } // (battle drinking keeps its own angle)
+    // (battle drinking keeps its own angle)
+    }
     if (potionVariants) {
       potionVariants.heal.visible = potionKind !== "haste";
       potionVariants.haste.visible = potionKind === "haste";
@@ -3934,7 +4076,8 @@ void main(){
     SPARKLE_FRAME_MS = 170,
     SPARKLE_SIZE = 0.3,
     SPARKLE_LIFT = 0.2,
-    POTION_TOP_Y = 0.207; // size/lift in world units; POTION_TOP_Y = the bottle's rim above its pivot
+    // size/lift in world units; POTION_TOP_Y = the bottle's rim above its pivot
+    POTION_TOP_Y = 0.207;
   let potionSfxDone = false,
     sparkle = null,
     sparkleLoading = false;
@@ -3968,7 +4111,8 @@ void main(){
         POTION_SFX_GAIN[1],
         1,
         st.bufs[0].duration,
-      ); // starts exactly as the first one ends
+      // starts exactly as the first one ends
+      );
     } catch (_) {}
   }
   function sparkleStep(show) {
@@ -4006,7 +4150,8 @@ void main(){
     sparkle.position.copy(
       potionGrp.localToWorld(_sparkP.set(0, POTION_TOP_Y, 0)),
     );
-    sparkle.position.y += SPARKLE_LIFT; // straight above the rim, whichever way the bottle tips
+    // straight above the rim, whichever way the bottle tips
+    sparkle.position.y += SPARKLE_LIFT;
     sparkle.material.map.offset.x =
       (Math.floor(performance.now() / SPARKLE_FRAME_MS) % SPARKLE_FRAMES) /
       SPARKLE_FRAMES;
@@ -4213,7 +4358,8 @@ void main(){
         )
           restoreSettings();
         return;
-      } // wait until the game has loaded, then put the saved options back
+      // wait until the game has loaded, then put the saved options back
+      }
       const j = JSON.stringify(settingsSnapshot());
       if (j !== lastSettings) {
         lastSettings = j;
@@ -4233,7 +4379,8 @@ void main(){
     epic: { name: "EPIC", alt: "HEROIC", color: "#9B59B6" },
     legendary: { name: "LEGENDARY", alt: "MASTERWORK", color: "#F39C12" },
     mythic: { name: "MYTHIC", alt: "ARTIFACT", color: "#E74C3C" },
-    knightly: { name: "KNIGHTLY", alt: "HONORED", color: "#FFD966" }, // a tier of its own: no card is drawn from it yet (it is not in LOOT_TIERS)
+    // a tier of its own: no card is drawn from it yet (it is not in LOOT_TIERS)
+    knightly: { name: "KNIGHTLY", alt: "HONORED", color: "#FFD966" },
   };
   const LOOT = [
     {
@@ -4447,23 +4594,27 @@ void main(){
       setTurnLabel("");
       playerRig.position.set(-CHEST_SCENE_X * H, 0, 0);
       heading = -Math.PI / 2;
-      playerRig.rotation.y = heading; // facing west, toward the chest
+      // facing west, toward the chest
+      playerRig.rotation.y = heading;
       play("Chestopen");
       dgStart(DG_CHEST, false);
       dgDur = 1e9;
-      dungeonStep(0); // camera and shadow are in place before the screen fades back in
+      // camera and shadow are in place before the screen fades back in
+      dungeonStep(0);
     });
   }
   let chestGrp = null,
     chestMixer = null,
     chestAct = null,
     chestOn = false;
-  const chestShineMats = []; // chestShineMats: the chest's metal, switched with the Shiny metal option like the armor
+  // chestShineMats: the chest's metal, switched with the Shiny metal option like the armor
+  const chestShineMats = [];
   function initChest(rig) {
     try {
       const t = atob(CHEST_GLB),
         u = new Uint8Array(t.length);
-      for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i); // a binary glb: a data: url buffer gets blocked
+      // a binary glb: a data: url buffer gets blocked
+      for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i);
       new THREE.GLTFLoader().parse(
         u.buffer,
         "",
@@ -4511,7 +4662,8 @@ void main(){
           );
           blob.rotation.x = -Math.PI / 2;
           blob.position.y = -0.045;
-          grp.add(blob); // a soft shadow on the ground, like the knight's
+          // a soft shadow on the ground, like the knight's
+          grp.add(blob);
           rig.add(grp);
           chestGrp = grp;
           if (g.animations[0]) {
@@ -4546,7 +4698,8 @@ void main(){
         const t = (performance.now() - chestT0) / 1000 - CHEST_POP_DELAY,
           x = Math.min(1, Math.max(0, t / CHEST_POP_TIME)),
           c1 = 1.70158,
-          k = x - 1; // easeOutBack: grows past full size and settles
+          // easeOutBack: grows past full size and settles
+          k = x - 1;
         chestGrp.scale.setScalar(
           CHEST_SCALE * Math.max(0.0001, 1 + (c1 + 1) * k * k * k + c1 * k * k),
         );
@@ -4557,19 +4710,22 @@ void main(){
       if (knightlyGrp) knightlyGrp.visible = false;
       if (morningstarGrp) morningstarGrp.visible = false;
       if (current.time >= CHEST_SFX_AT && chestPrevT < CHEST_SFX_AT)
-        playChestSfx(); // the lid starts to lift
+        // the lid starts to lift
+        playChestSfx();
       chestPrevT = current.time;
       if (chestAct) {
         chestAct.reset();
         chestAct.time = current.time;
         chestMixer.update(0);
-      } // lid follows the knight's clock (reset first: the lid clip holds its last pose once it has finished)
+      // lid follows the knight's clock (reset first: the lid clip holds its last pose once it has finished)
+      }
     } else if (chestOn) showWeapons();
     chestOn = on;
   }
   const CHEST_DATA = JSON.parse(
     document.getElementById("chest-data").textContent,
-  ); // chest-data.json: the Chestopen clip, the lid's creak (mp3, base64) and the chest model (glb, base64)
+  // chest-data.json: the Chestopen clip, the lid's creak (mp3, base64) and the chest model (glb, base64)
+  );
   const CHESTOPEN_CLIP = CHEST_DATA.clip,
     CHEST_SFX = CHEST_DATA.sfx,
     CHEST_GLB = CHEST_DATA.glb;
@@ -4590,18 +4746,21 @@ void main(){
   }
   function swingName() {
     return weapon === "axe" && actions.AxeSwing ? "AxeSwing" : "Swing";
-  } // the swing that goes with the weapon in his hand
+  // the swing that goes with the weapon in his hand
+  }
   function swingScaleReset() {
     if (actions.Swing) actions.Swing.timeScale = 1;
     if (actions.AxeSwing) actions.AxeSwing.timeScale = 1;
   }
   function idleName() {
     return weapon === "axe" && actions.AxeIdle ? "AxeIdle" : "Idle";
-  } // the idle that goes with the weapon in his hand
+  // the idle that goes with the weapon in his hand
+  }
   function resolveAnim(n) {
     const v = AXE_VARIANT[n];
     return weapon === "axe" && v && actions[v] ? v : n;
-  } // the clip a menu entry plays right now (Idle/Swing/Flaunt -> the axe's version while the axe is out)
+  // the clip a menu entry plays right now (Idle/Swing/Flaunt -> the axe's version while the axe is out)
+  }
   function menuPlay(n) {
     play(resolveAnim(n));
   }
@@ -4620,12 +4779,14 @@ void main(){
     applyHandedness();
     try {
       ualApply();
-    } catch (e) {} // ANIM SET: the axe's Block uses a different clip from the sword's
+    // ANIM SET: the axe's Block uses a different clip from the sword's
+    } catch (e) {}
     swooshHide();
     setSwitch("sword", true, w === "axe" ? "Axe" : "Sword");
   }
   function toggleWeapon() {
-    if (weapon !== "axe" && !(owns("axe") || owns("shovel"))) return; // no heavy weapon owned yet
+    // no heavy weapon owned yet
+    if (weapon !== "axe" && !(owns("axe") || owns("shovel"))) return;
     setWeapon(weapon === "axe" ? "sword" : "axe");
     refreshAnim();
   }
@@ -4635,15 +4796,24 @@ void main(){
    the path of the tip and the swoosh frames are mapped onto it - sharp tail at the oldest end, fat flat end right behind the blade.
    The frames then play in place (the tail erodes first) while the sword carries on. Options > SWOOSH turns it off. */
   const SWOOSH_TIP_Y = 1.66,
-    SWOOSH_HILT_Y = 0.85; // blade tip / grip along the sword's own axis (see sword-data)
-  const SWOOSH_WIDTH = 0.55; // ribbon width, in sword units (the blade is ~0.7 long)
-  const SWOOSH_OUT = 0.15; // fraction of the width that sits outside the tip's path (0 = the tip runs along the outer edge)
-  const SWOOSH_FLIP_U = false; // true = mirror the sprite across the ribbon (bright rim on the inside instead of the outside)
-  const SWOOSH_FRAME_MS = 95; // time per frame. The GIF itself uses 170 ms, which lingers long after a ~0.1 s chop
-  const SWOOSH_START_SPEED = 11; // tip speed (sword units per second) that starts a trail...
-  const SWOOSH_STOP_SPEED = 6.5; // ...and the speed under which it stops growing. The wind-up peaks near 7, the chop near 16
-  const SWOOSH_MIN_CLIP_T = 0.12; // ignore the first moments of a swing (the cross-fade from idle looks like fast motion)
-  const SWOOSH_STEP = 1 / 120; // sampling step while swinging, in seconds
+    // blade tip / grip along the sword's own axis (see sword-data)
+    SWOOSH_HILT_Y = 0.85;
+  // ribbon width, in sword units (the blade is ~0.7 long)
+  const SWOOSH_WIDTH = 0.55;
+  // fraction of the width that sits outside the tip's path (0 = the tip runs along the outer edge)
+  const SWOOSH_OUT = 0.15;
+  // true = mirror the sprite across the ribbon (bright rim on the inside instead of the outside)
+  const SWOOSH_FLIP_U = false;
+  // time per frame. The GIF itself uses 170 ms, which lingers long after a ~0.1 s chop
+  const SWOOSH_FRAME_MS = 95;
+  // tip speed (sword units per second) that starts a trail...
+  const SWOOSH_START_SPEED = 11;
+  // ...and the speed under which it stops growing. The wind-up peaks near 7, the chop near 16
+  const SWOOSH_STOP_SPEED = 6.5;
+  // ignore the first moments of a swing (the cross-fade from idle looks like fast motion)
+  const SWOOSH_MIN_CLIP_T = 0.12;
+  // sampling step while swinging, in seconds
+  const SWOOSH_STEP = 1 / 120;
   const SWOOSH_MAXPTS = 48,
     SWOOSH_FRAMES = 6;
   const SWOOSH_PNG =
@@ -4660,12 +4830,14 @@ void main(){
     swStop = SWOOSH_STOP_SPEED,
     swAlt = null,
     swFlag = 0,
-    swFlagOn = false; // swFlag: the two-handed weapons - the trail is a flag on the weapon's top, this long (weapon units)   // swAlt: the second bit of a double-bitted head
+    // swFlag: the two-handed weapons - the trail is a flag on the weapon's top, this long (weapon units)   // swAlt: the second bit of a double-bitted head
+    swFlagOn = false;
   const swRigs = {};
   /* The Axe: its head has a cutting edge at each end (the two bits, at +/- bit along the blade axis, halfway up the head at mid). The trail follows whichever bit is leading the swing:
    both are watched, the faster one when a trail starts keeps it. hilt = the top grip, only for the scale. Speeds are in axe units per second and a bit moves faster than the middle
    of the head did, so they are a bit higher than before (start/stop the trail). Tuned by reading the clip, not by eye: nudge start/stop if the trail comes too early or lingers. */
-  const SHOVEL_TOP_Y = 2.138; // the top of the shovel model, along its shaft
+  // the top of the shovel model, along its shaft
+  const SHOVEL_TOP_Y = 2.138;
   const AXE_SWOOSH = {
     bit: 0.875,
     mid: 1.906,
@@ -4684,12 +4856,14 @@ void main(){
     tip: [0, 1.2, 0.44],
     hilt: [0, 0.6, 0.125],
     width: 0.4,
-  }; // the trail follows the far face of the head
+  // the trail follows the far face of the head
+  };
   const MORNINGSTAR_SWOOSH = {
     tip: [0, 1.1775, 0.264],
     hilt: [0, 0.81, 0],
     width: 0.3,
-  }; // the trail follows the spikes on the far side of the ball (tip = the spike's point at the ball's height)
+  // the trail follows the spikes on the far side of the ball (tip = the spike's point at the ball's height)
+  };
   function swooshAddRig(key, grp, pivot, tipPos, hiltPos, o) {
     const tip = new THREE.Object3D(),
       hilt = new THREE.Object3D();
@@ -4721,7 +4895,8 @@ void main(){
   const SWOOSH_RAINBOW_CYCLES = 1.0,
     SWOOSH_RAINBOW_SPEED = 2.5,
     SWOOSH_RAINBOW_BRIGHT = 1.35;
-  let swTintOn = false; // (the Knightly Sword is held)
+  // (the Knightly Sword is held)
+  let swTintOn = false;
   function swooshApplyTint() {
     if (swsh.mat) swsh.mat.uniforms.uRainbow.value = swTintOn ? 1 : 0;
   }
@@ -4815,7 +4990,8 @@ void main(){
     grp.add(swHilt);
     swPivot =
       parent.getObjectByName(SWORD_HAND + "_Arm") ||
-      parent.getObjectByName(SWORD_HAND + "_Forearm"); // the shoulder: tells the ribbon which edge is "outside"
+      // the shoulder: tells the ribbon which edge is "outside"
+      parent.getObjectByName(SWORD_HAND + "_Forearm");
     swRigs.sword = {
       tip: swTip,
       hilt: swHilt,
@@ -4892,7 +5068,8 @@ void main(){
   }
   /* one sample of the blade, taken between mixer sub-steps; h = seconds since the previous sample */
   function swooshSample(h) {
-    if (swFlag > 0) return; // the flag is handled in updateFlag
+    // the flag is handled in updateFlag
+    if (swFlag > 0) return;
     if (!swTip || !swHilt || !swPivot || !swsh.mesh) return;
     const a = swsh.a,
       a2 = swsh.a2,
@@ -4903,10 +5080,12 @@ void main(){
     swHilt.getWorldPosition(b);
     swPivot.getWorldPosition(c);
     const k = a.distanceTo(b) / swLen;
-    if (!(k > 1e-5)) return; // k = world units per weapon unit
+    // k = world units per weapon unit
+    if (!(k > 1e-5)) return;
     const sp1 = swsh.hasPrev ? a.distanceTo(swsh.prevP) / h / k : 0,
       sp2 = swAlt && swsh.hasPrev ? a2.distanceTo(swsh.prevP2) / h / k : 0;
-    if (!swsh.emit) swsh.alt = !!swAlt && sp2 > sp1; // a double-bitted head: the bit that is moving faster leads, and keeps the trail for this swing
+    // a double-bitted head: the bit that is moving faster leads, and keeps the trail for this swing
+    if (!swsh.emit) swsh.alt = !!swAlt && sp2 > sp1;
     const cur = swsh.alt ? a2 : a,
       speed = swsh.alt ? sp2 : sp1,
       prev = swsh.alt ? swsh.prevP2 : swsh.prevP;
@@ -4920,7 +5099,8 @@ void main(){
       swsh.active = true;
       swsh.age = 0;
       swsh.pts.length = 0;
-      swsh.pts.push({ p: prev.clone(), c: swsh.prevC.clone() }); // start from where the blade just was
+      // start from where the blade just was
+      swsh.pts.push({ p: prev.clone(), c: swsh.prevC.clone() });
     }
     if (swsh.emit) {
       if (speed < swStop || swsh.pts.length >= SWOOSH_MAXPTS) swsh.emit = false;
@@ -4953,7 +5133,8 @@ void main(){
       shift: 0.5716,
     },
     Dance3: { key: "dance3", free: true },
-  }; // Dance3 (Wave Hip Hop Dance + 'Egyptian Swag'): no syncing - the clip just loops and the song just plays
+  // Dance3 (Wave Hip Hop Dance + 'Egyptian Swag'): no syncing - the clip just loops and the song just plays
+  };
   let danceKey = "dance";
   function danceStep() {
     const n = current && current.getClip().name,
@@ -4965,9 +5146,11 @@ void main(){
       !xtra[D.key].src ||
       current !== actions[n]
     )
-      return; // (free = not slaved to the song)
+      // (free = not slaved to the song)
+      return;
     const L = ((D.beats || DANCE_BEATS) * 60) / D.bpm,
-      t = trackPos(xtra[D.key].src) - D.offset - 0.03 + (D.shift || 0); // (0.03: the pose shown lags a little behind the clock)
+      // (0.03: the pose shown lags a little behind the clock)
+      t = trackPos(xtra[D.key].src) - D.offset - 0.03 + (D.shift || 0);
     actions[n].time = ((t % L) + L) % L;
   }
   /* The UAL heavy combos lift his whole body off the floor (the hips' height comes straight from the mocap), so while one plays his height is controlled: every frame the rig is moved up or
@@ -5075,12 +5258,14 @@ void main(){
         i > 0 &&
         w.x * W[3 * i - 3] + w.y * W[3 * i - 2] + w.z * W[3 * i - 1] < 0
       )
-        w.negate(); // keep the ribbon from twisting
+        // keep the ribbon from twisting
+        w.negate();
       W[3 * i] = w.x;
       W[3 * i + 1] = w.y;
       W[3 * i + 2] = w.z;
       out.subVectors(p, P[i].c);
-      score += w.dot(out); // does this side point away from the shoulder?
+      // does this side point away from the shoulder?
+      score += w.dot(out);
     }
     const s = score < 0 ? -1 : 1,
       total = swWidth * swsh.k,
@@ -5099,13 +5284,15 @@ void main(){
         v = cum[i] / tot;
       const ax = p.x + wx * o,
         ay = p.y + wy * o,
-        az = p.z + wz * o; // outer edge
+        // outer edge
+        az = p.z + wz * o;
       pv[6 * i] = ax;
       pv[6 * i + 1] = ay;
       pv[6 * i + 2] = az;
       pv[6 * i + 3] = ax - wx * total;
       pv[6 * i + 4] = ay - wy * total;
-      pv[6 * i + 5] = az - wz * total; // inner edge
+      // inner edge
+      pv[6 * i + 5] = az - wz * total;
       uv[4 * i] = uA;
       uv[4 * i + 1] = v;
       uv[4 * i + 2] = uB;
@@ -5204,12 +5391,14 @@ void main(){
       return;
     }
     swsh.mat.uniforms.uFrame.value = f;
-    swsh.mat.uniforms.uHue.value = -swsh.age * SWOOSH_RAINBOW_SPEED; // (rainbow only: the spectrum rolls towards the tip as the swing goes)
+    // (rainbow only: the spectrum rolls towards the tip as the swing goes)
+    swsh.mat.uniforms.uHue.value = -swsh.age * SWOOSH_RAINBOW_SPEED;
     swooshBuild();
   }
   function toggleSword() {
     toggleWeapon();
-  } // kept for old callers: the Sword on/off switch became the Sword / Axe choice
+  // kept for old callers: the Sword on/off switch became the Sword / Axe choice
+  }
 
   /* ---------- alternate helmets (helmet-data holds extra sets: Helmet 2 = Blockbench project, Helmet 3 = Adventurer cylinder helm, Helmet 4 = beveled cuboid, Helmet 5 = Adventurer icosphere / sphere helm) ---------- */
   let helmetSets = [],
@@ -5288,7 +5477,8 @@ void main(){
    (the white background keyed out, two frames each, 500 ms per frame): normal, talking, angrytalking, spite. Only 'normal' plays for now; helmet6Face('talking') etc.
    switches it (from the console, or later from the game). The pane belongs to Helmet 6's set, so it only shows with that helmet - on the player and on any enemy wearing it.
    H6_FACE: w = pane width (head units), y / z = where its middle sits in the head's space (the helmet ball is centred at y 0.156, z 0.0625 with radius 0.219; +z is forward). */
-  const H6_FACE = { w: 0.3, y: 0.165, z: 0.292, glow: true }; // glow: not dimmed by the night tint, so the eyes stay bright
+  // glow: not dimmed by the night tint, so the eyes stay bright
+  const H6_FACE = { w: 0.3, y: 0.165, z: 0.292, glow: true };
   let helm6 = {
     faces: null,
     pane: null,
@@ -5330,7 +5520,8 @@ void main(){
             t.encoding = THREE.LinearEncoding;
             t.generateMipmaps = false;
             t.minFilter = t.magFilter = THREE.NearestFilter;
-            tex.push(t); // flipY on: a flat plane's uvs run bottom-to-top, unlike the helmet meshes'
+            // flipY on: a flat plane's uvs run bottom-to-top, unlike the helmet meshes'
+            tex.push(t);
           }
           faces[n] = { tex, ms: f.ms, total: f.ms.reduce((a, b) => a + b, 0) };
         });
@@ -5344,7 +5535,8 @@ void main(){
         m.position.set(0, H6_FACE.y, H6_FACE.z);
         m.visible = curHelmet === idx;
         grp.add(m);
-        set.push(m); // part of Helmet 6's set, so setHelmet() shows and hides it with the helmet
+        // part of Helmet 6's set, so setHelmet() shows and hides it with the helmet
+        set.push(m);
         helm6 = { faces, pane: m, mat, name: "normal", t: 0, frame: -1, w, h };
       })
       .catch((e) => console.error("helmet 6 face load failed", e));
@@ -5373,7 +5565,8 @@ void main(){
       helm6.mat.uniforms.map.value = f.tex[i];
     }
     if (helm6.pane && knightScene)
-      helm6.pane.scale.x = knightScene.scale.x < 0 ? -1 : 1; // the model is mirrored (and un-mirrored with the axe): flip the pane back so the art never reads backwards
+      // the model is mirrored (and un-mirrored with the axe): flip the pane back so the art never reads backwards
+      helm6.pane.scale.x = knightScene.scale.x < 0 ? -1 : 1;
   }
   /* ---------- the shopkeeper's own Helmet 6 face ----------
    Only the shopkeeper's helmet uses these (shop-face-data: the kris*.gif art, 85x85, two frames of 500 ms each: normal, talking, angrytalking, spite).
@@ -5430,13 +5623,15 @@ void main(){
     if (!el) {
       if (helm6.mat) mesh.material = helm6.mat;
       return;
-    } // no data file: fall back to the original face
+    // no data file: fall back to the original face
+    }
     const FD = JSON.parse(el.textContent),
       blank = document.createElement("canvas");
     blank.width = blank.height = 1;
     const mat = ps1Mat(new THREE.CanvasTexture(blank), 1);
     if (H6_FACE.glow)
-      mat.uniforms.uNight = { value: new THREE.Vector3(1, 1, 1) }; // (a clear 1x1 until the images have loaded)
+      // (a clear 1x1 until the images have loaded)
+      mat.uniforms.uNight = { value: new THREE.Vector3(1, 1, 1) };
     {
       const u = mat.uniforms;
       u.uEmit.value = 1;
@@ -5444,8 +5639,10 @@ void main(){
       u.uAffine = { value: 0 };
       u.uDither = { value: 0 };
       u.uLevels = { value: 255 };
-    } // the face gif: unlit and a bit over-bright, no wobble, no dither, full colour depth
-    const pw = (H6_FACE.w * FD.w) / 82; // the original face is 82 px wide on a 0.30 pane: the same size per pixel, so the eyes keep their size on the helmet
+    // the face gif: unlit and a bit over-bright, no wobble, no dither, full colour depth
+    }
+    // the original face is 82 px wide on a 0.30 pane: the same size per pixel, so the eyes keep their size on the helmet
+    const pw = (H6_FACE.w * FD.w) / 82;
     mesh.geometry = new THREE.PlaneGeometry(pw, (pw * FD.h) / FD.w);
     mesh.material = mat;
     shopFace = {
@@ -5708,7 +5905,8 @@ void main(){
       sel = el;
       applySwordTint();
       refresh();
-    } // choosing a color switches matching off
+    // choosing a color switches matching off
+    }
     SW.forEach(([hex, name, show], i) => {
       const b = document.createElement("button");
       b.className = "sw";
@@ -5753,13 +5951,15 @@ void main(){
     flauntDone = false,
     flauntBuf = null,
     flauntSrc = null,
-    flauntLoading = null; // the Flaunt animation swaps the music for its own song
+    // the Flaunt animation swaps the music for its own song
+    flauntLoading = null;
   let battleWant = false,
     battleBuf = null,
     battleSrc = null,
     battleLoading = null,
     battleResume = 0,
-    crushOn = true; // the battle song, and the bitcrushed switch (on by default; the BITCRUSH option turns it off)
+    // the battle song, and the bitcrushed switch (on by default; the BITCRUSH option turns it off)
+    crushOn = true;
   /* fades (seconds): a track fades in when it starts, fades out when it stops or is swapped for another, and dips briefly at each loop seam */
   const FADE_IN = 1.5,
     FADE_OUT = 0.7,
@@ -5774,10 +5974,12 @@ void main(){
     src.buffer = cz(buf);
     src.loop = true;
     src.connect(g);
-    g.connect(musicGain); // cz(): the bitcrushed copy when that switch is on
+    // cz(): the bitcrushed copy when that switch is on
+    g.connect(musicGain);
     g.gain.setValueAtTime(0, t0);
     g.gain.linearRampToValueAtTime(1, t0 + fin);
-    const first = D - offset; // time until the first loop seam
+    // time until the first loop seam
+    const first = D - offset;
     for (
       let k = first - FADE_LOOP < fin + 0.1 ? 1 : 0;
       k < Math.ceil(7200 / D);
@@ -5846,7 +6048,8 @@ void main(){
       const p = loadSong();
       ac.resume();
       await p;
-      if (!musicOn || editOn) return; // (EDIT plays its own song: the main one must not start up under it, e.g. when it finished loading just after EDIT began)
+      // (EDIT plays its own song: the main one must not start up under it, e.g. when it finished loading just after EDIT began)
+      if (!musicOn || editOn) return;
       if (
         !srcNode &&
         !flauntWant &&
@@ -5880,7 +6083,8 @@ void main(){
         },
         FADE_OUT * 1000 + 80,
       );
-    } // fade out, then pause
+    // fade out, then pause
+    }
   }
   /* ---------- flaunt song ----------
    While the Flaunt animation plays, the main music stops and this plays instead. The file is the song from 3:29 to the end (so 4:30 is 61 s in),
@@ -5932,7 +6136,8 @@ void main(){
   let shopWant = false,
     frostWant = false,
     ignisWant = false,
-    danceWant = false; // dance: the song for the Dance animation (top priority)
+    // dance: the song for the Dance animation (top priority)
+    danceWant = false;
   /* The shop song's name tag (bottom right of the shop view) is also the switch between the shop's songs: click it to swap (shopSong is 'shop' or 'shop2'; the choice is kept for later visits).
    To add another shop song: add it to xtra above (+ manifest.json), to SHOP_SONG_NAMES here and to SHOP_SONGS (the order they cycle in). */
   let shopSong = "shop",
@@ -5955,7 +6160,8 @@ void main(){
     shopSongLabel();
     blip(520, 0.06);
     if (shopWant) syncAudio();
-  } // syncAudio fades the old shop song out and the new one in
+  // syncAudio fades the old shop song out and the new one in
+  }
   function loadX(k) {
     const x = xtra[k];
     if (x.loading) return x.loading;
@@ -6020,18 +6226,21 @@ void main(){
           : want === "battle"
             ? loadBattle()
             : loadX(want));
-        if (pick() !== want) return; // things changed while it was loading
+        // things changed while it was loading
+        if (pick() !== want) return;
         if (srcNode) {
           stopTrack(srcNode);
           srcNode = null;
-        } // the other music fades out as this one fades in
+        // the other music fades out as this one fades in
+        }
         stopX(want);
         if (want === "flaunt") {
           if (battleSrc) {
             battleResume = trackPos(battleSrc);
             stopTrack(battleSrc);
             battleSrc = null;
-          } // remember where the battle song was
+          // remember where the battle song was
+          }
           if (!flauntSrc) flauntSrc = playTrack(flauntBuf);
         } else if (want === "battle") {
           if (flauntSrc) {
@@ -6067,8 +6276,10 @@ void main(){
         if (!want && srcNode) {
           stopTrack(srcNode);
           srcNode = null;
-        } // no music wanted (EDIT is playing its own song): the main music fades out too
-        if (want === "main") startMusic(); // the main music comes back
+        // no music wanted (EDIT is playing its own song): the main music fades out too
+        }
+        // the main music comes back
+        if (want === "main") startMusic();
       }
     } catch (e) {
       console.error(e);
@@ -6080,7 +6291,8 @@ void main(){
    (the "inside a helmet" muffle). Music tracks and sound effects both go through cz(); copies are made once and kept. The defeat sound is always crushed, with or without the switch. */
   const crushCache = new WeakMap();
   /* per-song crush: everything is crushed with DEFEAT_BITS / DEFEAT_RATE / DEFEAT_LOWPASS (6 bits, 8000 Hz, 3200 Hz low-pass) unless a buffer has its own entry here. */
-  const crushParams = new WeakMap(); // (a song can be given its own crush settings here: crushParams.set(buffer,{bits,rate,lp}))
+  // (a song can be given its own crush settings here: crushParams.set(buffer,{bits,rate,lp}))
+  const crushParams = new WeakMap();
   function crushCopy(b) {
     let c = crushCache.get(b);
     if (c) return c;
@@ -6118,7 +6330,8 @@ void main(){
       b1 = (1 - cs) / a0,
       b2 = b0,
       a1 = (-2 * cs) / a0,
-      a2 = (1 - al) / a0; // biquad low-pass
+      // biquad low-pass
+      a2 = (1 - al) / a0;
     let x1 = 0,
       x2 = 0,
       y1 = 0,
@@ -6142,7 +6355,8 @@ void main(){
     const pos = trackPos(tr);
     stopTrack(tr);
     return playTrack(tr.buf, pos, 0.3);
-  } // same place in the song, crossfaded to the other version
+  // same place in the song, crossfaded to the other version
+  }
   function toggleCrush() {
     crushOn = !crushOn;
     try {
@@ -6177,7 +6391,8 @@ void main(){
   /* ---------- animation control ---------- */
   /* ---------- GOLEM (ANIMATIONS screen): golem-data is his Blockbench model, golem-attack-data the GolemAttack clip (same track format as the other clips).
    Picking GolemAttack hides the knight and shows the golem in his place; picking anything else, or leaving the screen, brings the knight back. ---------- */
-  const GOLEM_SCALE = 0.9; // golem height as a fraction of the knight's (his raised fists reach well above his head)
+  // golem height as a fraction of the knight's (his raised fists reach well above his head)
+  const GOLEM_SCALE = 0.9;
   let golemRig = null,
     golemScene = null,
     golemMixer = null,
@@ -6188,10 +6403,12 @@ void main(){
     golemClips = null,
     golemPrevT = 0,
     golemAll = null;
-  const GOLEM_HIT_AT = 0.5; // seconds into GolemAttack where the fists land (the slam), for the damage and the hit sound
+  // seconds into GolemAttack where the fists land (the slam), for the damage and the hit sound
+  const GOLEM_HIT_AT = 0.5;
   function golemEye(o) {
     return !!(o.parent && o.parent.name === "Torso" && o.position.z > 0.2);
-  } // the two small cubes on his torso
+  // the two small cubes on his torso
+  }
   function golemReady() {
     return !!(golemScene && golemClips && golemClips.Idle && golemClips.Hit);
   }
@@ -6228,7 +6445,8 @@ void main(){
             o.material = cache.get(om.uuid);
             o.frustumCulled = false;
             if (golemEye(o)) o.material.uniforms.uMagma.value = 1;
-          }); // his two eyes glow like the Ignis trees' magma
+          // his two eyes glow like the Ignis trees' magma
+          });
           g.scene.updateMatrixWorld(true);
           const bx = new THREE.Box3().setFromObject(g.scene);
           golemH0 = bx.max.y - bx.min.y;
@@ -6262,7 +6480,8 @@ void main(){
           {
             const rd = document.getElementById("golem-introroar-data"),
               R = rd && JSON.parse(rd.textContent),
-              blk = g.animations.find((a) => a.name === "Block"); // golem-introroar-data: the intro roar clip (same track format as GolemAttack)
+              // golem-introroar-data: the intro roar clip (same track format as GolemAttack)
+              blk = g.animations.find((a) => a.name === "Block");
             golemAll = {
               Idle: golemClips.Idle,
               Attack: clip,
@@ -6289,7 +6508,8 @@ void main(){
               Block: blk,
             };
           }
-          if (SNAP_ON && golemClips.Hit) snapClip(golemClips.Hit); // the enemy golems use these (their own Idle and Hit from the model file, and GolemAttack)
+          // the enemy golems use these (their own Idle and Hit from the model file, and GolemAttack)
+          if (SNAP_ON && golemClips.Hit) snapClip(golemClips.Hit);
         },
         (e) => console.error("golem failed", e),
       );
@@ -6328,7 +6548,8 @@ void main(){
     death: "DEATH",
   };
   const evViews = {};
-  let evCur = null; // evCur: {key,ci,v,act,label}
+  // evCur: {key,ci,v,act,label}
+  let evCur = null;
   function evDefs(key) {
     // [{label,clip}] straight from the loaded models (null until the model has loaded)
     let src = null;
@@ -6409,7 +6630,8 @@ void main(){
       golemOn = true;
       if (current) current.paused = true;
       playerRig.visible = false;
-    } // the hidden knight's clip must not keep running (Chestopen looped on behind the golem and replayed the chest creak)
+    // the hidden knight's clip must not keep running (Chestopen looped on behind the golem and replayed the chest creak)
+    }
     const act = v.acts[ci],
       label = v.defs[ci].label;
     v.rig.visible = true;
@@ -6429,11 +6651,13 @@ void main(){
     v.mixer.update(dt);
     const t = act.time;
     if (label === "ATTACK" && p < GOLEM_HIT_AT && t >= GOLEM_HIT_AT)
-      evSfx("atk"); // the fists land
+      // the fists land
+      evSfx("atk");
     if (t < p) {
       if (label === "INTRO ROAR") evSfx("spawn");
       else if (label === "HIT") evSfx("pain");
-    } // looped round
+    // looped round
+    }
   }
   function evHide() {
     if (!golemOn) return;
@@ -6448,7 +6672,8 @@ void main(){
   }
   function golemShow(on) {
     if (!on) evHide();
-  } // (older callers: only "hide" is ever asked for now)
+  // (older callers: only "hide" is ever asked for now)
+  }
   function playGolem() {
     const d = evDefs("golem");
     if (d)
@@ -6463,7 +6688,8 @@ void main(){
   /* ---------- PIZZA: the Soccer Trip (a running trip and tumble, retargeted from Mixamo, done in place) with the "Ayo, the pizza here" meme.
    The animation starts the moment it is picked, at its own speed. The sound plays at its own speed too, starting PIZZA_AUDIO_START seconds into the meme (at the bump). Picking anything else cuts it off. ---------- */
   const PIZZA_AUDIO_START = 1.815,
-    PIZZA_SPEED = 1; // the crack: the first loud, broadband burst in the meme, starting at 1.82 s (silence before it)
+    // the crack: the first loud, broadband burst in the meme, starting at 1.82 s (silence before it)
+    PIZZA_SPEED = 1;
   let pizzaGo = false,
     pizzaLive = false;
   function pizzaCancel() {
@@ -6475,7 +6701,8 @@ void main(){
   function pizzaStart() {
     pizzaGo = true;
     play("Pizza");
-    pizzaGo = false; // the normal path (menus, golem, ground...), then once-through
+    // the normal path (menus, golem, ground...), then once-through
+    pizzaGo = false;
     const a = actions.Pizza;
     if (a) {
       a.setLoop(THREE.LoopOnce, 1);
@@ -6511,7 +6738,8 @@ void main(){
     if (invDrink.on && !invDrink.internal && n !== "UALX_ConsumeM") {
       invDrink.next = n;
       return;
-    } // the inventory's potion inspection finishes first; whatever was asked for plays after it
+    // the inventory's potion inspection finishes first; whatever was asked for plays after it
+    }
     if (n === "Pizza" && !pizzaGo) {
       pizzaStart();
       return;
@@ -6523,7 +6751,8 @@ void main(){
     }
     if (golemOn) golemShow(false);
     if (n === "Flaunt" && weapon === "axe" && actions.AxeFlaunt)
-      n = "AxeFlaunt"; // the axe has its own flaunt (heavy weapons class)
+      // the axe has its own flaunt (heavy weapons class)
+      n = "AxeFlaunt";
     if (animSet === "ideal" && n === "Swing") idealPickSwing();
     if (!actions[n]) return;
     if (
@@ -6533,14 +6762,17 @@ void main(){
         n === FLAUNT_IDLE) &&
       weapon !== "axe"
     )
-      setWeapon("axe"); // these are the axe's own clips, so choosing one brings the axe out
+      // these are the axe's own clips, so choosing one brings the axe out
+      setWeapon("axe");
     else if ((n === "Idle" || n === "Swing") && weapon === "axe")
-      setWeapon("sword"); // and these are the sword's, so choosing one puts the sword back (the game itself always asks for idleName())
+      // and these are the sword's, so choosing one puts the sword back (the game itself always asks for idleName())
+      setWeapon("sword");
     const isFlaunt = n === "Flaunt" || n === "AxeFlaunt" || n === FLAUNT_IDLE;
     if (isFlaunt !== flauntWant) {
       flauntWant = isFlaunt;
       syncAudio();
-    } // either flaunt brings in the flaunt song
+    // either flaunt brings in the flaunt song
+    }
     {
       const isD = !!DANCE_SETS[n],
         k = isD ? DANCE_SETS[n].key : danceKey;
@@ -6549,12 +6781,14 @@ void main(){
         danceKey = k;
         syncAudio();
       }
-    } // the Dance animation brings in its own song
+    // the Dance animation brings in its own song
+    }
     if (n === EVT_CLIP) return;
     swishStopAll();
     evtDue = evtGo = evtDone = flauntDone = false;
     const next = actions[n],
-      fd = n === FLAUNT_IDLE ? 0.3 : 0.12; // fd: the hand-off from AxeFlaunt into its idle is eased a little longer
+      // fd: the hand-off from AxeFlaunt into its idle is eased a little longer
+      fd = n === FLAUNT_IDLE ? 0.3 : 0.12;
     if (evtPlaying) {
       actions[EVT_CLIP].fadeOut(0.12);
       evtPlaying = false;
@@ -6571,7 +6805,8 @@ void main(){
       next.reset().setLoop(THREE.LoopOnce, 1);
       next.clampWhenFinished = true;
       next.fadeIn(0.12).play();
-    } // plays once and holds its last pose (AxeFlaunt ends with the axe raised, so it must not loop)
+    // plays once and holds its last pose (AxeFlaunt ends with the axe raised, so it must not loop)
+    }
     else next.reset().setLoop(THREE.LoopRepeat, Infinity).fadeIn(fd).play();
     current = next;
     syncRockMeshes();
@@ -6587,7 +6822,8 @@ void main(){
     evtClock = 0;
     evtNext = 5 + Math.random() * 6;
     evtDue = false;
-  } // next look-around in 5-11 s of seated time
+  // next look-around in 5-11 s of seated time
+  }
   /* The look-around starts on a Pose2 loop boundary and ends on Pose2's first pose (see closeLoop), so both hand-offs are seamless cuts. */
   function startEvt() {
     const ev = actions[EVT_CLIP];
@@ -6685,7 +6921,8 @@ void main(){
   let animSet = "ideal";
   const IDEAL_ALT = { Idle: 1, AxeIdle: 1, Hit: 1 },
     IDEAL_SWINGS = ["UAL_Sword_Regular_A", "UAL_Sword_Regular_B"];
-  let idealSwingLast = -1; // (Sword_Regular_C is left out: it looked buggy)
+  // (Sword_Regular_C is left out: it looked buggy)
+  let idealSwingLast = -1;
   const animVisible = (n) => !(animSet === "ideal" && /^UAL_/.test(n));
   function idealPickSwing() {
     // called every time a Swing starts: a different one of the three each time
@@ -6694,12 +6931,14 @@ void main(){
     let i;
     do {
       i = (Math.random() * IDEAL_SWINGS.length) | 0;
-    } while (i === idealSwingLast && IDEAL_SWINGS.length > 2); // (with only two swings left they are picked purely at random)
+    // (with only two swings left they are picked purely at random)
+    } while (i === idealSwingLast && IDEAL_SWINGS.length > 2);
     idealSwingLast = i;
     const alt = ualAlias("Swing", IDEAL_SWINGS[i]);
     alt.setEffectiveTimeScale(1);
     alt.setDuration(o.getClip().duration);
-    actions.Swing = alt; // stretched to the knight's swing length, as in UNIVERSAL
+    // stretched to the knight's swing length, as in UNIVERSAL
+    actions.Swing = alt;
   }
   function ualApply() {
     const U = animSet === "universal",
@@ -6709,14 +6948,16 @@ void main(){
           k === "Block" && weapon === "axe" ? "UALX_Sword_Block" : UAL_ALT[k],
         alt = actions[sn] && ualAlias(k, sn);
       if (!ualOrig[k] && actions[k] && !actions[k].getClip().ualSrc)
-        ualOrig[k] = actions[k]; // (Block with the axe: the game turns the model round again for it, so that one uses the clip in its original hand)
+        // (Block with the axe: the game turns the model round again for it, so that one uses the clip in its original hand)
+        ualOrig[k] = actions[k];
       const o = ualOrig[k];
       if (!o || !alt) return;
       alt.setEffectiveTimeScale(1);
       if (U || (I && IDEAL_ALT[k])) {
         actions[k] = alt;
         if (!/Idle|Walk|Hit/.test(k)) alt.setDuration(o.getClip().duration);
-      } else actions[k] = o; // Hit plays at its own speed: squeezed into the knight's 0.26 s it looked wrong
+      // Hit plays at its own speed: squeezed into the knight's 0.26 s it looked wrong
+      } else actions[k] = o;
     });
     if (I) idealPickSwing();
   }
@@ -6801,7 +7042,8 @@ void main(){
         sfx.resume();
       } catch (e) {}
       playFlauntSfx();
-    }; // picking a voice previews its flaunt line
+    // picking a voice previews its flaunt line
+    };
   addEventListener("keydown", (e) => {
     if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
     if (e.target.tagName === "BUTTON" && e.key === " ") return;
@@ -6817,7 +7059,8 @@ void main(){
   });
 
   /* ---------- camera input ---------- */
-  addEventListener("contextmenu", (e) => e.preventDefault()); // right-drag orbits the camera, so no browser context menu (save image as, etc.)
+  // right-drag orbits the camera, so no browser context menu (save image as, etc.)
+  addEventListener("contextmenu", (e) => e.preventDefault());
   const ptrs = new Map();
   let pinch = 0;
   canvas.addEventListener("pointerdown", (e) => {
@@ -6832,7 +7075,8 @@ void main(){
       if (ptrs.size === 1) yaw -= (e.clientX - p[0]) * 0.01;
       ptrs.set(e.pointerId, [e.clientX, e.clientY]);
       return;
-    } // the inventory: dragging sideways turns him (the camera's height and distance stay as the inventory set them)
+    // the inventory: dragging sideways turns him (the camera's height and distance stay as the inventory set them)
+    }
     if (ptrs.size === 1) {
       yaw -= (e.clientX - p[0]) * 0.01;
       pitch = Math.max(
@@ -6880,7 +7124,8 @@ void main(){
     ["6-BIT", 3],
   ];
   let pixIdx = 0,
-    colIdx = 2; // the defaults: NORMAL (240 px tall) and 9-BIT color.   pixIdx: 0 NORMAL, 1 CHUNKY, 2 HEAVY, 3 CRUSHED.   colIdx: 0 15-BIT, 1 12-BIT, 2 9-BIT, 3 6-BIT
+    // the defaults: NORMAL (240 px tall) and 9-BIT color.   pixIdx: 0 NORMAL, 1 CHUNKY, 2 HEAVY, 3 CRUSHED.   colIdx: 0 15-BIT, 1 12-BIT, 2 9-BIT, 3 6-BIT
+    colIdx = 2;
   U.uLevels.value = COL_STEPS[colIdx][1];
   function cyclePixels() {
     if (!ps1) toggleLook();
@@ -6947,7 +7192,8 @@ void main(){
     RUN_MULT = 1.7,
     BOUND = 10.5,
     TREE_R = 0.16,
-    PLAYER_R = 0.1; // speeds/radii are in knight-heights
+    // speeds/radii are in knight-heights
+    PLAYER_R = 0.1;
   const keys = new Set();
   const stick = { x: 0, y: 0 };
   let moving = false,
@@ -7054,7 +7300,8 @@ void main(){
     );
     target.lerp(want, 1 - Math.exp(-dt * 12));
     floorMesh.position.x = Math.round(p.x / H) * H;
-    floorMesh.position.z = Math.round(p.z / H) * H; // ground follows you, snapped so the checker never slides
+    // ground follows you, snapped so the checker never slides
+    floorMesh.position.z = Math.round(p.z / H) * H;
     if (blobMesh && blobHome)
       blobMesh.position.set(blobHome.x + p.x, blobHome.y, blobHome.z + p.z);
   }
@@ -7120,11 +7367,14 @@ void main(){
       swingQueued = true;
       return;
     }
-    if (animSet === "ideal" && swingName() === "Swing") idealPickSwing(); // IDEAL: a random A / B / C for every swing
-    const sw = actions[swingName()]; // one click is buffered, so mashing chains swings
+    // IDEAL: a random A / B / C for every swing
+    if (animSet === "ideal" && swingName() === "Swing") idealPickSwing();
+    // one click is buffered, so mashing chains swings
+    const sw = actions[swingName()];
     swinging = true;
     swingQueued = false;
-    if (current && current !== sw) current.fadeOut(0.06); // cross-fade, never stop(): stopping the last action snaps the skeleton to the T-pose
+    // cross-fade, never stop(): stopping the last action snaps the skeleton to the T-pose
+    if (current && current !== sw) current.fadeOut(0.06);
     sw.reset().setLoop(THREE.LoopOnce, 1);
     sw.clampWhenFinished = true;
     sw.timeScale = 1.25;
@@ -7142,7 +7392,8 @@ void main(){
       return;
     }
     moving = false;
-    play(idleName()); // the next movement frame switches to Walk again if keys are held
+    // the next movement frame switches to Walk again if keys are held
+    play(idleName());
   }
   canvas.addEventListener("pointerdown", (e) => {
     downAt =
@@ -7157,7 +7408,8 @@ void main(){
       Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 8 &&
       performance.now() - downAt.t < 450
     )
-      swing(); // a click, not a camera drag
+      // a click, not a camera drag
+      swing();
     downAt = null;
   });
 
@@ -7170,8 +7422,10 @@ void main(){
     lane: 2.2,
     minS: 0.7,
     maxS: 2.1,
-  }; // tree count, ring radii, half-width of the clear walk-in lane, size range
-  const DGR = { count: 170, minS: 0.5, maxS: 2.6 }; // boulders: how many, and the base size range (the seat rock times this, then stretched per axis)
+  // tree count, ring radii, half-width of the clear walk-in lane, size range
+  };
+  // boulders: how many, and the base size range (the seat rock times this, then stretched per axis)
+  const DGR = { count: 170, minS: 0.5, maxS: 2.6 };
   let dgForest = null;
   /* ---------- classic sky: the flipping shapes, enlarged and spread around the sky (shown only in the Classic world) ----------
    Distances and sizes are in knight-heights, elevation in degrees. Each shape is copied `copies` times, each copy with its own spot, size, speed and flip timing. */
@@ -7215,7 +7469,8 @@ void main(){
           tex.flipY = false;
           const mat = ps1Mat(tex, 1);
           mat.uniforms.uFogNear = { value: 1e6 };
-          mat.uniforms.uFogFar = { value: 2e6 }; // their own fog values: far away, but never faded out
+          // their own fog values: far away, but never faded out
+          mat.uniforms.uFogFar = { value: 2e6 };
           for (let c = 0; c < SKYN.copies; c++, idx++) {
             const az =
                 (((idx * 0.618034) % 1) + (rnd() - 0.5) * 0.05) * Math.PI * 2,
@@ -7223,7 +7478,8 @@ void main(){
                 ((SKYN.minEl +
                   Math.pow(rnd(), 1.3) * (SKYN.maxEl - SKYN.minEl)) *
                   Math.PI) /
-                180; // golden-ratio spread around the compass, mostly low enough to see
+                // golden-ratio spread around the compass, mostly low enough to see
+                180;
             const R = Math.min(
                 (SKYN.minR + rnd() * (SKYN.maxR - SKYN.minR)) * H,
                 170,
@@ -7258,8 +7514,10 @@ void main(){
   function updateSky(dt) {
     if (!skyGroup || !skyGroup.visible) return;
     skyT += dt;
-    const st = ps1 ? Math.floor(skyT * 15) / 15 : skyT; // steps at 15 fps in the PS1 look, like the other animation
-    skyGroup.position.set(target.x, 0, target.z); // rides along with the camera, so the sky never gets closer
+    // steps at 15 fps in the PS1 look, like the other animation
+    const st = ps1 ? Math.floor(skyT * 15) / 15 : skyT;
+    // rides along with the camera, so the sky never gets closer
+    skyGroup.position.set(target.x, 0, target.z);
     skyItems.forEach((it) => {
       const A = it.anim,
         t = (st * it.speed + it.off) % A.T;
@@ -7290,7 +7548,8 @@ void main(){
           let t = Math.imul(sd ^ (sd >>> 15), 1 | sd);
           t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
           return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        }; // fixed seed: same forest every visit
+        // fixed seed: same forest every visit
+        };
         const spots = [];
         for (let tries = 0; spots.length < DGF.count && tries < 9000; tries++) {
           const a = rnd() * Math.PI * 2,
@@ -7298,18 +7557,21 @@ void main(){
             sc = DGF.minS + Math.pow(rnd(), 1.5) * (DGF.maxS - DGF.minS);
           const x = ctr.x + Math.cos(a) * r,
             z = ctr.z + Math.sin(a) * r,
-            c = 1.6 * sc; // c = canopy radius in world units
+            // c = canopy radius in world units
+            c = 1.6 * sc;
           if (r - c < DGF.inner * H) continue;
           if (x > ctr.x && Math.abs(z - ctr.z) < DGF.lane * H + c * 0.5)
             continue;
           if (spots.some((q) => Math.hypot(q.x - x, q.z - z) < 0.5 * (q.c + c)))
-            continue; // canopies may overlap, trunks may not
+            // canopies may overlap, trunks may not
+            continue;
           spots.push({ x, z, sc, c, yw: rnd() * Math.PI * 2 });
         }
         const grp = new THREE.Group();
         grp.visible = false;
         const westClear = (q) =>
-          !(q.x < ctr.x && Math.abs(q.z - ctr.z) < DGF.lane * H + q.c * 0.5); // the lane he walks out along after a win, straight west through the gap
+          // the lane he walks out along after a win, straight west through the gap
+          !(q.x < ctr.x && Math.abs(q.z - ctr.z) < DGF.lane * H + q.c * 0.5);
         TD.forEach((p, k) => {
           const P = [],
             N = [],
@@ -7355,19 +7617,23 @@ void main(){
             const a = rnd() * Math.PI * 2,
               r = (DGF.inner + Math.sqrt(rnd()) * (DGF.outer - DGF.inner)) * H;
             let b = DGR.minS + Math.pow(rnd(), 1.6) * (DGR.maxS - DGR.minS);
-            if (rnd() < 0.06) b *= 2; // the odd huge one
+            // the odd huge one
+            if (rnd() < 0.06) b *= 2;
             const sx = b * (0.8 + rnd() * 0.9),
               sy = b * (0.55 + rnd() * 0.6),
               sz = b * (0.8 + rnd() * 0.9),
-              rr = 0.6 * Math.max(sx, sz); // independent stretch per axis
+              // independent stretch per axis
+              rr = 0.6 * Math.max(sx, sz);
             const x = ctr.x + Math.cos(a) * r,
               z = ctr.z + Math.sin(a) * r;
-            if (r - rr < DGF.inner * H) continue; // same camera-room and walk-in-lane rules as the trees
+            // same camera-room and walk-in-lane rules as the trees
+            if (r - rr < DGF.inner * H) continue;
             if (x > ctr.x && Math.abs(z - ctr.z) < DGF.lane * H + rr) continue;
             if (
               spots.some((q) => Math.hypot(q.x - x, q.z - z) < rr + 0.25 * q.sc)
             )
-              continue; // not on a trunk
+              // not on a trunk
+              continue;
             if (
               rocks.some(
                 (q) => Math.hypot(q.x - x, q.z - z) < 0.6 * (q.rr + rr),
@@ -7391,7 +7657,8 @@ void main(){
             for (let v = 0; v < RK.p.length; v += 3) {
               const x = RK.p[v] * q.sx,
                 y = RK.p[v + 1] * q.sy,
-                z = RK.p[v + 2] * q.sz; // the rock's middle is at floor level, so half of it is in the ground
+                // the rock's middle is at floor level, so half of it is in the ground
+                z = RK.p[v + 2] * q.sz;
               P.push(q.x + x * co + z * si, groundY + y, q.z - x * si + z * co);
               let nx = RK.n[v] / q.sx,
                 ny = RK.n[v + 1] / q.sy,
@@ -7399,7 +7666,8 @@ void main(){
               const l = Math.hypot(nx, ny, nz) || 1;
               nx /= l;
               ny /= l;
-              nz /= l; // normals of a stretched shape
+              // normals of a stretched shape
+              nz /= l;
               N.push(nx * co + nz * si, ny, -nx * si + nz * co);
             }
             for (const u of RK.uv) UV.push(u);
@@ -7423,7 +7691,8 @@ void main(){
         }
         occMark(grp);
         scene.add(grp);
-        dgForest = grp; // trees and boulders dither away when they are in front of someone
+        // trees and boulders dither away when they are in front of someone
+        dgForest = grp;
       })
       .catch((e) => console.error("dungeon forest failed", e));
   }
@@ -7432,14 +7701,18 @@ void main(){
    The ruins are scaled by RUINS_SCALE, and the circle's middle is always under the knight's start spot. The knight walks in through the
    gate (the gap in the east wall, +x side) onto the circle and drops into Idle; the camera then drifts between a set of shots, Resident-Evil style.
    This is where the turn-based fights will happen. Esc / MENU leaves. */
-  const RUINS_SCALE = 1.15; // knight-heights per ruins-file unit (was ~1.6): smaller ruins, bigger-looking knight. The walls are 1.5 units = ~1.7 knight-heights
+  // knight-heights per ruins-file unit (was ~1.6): smaller ruins, bigger-looking knight. The walls are 1.5 units = ~1.7 knight-heights
+  const RUINS_SCALE = 1.15;
   /* The arena: the knight holds the circle facing west; the enemy line stands across the courtyard facing him (floor rings mark the slots for now).
    dist = how far west of him the line is, gap = spacing along the line, both in knight-heights. n = 0 removes the markers. */
   const DG_ENEMY = { n: 3, dist: 2.2, gap: 0.6 };
   const DG_BLEND_MIN = 3.2,
-    DG_BLEND_MAX = 8; // seconds a move between two shots takes (longer for bigger swings)
-  const DG_START = 4.2; // where the walk-in starts, in knight-heights east of the circle (outside the gate)
-  const DG_FOG = [4.5, 10]; // fog near/far in knight-heights, pushed out so the whole compound can be seen
+    // seconds a move between two shots takes (longer for bigger swings)
+    DG_BLEND_MAX = 8;
+  // where the walk-in starts, in knight-heights east of the circle (outside the gate)
+  const DG_START = 4.2;
+  // fog near/far in knight-heights, pushed out so the whole compound can be seen
+  const DG_FOG = [4.5, 10];
   /* camera shots: yaw is where the camera sits around the knight (0 = south, 90 = east/outside the gate, 180 = north, -90 = west, in front of him),
    drift = slow pan in deg/s, pitch in radians, dist in knight-heights, ty = look-at height above his middle in knight-heights */
   const DG_INTRO = {
@@ -7452,13 +7725,20 @@ void main(){
   };
   const DG_SHOTS = [
     // every shot orbits the CENTER of the battlefield (mid 0.5 = halfway between the knight and the enemy line) from far enough back that all of them and their health bars stay in frame; anything in the way dithers
-    { yaw: 78, drift: 1.6, pitch: 0.2, dist: 4.2, ty: 0.12, mid: 0.5 }, // from the gate, toward the enemy line
-    { yaw: -78, drift: 2.0, pitch: 0.16, dist: 4.2, ty: 0.12, mid: 0.5 }, // from the enemy side
-    { yaw: 180, drift: 2.0, pitch: 0.32, dist: 4.4, ty: 0.1, mid: 0.5 }, // north, wide duel
-    { yaw: 0, drift: -2.0, pitch: 0.32, dist: 4.4, ty: 0.1, mid: 0.5 }, // south, wide duel
-    { yaw: -30, drift: -3.0, pitch: 1.0, dist: 4.2, ty: 0.0, mid: 0.5 }, // near-overhead duel
-    { yaw: -100, drift: 2.0, pitch: 0.14, dist: 4.2, ty: 0.12, mid: 0.5 }, // low, from behind the enemies
-    { yaw: 70, drift: 1.8, pitch: 0.12, dist: 4.2, ty: 0.12, mid: 0.5 }, // low, at the gate
+    // from the gate, toward the enemy line
+    { yaw: 78, drift: 1.6, pitch: 0.2, dist: 4.2, ty: 0.12, mid: 0.5 },
+    // from the enemy side
+    { yaw: -78, drift: 2.0, pitch: 0.16, dist: 4.2, ty: 0.12, mid: 0.5 },
+    // north, wide duel
+    { yaw: 180, drift: 2.0, pitch: 0.32, dist: 4.4, ty: 0.1, mid: 0.5 },
+    // south, wide duel
+    { yaw: 0, drift: -2.0, pitch: 0.32, dist: 4.4, ty: 0.1, mid: 0.5 },
+    // near-overhead duel
+    { yaw: -30, drift: -3.0, pitch: 1.0, dist: 4.2, ty: 0.0, mid: 0.5 },
+    // low, from behind the enemies
+    { yaw: -100, drift: 2.0, pitch: 0.14, dist: 4.2, ty: 0.12, mid: 0.5 },
+    // low, at the gate
+    { yaw: 70, drift: 1.8, pitch: 0.12, dist: 4.2, ty: 0.12, mid: 0.5 },
   ];
   let ruinsGroup = null,
     dgSlots = null,
@@ -7488,7 +7768,8 @@ void main(){
     FIRE_MS = 200,
     FIRE_ASPECT = 11 / 12;
   const FIRE_POS = [-0.17, 0.28, -1.665],
-    FIRE_H = 0.4; // centre of the flame (in the log pile), and its height; the width follows the gif's proportions
+    // centre of the flame (in the log pile), and its height; the width follows the gif's proportions
+    FIRE_H = 0.4;
   const FIRE_ATLAS =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAMCAYAAAAZKF83AAABAElEQVR4nMWTQQqDMBBFx6RQqB5A6EK9U29Z76QuBA+ggoskXZQpafjTji2lH2Yhvvnzx0QKgYjrWlUhfpZKy/2iYBhNoF8t9443BFQ0ltq6CuhdLA2zh9PwMLC2WbuYlkN82vcUuK2rUDSW8rN5NKFhiEPmEidJM98gWDLTcBo/FFzra1L4VN6Lt5w7R0VjYXPMSaexh0M8z2f+gBrsMaNTed80PxtaRi9uzByz/AEkv5S79EO2xxcGjpvWSQ6LwiC5Lag45JtmEB3sES7+0jzWpR+yuXO0jJ7WyX8cOpWRzN0WaJ08LaOnuXPER/cty1wqrW8Wotsm/Qjonv2LvQFD/JObPH8xrAAAAABJRU5ErkJggg==";
   let campfire = null;
@@ -7534,7 +7815,8 @@ void main(){
       far = U.uFogFar.value,
       d = camera.position.distanceTo(campfire.spr.getWorldPosition(fireV)),
       f = Math.min(1, Math.max(0, (d - near) / (far - near)));
-    campfire.spr.material.opacity = 1 - f * f * (3 - 2 * f); // fades into the fog like everything else
+    // fades into the fog like everything else
+    campfire.spr.material.opacity = 1 - f * f * (3 - 2 * f);
   }
   /* Z-fighting fix for the ruins: the model has triangles that sit exactly on top of other triangles (36 in one wall part, 420 in the spike palisade). Two surfaces at the same depth fight for the pixel and flicker as the camera moves, so each repeated triangle is dropped and only the first is kept. */
   function dropDuplicateTris(pos, idx) {
@@ -7573,7 +7855,8 @@ void main(){
         d = 1;
       }
       tr.position.x = m.x + (dx / d) * m.R;
-      tr.position.z = m.z + (dz / d) * m.R; // pushed straight out to just beyond the ruins
+      // pushed straight out to just beyond the ruins
+      tr.position.z = m.z + (dz / d) * m.R;
     });
   }
   function updateMapRuins() {
@@ -7597,7 +7880,8 @@ void main(){
           );
           geo.setAttribute("normal", new THREE.Float32BufferAttribute(pt.n, 3));
           geo.setAttribute("uv", new THREE.Float32BufferAttribute(pt.uv, 2));
-          geo.setIndex(dropDuplicateTris(pt.p, pt.i)); // identical triangles stacked on each other flicker (z-fighting) - keep one of each
+          // identical triangles stacked on each other flicker (z-fighting) - keep one of each
+          geo.setIndex(dropDuplicateTris(pt.p, pt.i));
           let tex;
           if (pt.t >= 0) {
             tex = new THREE.Texture(imgs[pt.t]);
@@ -7615,7 +7899,8 @@ void main(){
           if (pt.nocam) m.userData.noCam = true;
           grp.add(m);
         });
-        occMark(grp); // every wall and pillar can dither away when it is in front of someone (the flame, added next, is not an obstacle)
+        // every wall and pillar can dither away when it is in front of someone (the flame, added next, is not an obstacle)
+        occMark(grp);
         {
           const view = grp.clone(true),
             sp = MAP_AREAS.greenfield.spots[0],
@@ -7641,18 +7926,21 @@ void main(){
           };
           clearTreesForMapRuins();
         }
-        initFire(grp); // added after the line above, so the flame is never something the camera collides with
+        // added after the line above, so the flame is never something the camera collides with
+        initFire(grp);
         grp.scale.setScalar(S);
         grp.position.set(
           ctr.x - S * RD.c[0],
           groundY + 0.003 * H - S * RD.c[1],
           ctr.z - S * RD.c[2],
-        ); // the circle's middle lands exactly under the knight's shadow
+        // the circle's middle lands exactly under the knight's shadow
+        );
         grp.visible = false;
         scene.add(grp);
         ruinsGroup = grp;
         const sl = new THREE.Group();
-        sl.visible = false; // floor rings where the enemy line will stand, facing the knight
+        // floor rings where the enemy line will stand, facing the knight
+        sl.visible = false;
         for (let k = 0; k < DG_ENEMY.n; k++) {
           const r = new THREE.Mesh(
             new THREE.RingGeometry(0.2 * H, 0.3 * H, 14),
@@ -7717,7 +8005,8 @@ void main(){
       // the further the camera has to travel, the longer the move (about 25 deg/s on average), so big swings are never sudden
       const TAU = Math.PI * 2;
       dgFrom.dy0 =
-        ((((dgYaw - dgFrom.yaw + Math.PI) % TAU) + TAU) % TAU) - Math.PI; // which way round to swing is decided ONCE here (re-deciding every frame can flip the direction mid-move when the shots are ~180 deg apart)
+        // which way round to swing is decided ONCE here (re-deciding every frame can flip the direction mid-move when the shots are ~180 deg apart)
+        ((((dgYaw - dgFrom.yaw + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
       const dy = (Math.abs(dgFrom.dy0) * 180) / Math.PI;
       dgBlendT = Math.min(
         DG_BLEND_MAX,
@@ -7729,7 +8018,8 @@ void main(){
             Math.abs(shot.pitch - dgFrom.pitch) * 3,
         ),
       );
-      dgDur = dgBlendT + 4.5 + Math.random() * 4; // then a few seconds of calm drift before the next move
+      // then a few seconds of calm drift before the next move
+      dgDur = dgBlendT + 4.5 + Math.random() * 4;
     } else dgDur = 8 + Math.random() * 5;
   }
   function dgNext() {
@@ -7748,7 +8038,8 @@ void main(){
     }
     dgBusy = true;
     fadeThen(() => {
-      mapSnap(); // coming from the map: menu camera, fog and floor back at once (it is black right now) - before the fog is saved below
+      // coming from the map: menu camera, fog and floor back at once (it is black right now) - before the fog is saved below
+      mapSnap();
       dgBusy = false;
       swooshHide();
       exploring = true;
@@ -7782,7 +8073,8 @@ void main(){
       if (treeGroup) treeGroup.visible = false;
       playerRig.position.set(DG_START * playerH, 0, 0);
       heading = -Math.PI / 2;
-      playerRig.rotation.y = heading; // facing west, into the ruins
+      // facing west, into the ruins
+      playerRig.rotation.y = heading;
       floorMesh.position.x = floorMesh.position.z = 0;
       chestScene = false;
       chestDone = false;
@@ -7909,7 +8201,8 @@ void main(){
   function cloneElemental() {
     const root = elementalGltf.scene.clone(true);
     root.scale.setScalar(SLIME_SCALE);
-    root.rotation.y = Math.PI; // flip 180 deg so the slime's front faces +Z in rig space, matching the knight
+    // flip 180 deg so the slime's front faces +Z in rig space, matching the knight
+    root.rotation.y = Math.PI;
     root.traverse((o) => {
       if (!o.isMesh) return;
       const m = ps1Mat(o.material.map, 1);
@@ -7925,7 +8218,8 @@ void main(){
       } else {
         o.renderOrder = 0;
       }
-      m.uniforms.uFade = { value: 1 }; // 1 = solid; the fade-out when an enemy without a death animation dies brings it to 0
+      // 1 = solid; the fade-out when an enemy without a death animation dies brings it to 0
+      m.uniforms.uFade = { value: 1 };
       m.fragmentShader = m.fragmentShader
         .replace(
           "uniform sampler2D map;",
@@ -8023,7 +8317,8 @@ void main(){
       gk = (D.scale * H) / M.h0;
     root.traverse((o) => {
       if (!o.isMesh) return;
-      const m = ps1Mat(o.material.uniforms.map.value, 1); // own materials, so this one's death fade does not touch the others
+      // own materials, so this one's death fade does not touch the others
+      const m = ps1Mat(o.material.uniforms.map.value, 1);
       m.uniforms.uFade = { value: 1 };
       m.fragmentShader = m.fragmentShader
         .replace(
@@ -8133,17 +8428,20 @@ void main(){
     const H = playerH,
       c = homeTarget,
       n = DG_ENEMY.n,
-      th = Math.PI / 2; // heading +90 deg = facing east, toward the player
+      // heading +90 deg = facing east, toward the player
+      th = Math.PI / 2;
     const lay = RUINS_WAVES[Math.min(dgWave, RUINS_WAVES.length - 1)];
     const A = shuffled(EN_ARMOR),
       P = shuffled(EN_PLUME),
       W = shuffled(EN_SWORD);
     const HP = shuffled(
       helmetSets.map((_, i) => i).filter((i) => i !== curHelmet),
-    ); // helmets other than the one the player wears, shuffled so each enemy gets a different one   // shuffled, so the three never repeat a color until the swatches run out
+    // helmets other than the one the player wears, shuffled so each enemy gets a different one   // shuffled, so the three never repeat a color until the swatches run out
+    );
     for (let k = 0; k < n; k++) {
       const sx = c.x - DG_ENEMY.dist * H,
-        sz = c.z + (k - (n - 1) / 2) * DG_ENEMY.gap * H; // exactly where the ring is
+        // exactly where the ring is
+        sz = c.z + (k - (n - 1) / 2) * DG_ENEMY.gap * H;
       if (lay[k] === "slime" && elementalGltf) {
         // Enemy 1 (k=2) and Enemy 3 (k=0) are Slimes
         const root = cloneElemental();
@@ -8223,7 +8521,8 @@ void main(){
           gk = (GOLEM_SCALE * H) / golemH0;
         root.traverse((o) => {
           if (!o.isMesh) return;
-          const m = ps1Mat(o.material.uniforms.map.value, 1); // own materials, so this golem's death fade does not touch the others
+          // own materials, so this golem's death fade does not touch the others
+          const m = ps1Mat(o.material.uniforms.map.value, 1);
           m.uniforms.uFade = { value: 1 };
           m.fragmentShader = m.fragmentShader
             .replace(
@@ -8328,7 +8627,8 @@ void main(){
         cache = new Map(),
         pTex = [],
         rocks = [];
-      root.scale.x = MIRROR_MODEL ? -1 : 1; // enemies keep the normal handedness whatever the player's weapon
+      // enemies keep the normal handedness whatever the player's weapon
+      root.scale.x = MIRROR_MODEL ? -1 : 1;
       root.traverse((o) => {
         if (o.name === "Shortsword") o.visible = true;
         else if (
@@ -8339,7 +8639,8 @@ void main(){
           o.name === "Morningstar"
         )
           o.visible = false;
-      }); // enemies stay with swords + the normal Idle
+      // enemies stay with swords + the normal Idle
+      });
       if (HP.length) {
         // swap the helmet: show this enemy's set in the clone and hide the rest (clone meshes are found by their position in the hierarchy)
         const hi = HP[k % HP.length],
@@ -8361,7 +8662,8 @@ void main(){
           if (helm6.mat) o.material = helm6.mat;
           o.scale.x = root.scale.x < 0 ? -1 : 1;
           return;
-        } // Helmet 6's face: the same animated material, not tinted like armor
+        // Helmet 6's face: the same animated material, not tinted like armor
+        }
         const om = o.material;
         if (!om.uniforms) {
           o.visible = false;
@@ -8406,12 +8708,14 @@ void main(){
         }
         o.material = nm;
       });
-      rocks.forEach((r) => r.parent && r.parent.remove(r)); // the clone was taken while the player sat on his rock
+      // the clone was taken while the player sat on his rock
+      rocks.forEach((r) => r.parent && r.parent.remove(r));
       const rig = new THREE.Group();
       rig.add(root);
       rig.rotation.y = th;
       const ox = -c.x,
-        oz = -c.z; // the model's footprint centre, in the rig's own frame, so his feet land on the ring
+        // the model's footprint centre, in the rig's own frame, so his feet land on the ring
+        oz = -c.z;
       rig.position.set(
         sx - (ox * Math.cos(th) + oz * Math.sin(th)),
         0,
@@ -8423,7 +8727,8 @@ void main(){
       a.timeScale = 0.92 + Math.random() * 0.16;
       a.play();
       a.time = Math.random() * a.getClip().duration;
-      mx.update(0); // out of step with each other
+      // out of step with each other
+      mx.update(0);
       const blob = new THREE.Mesh(
         new THREE.CircleGeometry(H * 0.26, 10),
         new THREE.MeshBasicMaterial({
@@ -8485,7 +8790,8 @@ void main(){
     });
     enemies.length = 0;
   }
-  const SLIME_STEP = 1 / 8; // the slimes move in 8 frames a second (the knights: 15): a stop-motion look
+  // the slimes move in 8 frames a second (the knights: 15): a stop-motion look
+  const SLIME_STEP = 1 / 8;
   function stepEnemies(dt) {
     for (const e of enemies) {
       if (e.isSlime) {
@@ -8508,8 +8814,10 @@ void main(){
   /* ---------- target pointer (pointer-data: Blockbench glTF with its own spin-and-bob animation) ----------
    One pointer floats above the enemy you have selected. LEFT / RIGHT (or A / D) move it between the enemies, as you see them on screen:
    it starts on the middle one; LEFT / RIGHT follow the TARGET window and wrap round at the ends. Later this is what picks the target of an attack. */
-  const POINTER_SCALE = 2.0; // 1 = the size it was modeled at (quite small next to the knight)
-  const POINTER_GAP = 0.34; // clearance above the top of the knight's head, in knight-heights
+  // 1 = the size it was modeled at (quite small next to the knight)
+  const POINTER_SCALE = 2.0;
+  // clearance above the top of the knight's head, in knight-heights
+  const POINTER_GAP = 0.34;
   let pointerRig = null,
     pointerMixer = null,
     enSel = 1,
@@ -8524,7 +8832,8 @@ void main(){
     "#9a60e0": "UMBRA",
     "#e878b0": "ORCHID",
     "#3cc4bc": "LAGOON",
-  }; // armor color -> the knight's name (target window + health bars); unknown colors are STEEL
+  // armor color -> the knight's name (target window + health bars); unknown colors are STEEL
+  };
   const tgEl = document.getElementById("tgt");
   let tgKey = "";
   function tgSync() {
@@ -8612,7 +8921,8 @@ void main(){
         g.animations.forEach((a) => mx.clipAction(a).play());
         mx.update(0);
         rig.updateMatrixWorld(true);
-        g.scene.position.y = -new THREE.Box3().setFromObject(rig).min.y; // its lowest point now sits exactly at the rig's origin, so the gap above the head is exact
+        // its lowest point now sits exactly at the rig's origin, so the gap above the head is exact
+        g.scene.position.y = -new THREE.Box3().setFromObject(rig).min.y;
         pointerRig = rig;
         pointerMixer = mx;
       },
@@ -8641,7 +8951,8 @@ void main(){
   }
   function showPointer() {
     if (!pointerRig || !enemies.length) return;
-    enSel = Math.floor((enemies.length - 1) / 2); // the middle enemy
+    // the middle enemy
+    enSel = Math.floor((enemies.length - 1) / 2);
     pickAlive();
     ptr.x = enemies[enSel].x;
     ptr.z = enemies[enSel].z;
@@ -8661,18 +8972,21 @@ void main(){
       k = Math.min(1, dt * 14);
     ptr.x += (e.x - ptr.x) * k;
     ptr.z += (e.z - ptr.z) * k;
-    placePointer(); // slides to the new target
+    // slides to the new target
+    placePointer();
   }
   function movePointer(dir) {
     // dir: -1 = left key, +1 = right key. Always follows the TARGET window along the top (slot 1 on the left), whatever the camera does, and wraps round at the ends
-    if (!pointerRig || !pointerRig.visible || bmOpen || bt.act) return; // locked while the battle menu is open or an action is playing
+    // locked while the battle menu is open or an action is playing
+    if (!pointerRig || !pointerRig.visible || bmOpen || bt.act) return;
     const n = enemies.length;
     if (n < 2) return;
     let k = enSel;
     for (let q = 0; q < n; q++) {
       k = (((k - dir) % n) + n) % n;
       if (!enemies[k].dead) break;
-    } // slot number = enemies.length - index, so right (next slot) is the previous index; fallen enemies are skipped
+    // slot number = enemies.length - index, so right (next slot) is the previous index; fallen enemies are skipped
+    }
     if (enemies[k].dead || k === enSel) return;
     enSel = k;
     blip(560, 0.05);
@@ -8704,7 +9018,8 @@ void main(){
             ]
           : ["CARVE", "BACK"];
       },
-    }, // KNIGHT LIGHT: only with the Knightly Sword, once its gauge is full
+    // KNIGHT LIGHT: only with the Knightly Sword, once its gauge is full
+    },
     actions: {
       title: "ACTIONS",
       get items() {
@@ -8712,20 +9027,27 @@ void main(){
           ? ["FLAUNT", "BLOCK", "RENDER", "BACK"]
           : ["FLAUNT", "BLOCK", "BACK"];
       },
-    }, // RENDER only while a heavy weapon (axe / shovel) is held
+    // RENDER only while a heavy weapon (axe / shovel) is held
+    },
 
     items: {
       title: "ITEMS",
       get items() {
         return ["POTION x" + potions, "HASTE POTION x" + hastes, "BACK"];
       },
-    }, // the label shows how many are left
+    // the label shows how many are left
+    },
   };
-  const SWING_SPEED = 1.25; // same swing speed as in Walk Around
-  const CARVE_HIT_AT = 0.5; // seconds into the Swing clip when the blade connects: the enemy's Hit starts then
-  const HIT_HOLD = 1.0; // seconds the last frame of Hit is held before the enemy goes back to Idle
-  const BLOCK_HOLD = 0.05; // seconds the last frame of Block is held before he goes back to Idle
-  const FLAUNT_TIME = 3.0; // seconds the Flaunt plays (4 loops of the 0.75 s clip) before he returns to Idle
+  // same swing speed as in Walk Around
+  const SWING_SPEED = 1.25;
+  // seconds into the Swing clip when the blade connects: the enemy's Hit starts then
+  const CARVE_HIT_AT = 0.5;
+  // seconds the last frame of Hit is held before the enemy goes back to Idle
+  const HIT_HOLD = 1.0;
+  // seconds the last frame of Block is held before he goes back to Idle
+  const BLOCK_HOLD = 0.05;
+  // seconds the Flaunt plays (4 loops of the 0.75 s clip) before he returns to Idle
+  const FLAUNT_TIME = 3.0;
   const HINT_AIM = "LEFT / RIGHT AIM &nbsp; ENTER SELECT &nbsp; ESC LEAVE",
     HINT_MENU = "UP / DOWN CHOOSE &nbsp; ENTER OK &nbsp; ESC BACK",
     HINT_BUSY = "ESC LEAVE";
@@ -8733,7 +9055,8 @@ void main(){
     bmIdx = 0,
     bmTT = 0,
     bmLevel = "root";
-  const bt = { act: null, t: 0, stage: 0, en: null, heading: 0 }; // the action in progress (null = none)
+  // the action in progress (null = none)
+  const bt = { act: null, t: 0, stage: 0, en: null, heading: 0 };
   const bmEl = document.getElementById("bm"),
     bmList = document.getElementById("bml"),
     bmT = document.getElementById("bmt"),
@@ -8779,7 +9102,8 @@ void main(){
   }
   function bmTarget() {
     return enemies.length - enSel;
-  } // 1 = the enemy on the player's far left, counting to his right
+  // 1 = the enemy on the player's far left, counting to his right
+  }
   function hudSet(h) {
     const el = document.getElementById("hud");
     if (el && dungeon) el.innerHTML = h;
@@ -8891,14 +9215,16 @@ void main(){
     bt.heading = -Math.PI / 2;
     const c = homeTarget;
     heading = Math.atan2(e.x - c.x, e.z - c.z);
-    playerRig.rotation.y = heading; // faces the one it is about to hit
+    // faces the one it is about to hit
+    playerRig.rotation.y = heading;
     if (current && current !== a) current.fadeOut(0.06);
     a.reset().setLoop(THREE.LoopOnce, 1);
     a.clampWhenFinished = true;
     a.timeScale = 1;
     a.fadeIn(0.06).play();
     current = a;
-    playSwishClip("HeavyCombo"); // the swishes, the sparkle and the bluntflesh hit of the finishing blow
+    // the swishes, the sparkle and the bluntflesh hit of the finishing blow
+    playSwishClip("HeavyCombo");
   }
   function btEnd(noTurn) {
     if (
@@ -8913,7 +9239,8 @@ void main(){
     bt.act = null;
     bt.en = null;
     playerRig.rotation.y = bt.heading;
-    heading = bt.heading; // face west again
+    // face west again
+    heading = bt.heading;
     hudSet(HINT_AIM);
     if (!noTurn) afterPlayerAction();
   }
@@ -8928,8 +9255,10 @@ void main(){
     bt.heading = -Math.PI / 2;
     const c = homeTarget;
     heading = Math.atan2(e.x - c.x, e.z - c.z);
-    playerRig.rotation.y = heading; // turn to face the one he is about to cut
-    if (animSet === "ideal" && swingName() === "Swing") idealPickSwing(); // IDEAL: a random A / B / C for every swing in battle too
+    // turn to face the one he is about to cut
+    playerRig.rotation.y = heading;
+    // IDEAL: a random A / B / C for every swing in battle too
+    if (animSet === "ideal" && swingName() === "Swing") idealPickSwing();
     const sw = actions[swingName()];
     swinging = true;
     swingQueued = false;
@@ -8938,7 +9267,8 @@ void main(){
     sw.clampWhenFinished = true;
     sw.timeScale = SWING_SPEED;
     sw.fadeIn(0.06).play();
-    current = sw; // when it ends the usual swing hand-off puts him back to Idle
+    // when it ends the usual swing hand-off puts him back to Idle
+    current = sw;
     playSword(SWING_SPEED);
   }
   function startFlaunt() {
@@ -8959,7 +9289,8 @@ void main(){
     btBegin("block");
     bt.heading = -Math.PI / 2;
     pl.guard = true;
-    bmToast("GUARDING"); // the enemies' attacks this round do much less damage
+    // the enemies' attacks this round do much less damage
+    bmToast("GUARDING");
     playBlockAnim();
     playBlockSfx();
   }
@@ -8968,7 +9299,8 @@ void main(){
    to land on the bluntflesh hit's own peak (0.227 s in + the 0.03 s it is delayed). 000242db builds up to its peak (0.56 s), so it just starts with the hit. */
   const RENDER_ATK_GAIN = 0.9,
     RENDER_ATK_PEAK = [0.07, 0.094, 0.562, 0.08],
-    RENDER_HIT_PEAK = 0.227; // RENDER_HIT_PEAK: where the bluntflesh hit is loudest inside its own file
+    // RENDER_HIT_PEAK: where the bluntflesh hit is loudest inside its own file
+    RENDER_HIT_PEAK = 0.227;
   let renderAtkLast = -1;
   function playRenderAttackLayer(hitStart, track) {
     // hitStart: seconds from now until the bluntflesh hit STARTS (0.03 in RENDER); track: keep the sound where swishStopAll can cancel it
@@ -8984,7 +9316,8 @@ void main(){
     else playSfxSet("render-attack-sfx-data", i, RENDER_ATK_GAIN, 1, d);
   }
   const RENDER_GUARD = 0.2,
-    RENDER_DAMAGE = 25; // RENDER: the share of each enemy hit it blocks (20%), and what the heavy swing does to EVERY enemy
+    // RENDER: the share of each enemy hit it blocks (20%), and what the heavy swing does to EVERY enemy
+    RENDER_DAMAGE = 25;
   function startRender() {
     if (
       !actions.SwingHeavyWindUp ||
@@ -8999,7 +9332,8 @@ void main(){
     bt.stage = 0;
     pl.render = true;
     pl.buf = true;
-    bmToast("RENDER"); // pl.render: holding the pose (first enemy turn). pl.buf: the 10% buffer, lasts through BOTH enemy turns
+    // pl.render: holding the pose (first enemy turn). pl.buf: the 10% buffer, lasts through BOTH enemy turns
+    bmToast("RENDER");
     playHeavy("SwingHeavyWindUp", 1, false);
     playSfxSet("render-charge-sfx-data", 0, 0.9, 1, 0);
   }
@@ -9032,7 +9366,8 @@ void main(){
   function playBlockIdle() {
     if (actions.BlockIdle) play("BlockIdle");
     else play(idleName());
-  } // the guard held while the enemies attack; endEnemyPhase puts him back in Idle
+  // the guard held while the enemies attack; endEnemyPhase puts him back in Idle
+  }
   function playBlockAnim() {
     const b = actions.Block;
     if (!b) return;
@@ -9066,18 +9401,24 @@ void main(){
    CARVE does SWING_DAMAGE. BLOCK puts a guard up for the coming enemy turn (damage x GUARD_FACTOR). FLAUNT just spends the turn. All enemies down = VICTORY; your HP at 0 = DEFEATED. */
   const PLAYER_HP = 100,
     ENEMY_HP = 100,
-    SLIME_HP = 50; // starting hit points
-  const SWING_DAMAGE = 25; // what your swing does
+    // starting hit points
+    SLIME_HP = 50;
+  // what your swing does
+  const SWING_DAMAGE = 25;
   const ENEMY_DAMAGE = 12,
-    GUARD_FACTOR = 0.25; // what an enemy swing does, and the share of it that gets through while you are guarding
+    // what an enemy swing does, and the share of it that gets through while you are guarding
+    GUARD_FACTOR = 0.25;
   const ENEMY_START_BEAT = 0.5,
     ENEMY_HOLD = 0.45,
     DEATH_HOLD = 0.6,
-    END_SHOW = 3.2; // pauses (s): before the first enemy swings, after each enemy swing, after an enemy falls, how long VICTORY / DEFEATED stays up
-  const HASTE_COUNT = 3; // haste potions you start a fight with: drinking one (it uses that turn) gives you TWO actions on your next turn, each one counting for the KNIGHT LIGHT gauge
+    // pauses (s): before the first enemy swings, after each enemy swing, after an enemy falls, how long VICTORY / DEFEATED stays up
+    END_SHOW = 3.2;
+  // haste potions you start a fight with: drinking one (it uses that turn) gives you TWO actions on your next turn, each one counting for the KNIGHT LIGHT gauge
+  const HASTE_COUNT = 3;
   const POTION_HEAL = 25,
     POTION_COUNT = 3,
-    POTION_HEAL_AT = 1.5; // hit points a potion restores, how many you start a fight with, and when in the clip (s) the heal lands: his hand is at his lips
+    // hit points a potion restores, how many you start a fight with, and when in the clip (s) the heal lands: his hand is at his lips
+    POTION_HEAL_AT = 1.5;
   let potions = POTION_COUNT,
     hastes = HASTE_COUNT;
   const DEFEAT_GAIN = 1.0,
@@ -9153,7 +9494,8 @@ void main(){
     } catch (e) {
       console.error("defeat sound failed", e);
     }
-  } // volume of the defeat sound, and how long DEFEATED stays up (it is 3.8 s long, so it finishes before you are sent out)
+  // volume of the defeat sound, and how long DEFEATED stays up (it is 3.8 s long, so it finishes before you are sent out)
+  }
   let turn = "player",
     ep = null,
     endT = 0,
@@ -9222,7 +9564,8 @@ void main(){
       const im = dfEl.firstChild;
       im.src =
         "data:image/gif;base64," +
-        document.getElementById("defeat-gif").textContent.trim(); // set again each time so the gif starts from its first frame
+        // set again each time so the gif starts from its first frame
+        document.getElementById("defeat-gif").textContent.trim();
       dfEl.style.display = "flex";
       void dfEl.offsetWidth;
       dfEl.classList.add("show");
@@ -9480,7 +9823,8 @@ void main(){
   }
   function hasteTag() {
     return pl.haste > 0 ? "  HASTE " + (3 - pl.haste) + "/2" : "";
-  } // 'HASTE 1/2', 'HASTE 2/2' while the double turn is on
+  // 'HASTE 1/2', 'HASTE 2/2' while the double turn is on
+  }
   function afterPlayerAction() {
     // the player's command has finished: victory, or the enemies' turn
     if (turn === "over") return;
@@ -9495,11 +9839,13 @@ void main(){
     if (pl.hasteArm) {
       pl.hasteArm = false;
       pl.haste = 2;
-    } // he just drank a haste potion: the enemies go now, and his NEXT turn is two actions
+    // he just drank a haste potion: the enemies go now, and his NEXT turn is two actions
+    }
     else if (pl.haste > 0) {
       // a hasted turn: after the first action he simply acts again, without the enemies going
       if (pl.render)
-        pl.haste = 0; // (RENDER hands the turn over while he holds the swing, so no second action there)
+        // (RENDER hands the turn over while he holds the swing, so no second action there)
+        pl.haste = 0;
       else {
         pl.haste--;
         if (pl.haste > 0) {
@@ -9547,7 +9893,8 @@ void main(){
       startRenderRelease();
       return;
     }
-    blockHitBag = []; // a new turn starts with all three block-hit sounds available again
+    // a new turn starts with all three block-hit sounds available again
+    blockHitBag = [];
     enemies.forEach((e) => setEnemyYaw(e, Math.PI / 2));
     pl.guard = false;
     pl.buf = false;
@@ -9577,11 +9924,13 @@ void main(){
       if (!(current && current.getClip().name === "SwingHeavyTurnHold"))
         playHeavy("SwingHeavyTurnHold", 1, true);
       playBlockHitSeq();
-    } // RENDER: he keeps holding the swing, the hit is just the sound
+    // RENDER: he keeps holding the swing, the hit is just the sound
+    }
     else if (pl.guard) {
       if (!(current && current.getClip().name === "BlockIdle")) playBlockIdle();
       playBlockHitSeq();
-    } // guarding: he stays in BlockIdle, the hit is just the sound
+    // guarding: he stays in BlockIdle, the hit is just the sound
+    }
     else {
       const h = actions.Hit;
       if (h) {
@@ -9635,7 +9984,8 @@ void main(){
     e.sqBase = e.root.scale.x;
     e.root.position.y = 0;
     e.rig.updateMatrixWorld(true);
-    e.sqB = new THREE.Box3().setFromObject(e.root).min.y - e.rig.position.y; // where its underside is (so it squashes onto the ground rather than into it)
+    // where its underside is (so it squashes onto the ground rather than into it)
+    e.sqB = new THREE.Box3().setFromObject(e.root).min.y - e.rig.position.y;
   }
   function slimeSquish(e, dt) {
     if (e.sqT === undefined || !e.sqHome) return;
@@ -9663,8 +10013,10 @@ void main(){
       const stretch =
         1 +
         SQ.stretch *
-          Math.pow(Math.sin(Math.PI * Math.max(0, Math.min(1, u))), 0.7); // tall in the air...
-      sy = t < tl ? SQ.crouchSy + (stretch - SQ.crouchSy) * kk : stretch; // ...springing out of the crouch
+          // tall in the air...
+          Math.pow(Math.sin(Math.PI * Math.max(0, Math.min(1, u))), 0.7);
+      // ...springing out of the crouch
+      sy = t < tl ? SQ.crouchSy + (stretch - SQ.crouchSy) * kk : stretch;
     } else {
       const a = t - land;
       lg = SQ.lunge;
@@ -9680,11 +10032,13 @@ void main(){
         sy = 1 - amp * Math.exp(-SQ.wobbleK * b) * Math.cos(SQ.wobbleW * b);
         shx = SQ.shake * H * 0.5 * Math.sin(t * 95) * Math.exp(-14 * b);
         const bk = sqEase((t - SQ.back[0]) / (SQ.back[1] - SQ.back[0]));
-        lg = SQ.lunge * (1 - bk); // slides back to its place
+        // slides back to its place
+        lg = SQ.lunge * (1 - bk);
       }
     }
     sy = Math.max(0.2, sy);
-    const sxz = 1 / Math.sqrt(sy); // volume stays constant: low = wide, tall = thin
+    // volume stays constant: low = wide, tall = thin
+    const sxz = 1 / Math.sqrt(sy);
     const S = e.sqBase;
     e.root.scale.set(S * sxz, S * sy, S * sxz);
     e.root.position.y = e.sqB * (1 - sy);
@@ -9718,7 +10072,8 @@ void main(){
         se.sqAcc -= d;
         slimeSquish(se, d);
       }
-    } // (the squish moves in the same choppy steps)   // the squishy jump drawn over the slime's own attack clip
+    // (the squish moves in the same choppy steps)   // the squishy jump drawn over the slime's own attack clip
+    }
     const e = ep.e,
       sw = e.isSlime
         ? e.clips.action
@@ -9770,12 +10125,14 @@ void main(){
         battleEnd("lose");
         return;
       }
-      if (!pl.guard && !pl.render) play(idleName()); // a raised guard stays up between the enemies' attacks
+      // a raised guard stays up between the enemies' attacks
+      if (!pl.guard && !pl.render) play(idleName());
       epNext();
     }
   }
   function battleEnd(kind) {
-    setBattleMusic(false); // silence for the defeat sting, the flaunt song for a victory
+    // silence for the defeat sting, the flaunt song for a victory
+    setBattleMusic(false);
     turn = "over";
     endKind = kind;
     endT = kind === "lose" ? DEFEAT_SHOW : END_SHOW;
@@ -9785,7 +10142,8 @@ void main(){
       defeatScreen(true);
       playDefeat();
       if (enemies.some((e) => e.isSlime && !e.dead)) playSlimeSfx("win");
-    } // Castlevania: Judgment's defeat sting, crushed and sung by the knights
+    // Castlevania: Judgment's defeat sting, crushed and sung by the knights
+    }
     if (kind === "win") {
       setTurnLabel("VICTORY!", "big");
       if (actions.Flaunt || actions.AxeFlaunt) play("Flaunt");
@@ -9814,14 +10172,16 @@ void main(){
         bt.stage = 1;
         bt.hitT = bt.t;
         hurtEnemy(e, SWING_DAMAGE);
-      } // the blade connects
+      // the blade connects
+      }
       else if (
         bt.stage === 1 &&
         ((e.dead ? e.deathDone : e.hitDone) || bt.t - bt.hitT > 4)
       ) {
         bt.stage = 2;
         bt.hold = 0;
-      } // (the 4 s is a safety net so a missed 'finished' event can never freeze the fight)
+      // (the 4 s is a safety net so a missed 'finished' event can never freeze the fight)
+      }
       // Hit has played through; its last frame stays on screen
       else if (bt.stage === 2) {
         bt.hold += dt;
@@ -9834,7 +10194,8 @@ void main(){
         }
       } else if (bt.stage === 3 && bt.t >= 0.02 && !swinging) {
         btEnd();
-      } // back to Idle on both sides
+      // back to Idle on both sides
+      }
     } else if (bt.act === "knightlight") {
       const e = bt.en,
         a = actions.HeavyCombo,
@@ -9843,7 +10204,8 @@ void main(){
         bt.stage = 1;
         bt.hitT = bt.t;
         hurtEnemy(e, KL_DAMAGE);
-      } // the blade comes down: the finishing blow lands
+      // the blade comes down: the finishing blow lands
+      }
       else if (
         bt.stage === 1 &&
         ((e.dead ? e.deathDone : e.hitDone) || bt.t - bt.hitT > 4)
@@ -9862,7 +10224,8 @@ void main(){
       } else if (bt.stage === 3 && bt.t >= dur - 0.05) {
         play(idleName());
         btEnd();
-      } // the clip has finished its recovery
+      // the clip has finished its recovery
+      }
     } else if (bt.act === "flaunt") {
       if (bt.t >= FLAUNT_TIME) {
         play(idleName());
@@ -9872,7 +10235,8 @@ void main(){
       if (bt.t >= actions.Block.getClip().duration + BLOCK_HOLD) {
         playBlockIdle();
         btEnd();
-      } // Block has played: he stays in BlockIdle (a loop) through the enemies' whole turn
+      // Block has played: he stays in BlockIdle (a loop) through the enemies' whole turn
+      }
     } else if (bt.act === "render") {
       if (
         bt.stage === 0 &&
@@ -9881,7 +10245,8 @@ void main(){
         bt.stage = 1;
         playHeavy("SwingHeavyTurnHold", 1, true);
         afterPlayerAction();
-      } // windup done: he holds while the enemies take their turn
+      // windup done: he holds while the enemies take their turn
+      }
     } else if (bt.act === "renderswing") {
       const rd = actions.SwingHeavyRelease.getClip().duration;
       if (bt.stage === 0 && bt.t >= rd * 0.45) {
@@ -9893,7 +10258,8 @@ void main(){
         enemies.forEach((e) => {
           if (!e.dead) hurtEnemy(e, RENDER_DAMAGE);
         });
-      } // the blade connects: all targets
+      // the blade connects: all targets
+      }
       else if (bt.stage === 1) {
         bt.hold += dt;
         if (bt.t >= rd && bt.hold >= HIT_HOLD) {
@@ -9907,7 +10273,8 @@ void main(){
           play(idleName());
           btEnd();
         }
-      } // btEnd -> victory, or the enemies go again; then he gets to pick
+      // btEnd -> victory, or the enemies go again; then he gets to pick
+      }
     } else if (bt.act === "potion") {
       const c = current && current.getClip().name === "Drinking_Potion";
       if (!bt.healed && c && current.time >= POTION_HEAL_AT) {
@@ -9936,7 +10303,8 @@ void main(){
   addEventListener("keydown", (e) => {
     if (!dungeon || dgBusy) return;
     const k = e.key.toLowerCase();
-    if (bt.act) return; // nothing to press while an action plays (Esc still leaves)
+    // nothing to press while an action plays (Esc still leaves)
+    if (bt.act) return;
     if (bmOpen) {
       if (k === "arrowup" || k === "w") {
         bmSet(bmIdx - 1);
@@ -9986,7 +10354,8 @@ void main(){
         moving = false;
         play(idleName());
         dgDur = dgT + 1.6;
-      } // arrived on the circle: Idle, then the camera starts roaming
+      // arrived on the circle: Idle, then the camera starts roaming
+      }
     } else if (dgState === "chest") {
       if (
         !chestDone &&
@@ -9994,12 +10363,14 @@ void main(){
         current === actions.Chestopen &&
         current.time >= current.getClip().duration - 0.03
       )
-        chestDone = true; // (safety net in case the 'finished' event is missed)
+        // (safety net in case the 'finished' event is missed)
+        chestDone = true;
       if (chestDone && !dgBusy) {
         if (chestEndT < 0) chestEndT = CHEST_END_HOLD;
         chestEndT -= dt;
         if (chestEndT <= 0 && !loot.on && !loot.picked) showLoot();
-      } // the clip has ended: after a moment the three loot cards come up, and picking one is what leaves (see lootPick)   // the clip has ended: hold its last pose a moment, then fade to black and back to the menu
+      // the clip has ended: after a moment the three loot cards come up, and picking one is what leaves (see lootPick)   // the clip has ended: hold its last pose a moment, then fade to black and back to the menu
+      }
     }
     // camera director: slow pan inside a shot, smooth blend into the next one
     dgT += dt;
@@ -10015,9 +10386,11 @@ void main(){
       dgBlend = Math.min(1, dgBlend + dt / dgBlendT);
       const e =
           dgBlend * dgBlend * dgBlend * (dgBlend * (dgBlend * 6 - 15) + 10),
-        TAU = Math.PI * 2; // smootherstep: eases in AND out with no jolt
+        // smootherstep: eases in AND out with no jolt
+        TAU = Math.PI * 2;
       dgCam.yaw =
-        dgFrom.yaw + (dgFrom.dy0 + ((dgShot.drift * Math.PI) / 180) * dgT) * e; // fixed direction + the new shot's drift so far (lands exactly on the shot's own yaw)
+        // fixed direction + the new shot's drift so far (lands exactly on the shot's own yaw)
+        dgFrom.yaw + (dgFrom.dy0 + ((dgShot.drift * Math.PI) / 180) * dgT) * e;
       dgCam.pitch = dgFrom.pitch + (tg.pitch - dgFrom.pitch) * e;
       dgCam.dist = dgFrom.dist + (tg.dist - dgFrom.dist) * e;
       dgCam.ty = dgFrom.ty + (tg.ty - dgFrom.ty) * e;
@@ -10028,7 +10401,8 @@ void main(){
       kz = homeTarget.z + p.z,
       ex = homeTarget.x - DG_ENEMY.dist * H;
     if (dgState === "chest")
-      target.set(kx - CHEST_LOOK_FWD * H, homeTarget.y + dgCam.ty * H, kz); // between him and the chest (he faces west)
+      // between him and the chest (he faces west)
+      target.set(kx - CHEST_LOOK_FWD * H, homeTarget.y + dgCam.ty * H, kz);
     else
       target.set(
         kx + (ex - kx) * dgCam.mid,
@@ -10041,7 +10415,8 @@ void main(){
     pitch = dgCam.pitch;
     zoom = (dgCam.dist * H) / (camera.userData.fit || 5);
     dgSmD = dgCam.dist * H;
-    dgSmP = dgCam.pitch; // (kept in step, in case something reads them)
+    // (kept in step, in case something reads them)
+    dgSmP = dgCam.pitch;
     if (blobMesh && blobHome)
       blobMesh.position.set(blobHome.x + p.x, blobHome.y, blobHome.z + p.z);
   }
@@ -10092,7 +10467,8 @@ void main(){
       lookHead = null;
       lookInt = null;
       return;
-    } // leaving the start pose mid-look: put the head back first
+    // leaving the start pose mid-look: put the head back first
+    }
     if (!lookHead) {
       const tr = current
         .getClip()
@@ -10129,7 +10505,8 @@ void main(){
           START_LOOK.gapMin +
           Math.random() * (START_LOOK.gapMax - START_LOOK.gapMin);
         lookHead.quaternion.copy(lookBase);
-        return; // back to the plain pose
+        // back to the plain pose
+        return;
       }
       const la = lookAt(lookT);
       lookQ.setFromEuler(
@@ -10201,7 +10578,8 @@ void main(){
       if (flauntDone) {
         flauntDone = false;
         if (current === actions.AxeFlaunt) play(FLAUNT_IDLE);
-      } // AxeFlaunt has played through: carry on into its idle instead of freezing on the last frame
+      // AxeFlaunt has played through: carry on into its idle instead of freezing on the last frame
+      }
     }
     if (!paused) {
       updateShine(dt);
@@ -10222,10 +10600,13 @@ void main(){
       applyAreaFog();
     }
     shopSync();
-    if (mapMode) mapStep(dt); // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
+    // the map places the camera itself; when it has closed (mapMode false again) the orbit camera below takes over in the same frame
+    if (mapMode) mapStep(dt);
     if (!mapMode) {
-      invStep(dt); // the inventory zoom
-      editStep(dt); // the EDIT mode's camera
+      // the inventory zoom
+      invStep(dt);
+      // the EDIT mode's camera
+      editStep(dt);
       const d = (camera.userData.fit || 5) * zoom,
         cp = Math.cos(pitch);
       camera.position.set(
@@ -10234,9 +10615,11 @@ void main(){
         target.z + d * Math.cos(yaw) * cp,
       );
       camera.lookAt(target);
-      if (editOn) camera.rotateZ(editRoll); // EDIT: tilted shots
+      // EDIT: tilted shots
+      if (editOn) camera.rotateZ(editRoll);
     }
-    occUpdate(); // where the characters are on screen, for the see-through obstacles
+    // where the characters are on screen, for the see-through obstacles
+    occUpdate();
     if (inspect.it && inspect.k > 0.002) inspectRender();
     else renderer.render(scene, camera);
     if (dungeon) barsUpdate(dt);
@@ -10322,7 +10705,8 @@ void main(){
               playSfxSet(id, i, gain, rate, delay);
           });
         return;
-      } // not decoded yet: play it the moment it is (if that is soon enough to still make sense)
+      // not decoded yet: play it the moment it is (if that is soon enough to still make sense)
+      }
       sfx.resume();
       const src = sfx.createBufferSource(),
         g = sfx.createGain();
@@ -10343,9 +10727,11 @@ void main(){
     V2_BLOCK_GAIN = 0.39;
   const SWORD_GAIN = 0.75,
     SWORD_ONSET = [0.34, 0, 0],
-    SWORD_CHOP_T = 0.36; // SWORD_ONSET: where the whoosh starts inside each file; SWORD_CHOP_T: clip time of the chop in the Swing animation
+    // SWORD_ONSET: where the whoosh starts inside each file; SWORD_CHOP_T: clip time of the chop in the Swing animation
+    SWORD_CHOP_T = 0.36;
   const KNIFE_GAIN = 0.8,
-    KNIFE_PEAK = 0.045; // knife-sfx-data: FUEL_VAB_00000 knife swing, layered on every swing (sword and axe); KNIFE_PEAK = where its loudest hit sits inside the file
+    // knife-sfx-data: FUEL_VAB_00000 knife swing, layered on every swing (sword and axe); KNIFE_PEAK = where its loudest hit sits inside the file
+    KNIFE_PEAK = 0.045;
   const V2_SWORD_ONSET = [0.013, 0.015, 0.013];
   /* ---------- swing swishes (swish-sfx-data: wpn_swish_medium_01..03 + wpn_swish_large_01) ----------
    Light weapons (sword, knightly sword, hatchet) play one of the three medium swishes; the heavy class (axe, shovel, hammer, morningstar) plays the large one.
@@ -10353,7 +10739,8 @@ void main(){
    Mediums come out of a shuffled bag, so none repeats until all three have played. The original sword sounds still play with them. */
   const SWISH_GAIN = 0.85,
     SWISH_CHOP_T = 0.4,
-    SWISH_PEAK = [0.174, 0.142, 0.103, 0.222]; // SWISH_PEAK order: medium 1, 2, 3, large
+    // SWISH_PEAK order: medium 1, 2, 3, large
+    SWISH_PEAK = [0.174, 0.142, 0.103, 0.222];
   let swishBag = [],
     swishLast = -1,
     swishLive = [];
@@ -10371,7 +10758,8 @@ void main(){
           swishBag[j],
           swishBag[swishBag.length - 1],
         ];
-      } // the next one popped must not repeat the last played
+      // the next one popped must not repeat the last played
+      }
     }
     return (swishLast = swishBag.pop());
   }
@@ -10381,7 +10769,8 @@ void main(){
       swordStyle === "hammer" ||
       swordStyle === "morningstar"
     );
-  } // the heavy weapon class
+  // the heavy weapon class
+  }
   function playSwish(i, delay) {
     // i: 0..2 medium, 3 large; delay: seconds from now until the swish STARTS
     try {
@@ -10448,7 +10837,8 @@ void main(){
       } catch (_) {}
     });
     swishLive.length = 0;
-  } // switching animation cancels swishes still waiting for their swing
+  // switching animation cancels swishes still waiting for their swing
+  }
   function playSwordOld(ts, chop) {
     // the original swing sounds: the whoosh (or voice 2's shout) plus the knife layer. chop: clip time the whoosh should land on (default SWORD_CHOP_T, the knight's Swing)
     const i = Math.floor(Math.random() * 3),
@@ -10506,7 +10896,8 @@ void main(){
       [2.0, 2.108],
     ],
   };
-  const HEAVY_COMBO_FINISH_T = 2.66; // clip time the Heavy Combo's finishing blow slams the sword into the floor (after the stab at ~2.17 he leaps and brings it down; the lowest point of the blade drops from 0.5 above the floor at 2.62 to 0.2 at 2.66 and stays there): the bluntflesh hit and one of the four attack sounds land here. The clip carries on with ~1.7 s of recovery after it
+  // clip time the Heavy Combo's finishing blow slams the sword into the floor (after the stab at ~2.17 he leaps and brings it down; the lowest point of the blade drops from 0.5 above the floor at 2.62 to 0.2 at 2.66 and stays there): the bluntflesh hit and one of the four attack sounds land here. The clip carries on with ~1.7 s of recovery after it
+  const HEAVY_COMBO_FINISH_T = 2.66;
   function playSwishClip(n) {
     const T = SWISH_COMBO[n];
     if (!T) {
@@ -10521,13 +10912,16 @@ void main(){
     });
     if (n === "HeavyCombo") {
       // the finishing blow: the bluntflesh hit (as RENDER's) with one of the attack sounds
-      const fd = Math.max(0, HEAVY_COMBO_FINISH_T - 0.06); // (the sparkle's loudest part is 0.06 s in, so it starts just before the slam)
+      // (the sparkle's loudest part is 0.06 s in, so it starts just before the slam)
+      const fd = Math.max(0, HEAVY_COMBO_FINISH_T - 0.06);
       playSfxSetTracked("combo-sparkle-sfx-data", 0, 0.9, 1, fd);
-      playSfxSetTracked("render-hit-sfx-data", 0, 0.9, 1, fd); // the bluntflesh hit (wpn_hit_bluntflesh_enchanted_02) starts at the very same moment as the sparkle sound
+      // the bluntflesh hit (wpn_hit_bluntflesh_enchanted_02) starts at the very same moment as the sparkle sound
+      playSfxSetTracked("render-hit-sfx-data", 0, 0.9, 1, fd);
     }
   }
   const STEP_GAIN = 0.8,
-    STEP_CLIP_T = 0.09; // STEP_CLIP_T: clip time of the first footfall in the Walk animation (the clip is 0.636 s long)
+    // STEP_CLIP_T: clip time of the first footfall in the Walk animation (the clip is 0.636 s long)
+    STEP_CLIP_T = 0.09;
   function playStep(rate) {
     playSfxSet("step-data", 0, STEP_GAIN, rate, 0);
   }
@@ -10547,7 +10941,8 @@ void main(){
           ? stepPrev < STEP_CLIP_T && STEP_CLIP_T <= t
           : STEP_CLIP_T > stepPrev || STEP_CLIP_T <= t;
       if (crossed) playStep(w.timeScale > 1.01 ? 1.4 : 1);
-    } // running: sped up so the second footfall keeps pace
+    // running: sped up so the second footfall keeps pace
+    }
     stepPrev = t;
   }
   /* flaunt-sfx-data: SD_SWORD_00002 / 00004 (Castlevania). One of them, at random, plays over the flaunt song when Flaunt starts, a bit louder than the music. */
@@ -10582,12 +10977,15 @@ void main(){
   ].forEach((n) => {
     ANIM_SFX[n] = () => playSwishClip(n);
     ANIM_SFX_LOOPS[n] = 1;
-  }); // the UAL clips in the ANIMATIONS menu get the same sounds
+  // the UAL clips in the ANIMATIONS menu get the same sounds
+  });
   ANIM_SFX.UAL_Sword_Block = ANIM_SFX.Block;
   ANIM_SFX_LOOPS.UAL_Sword_Block = 1;
   ANIM_SFX.UAL_Hit_Stagger = ANIM_SFX.Hit;
-  ANIM_SFX_LOOPS.UAL_Hit_Stagger = 1; // clips that loop in the test screen get their sound again every loop (Death plays once)
-  const DEATH_GRUNT = 2; // which of the three grunts Death uses (the longest one); a hit picks one at random
+  // clips that loop in the test screen get their sound again every loop (Death plays once)
+  ANIM_SFX_LOOPS.UAL_Hit_Stagger = 1;
+  // which of the three grunts Death uses (the longest one); a hit picks one at random
+  const DEATH_GRUNT = 2;
   function playGrunt(i) {
     try {
       if (voice === "voice2") {
@@ -10631,13 +11029,15 @@ void main(){
    SS_00009 (from Digimon World) always plays, together with one of two from Crash Bandicoot (S000001F_NSF_00022 / _00017), picked at random.
    They are embedded in block-sfx-data and decoded on the first menu sound, like the grunts. Gains level out the very different recording volumes. */
   const BLOCK_GAIN = [0.92, 0.83, 1.0];
-  const BLOCK_BURST = [0, 0.22, 0.24]; // where the loud "haah" starts inside each file (after a quiet lead-in), so it can be timed to land just as the whirr (SS_00009) finishes
+  // where the loud "haah" starts inside each file (after a quiet lead-in), so it can be timed to land just as the whirr (SS_00009) finishes
+  const BLOCK_BURST = [0, 0.22, 0.24];
   /* ---------- guarding: a hit taken in BlockIdle plays the three block sounds (wpn_block_blunt_01..03) one after another, in a random order, none twice ----------
    A new hit while the sequence is still playing cuts it off and starts a fresh one. BLOCK_HIT_GAIN = volume. */
   const BLOCK_HIT_GAIN = 0.9;
   let blockHitBufs = null,
     blockHitLoading = null,
-    blockHitBag = []; // blockHitBag: the sounds not yet used this turn
+    // blockHitBag: the sounds not yet used this turn
+    blockHitBag = [];
   function playBlockHitSeq() {
     if (!sfx) return;
     if (!blockHitBufs) {
@@ -10678,7 +11078,8 @@ void main(){
         const j = Math.floor(Math.random() * (i + 1));
         [blockHitBag[i], blockHitBag[j]] = [blockHitBag[j], blockHitBag[i]];
       }
-    } // a shuffled bag of the three: every hit takes the next one, so no sound repeats within a turn (the bag is emptied again when the enemy phase ends)
+    // a shuffled bag of the three: every hit takes the next one, so no sound repeats within a turn (the bag is emptied again when the enemy phase ends)
+    }
     const b = cz(blockHitBufs[blockHitBag.pop()]),
       src = sfx.createBufferSource(),
       g = sfx.createGain();
@@ -10686,7 +11087,8 @@ void main(){
     g.gain.value = BLOCK_HIT_GAIN;
     src.connect(g);
     g.connect(sfx.destination);
-    src.start(sfx.currentTime + 0.02); // ONE sound per hit
+    // ONE sound per hit
+    src.start(sfx.currentTime + 0.02);
   }
   let blockBufs = null,
     blockLoading = null;
@@ -10776,7 +11178,8 @@ void main(){
               ? Math.max(0, blockBufs[0].duration - BLOCK_BURST[i] + 0.02)
               : 0),
         );
-      }); // whirr first, the haah right after it
+      // whirr first, the haah right after it
+      });
     } catch (_) {}
   }
   function blip(f, len) {
@@ -10813,7 +11216,8 @@ void main(){
         "slime-hit-sfx-data",
         "slime-die-sfx-data",
         "slime-win-sfx-data",
-      ].forEach(loadSfxSet); // voice 2 and the slimes too, so their very first play is not lost
+      // voice 2 and the slimes too, so their very first play is not lost
+      ].forEach(loadSfxSet);
       const o = sfx.createOscillator(),
         g = sfx.createGain();
       o.type = "square";
@@ -10833,14 +11237,16 @@ void main(){
    the obstacle materials) throws away fragments that are nearer than him and close to him on the screen, solid in the middle and thinning out in the same 4x4 ordered-dither grain towards the rim.
    occUpdate works out, every frame, where each character is on the screen (pixels of the render target), how big the hole should be (OCC.radius, in knight-heights) and how far away he is;
    OCC.gap = how much nearer than him (knight-heights) something must be to count as in front. Only while exploring or in a dungeon, never on the map. */
-  const OCC = { radius: 0.85, gap: 0.55, near: [0.3, 1.0] }; // near: obstacles closer to the lens than this fade out (fully gone inside the first number, gone completely by the second; knight-heights)
+  // near: obstacles closer to the lens than this fade out (fully gone inside the first number, gone completely by the second; knight-heights)
+  const OCC = { radius: 0.85, gap: 0.55, near: [0.3, 1.0] };
   const _ov = new THREE.Vector3();
   function occMark(obj) {
     obj.traverse((o) => {
       const m = o.material;
       if (m && m.uniforms && m.uniforms.uOccOn) m.uniforms.uOccOn.value = 1;
     });
-  } // everything in this group counts as an obstacle
+  // everything in this group counts as an obstacle
+  }
   function occUpdate() {
     const arr = U.uOccF.value;
     let n = 0;
@@ -10855,7 +11261,8 @@ void main(){
         if (n >= arr.length) return;
         _ov.set(x, g + 0.55 * H, z).applyMatrix4(camera.matrixWorldInverse);
         const depth = -_ov.z;
-        if (depth < 0.1) return; // behind the camera
+        // behind the camera
+        if (depth < 0.1) return;
         _ov.set(x, g + 0.55 * H, z).project(camera);
         arr[n++].set(
           (_ov.x * 0.5 + 0.5) * RW,
@@ -10868,7 +11275,8 @@ void main(){
       add(homeTarget.x + p.x, homeTarget.z + p.z);
       if (dungeon) for (const e of enemies) if (!e.dead) add(e.x, e.z);
       U.uOccNear.value.set(OCC.near[0] * H, OCC.near[1] * H);
-    } else U.uOccNear.value.set(-1, -0.5); // off
+    // off
+    } else U.uOccNear.value.set(-1, -0.5);
     U.uOccN.value = n;
     U.uOccGap.value = OCC.gap * playerH;
   }
@@ -10880,12 +11288,16 @@ void main(){
    so the menu camera comes back exactly as it was. On the way the fog opens up (from that high it would swallow the ground) and the floor grows 3x so the map has no
    edge. The pings are DOM elements pinned to spots on the ground. MOSSY RUINS goes through enterDungeon(); the other two are locked for now. */
   const MAP_DUR = [1.0, 1.3, 1.7],
-    MAP_BACK = 1.6; // seconds for the climb, the pan down and the pull back; the way back is this much faster
+    // seconds for the climb, the pan down and the pull back; the way back is this much faster
+    MAP_BACK = 1.6;
   const MAP_TILT = 0.95,
     MAP_TOP = 10,
-    MAP_LOW = 4.5; // how far the camera looks up at the sky (radians), its height at the top of the climb, and its height when it looks straight down at him (knight-heights)
-  const MAP_AREA_TIME = 0.55; // the glide between The Greenfield and The Veiled Frost: seconds (a critically damped spring, so it eases off and on)
-  const MAP_FIT = [13.8, 10.2]; // half the width / height of the ground the finished map has to show (knight-heights) - zoomed out for breathing room
+    // how far the camera looks up at the sky (radians), its height at the top of the climb, and its height when it looks straight down at him (knight-heights)
+    MAP_LOW = 4.5;
+  // the glide between The Greenfield and The Veiled Frost: seconds (a critically damped spring, so it eases off and on)
+  const MAP_AREA_TIME = 0.55;
+  // half the width / height of the ground the finished map has to show (knight-heights) - zoomed out for breathing room
+  const MAP_FIT = [13.8, 10.2];
   const MAP_AREAS = {
     greenfield: {
       title: "THE GREENFIELD",
@@ -11043,13 +11455,15 @@ void main(){
       dy =
         ((((0 - c.yaw + Math.PI) % (Math.PI * 2)) + Math.PI * 2) %
           (Math.PI * 2)) -
-        Math.PI; // the map is north-up: yaw 0, taking the short way round
+        // the map is north-up: yaw 0, taking the short way round
+        Math.PI;
     const pit =
       s < 1
         ? mapLerp(c.pit, MAP_TILT, mapIO(u1))
         : mapLerp(MAP_TILT, -Math.PI / 2, k);
     const f1 = mapIO(map01((s - 1) / 0.6)),
-      f2 = mapIO(map01((s - 1.6) / 0.6)); // fog: first opened to a long haze, then right out once he is looking straight down
+      // fog: first opened to a long haze, then right out once he is looking straight down
+      f2 = mapIO(map01((s - 1.6) / 0.6));
     const tz = homeTarget.z - mapAreaK * FROST_DIST * H,
       basePz = tz + (c.p.z - c.t.z);
     return {
@@ -11234,13 +11648,15 @@ void main(){
         tEl.classList.remove("sw");
         tEl.textContent = MAP_AREAS[mapArea].title;
       }
-    } // the map is still hidden here, so the right area name is in place before it fades in
+    // the map is still hidden here, so the right area name is in place before it fades in
+    }
     mapCam = {
       p: camera.position.clone(),
       yaw: yaw,
       pit: -pitch,
       t: target.clone(),
-    }; // the menu camera as it is right now (orbit: pitch + is looking down)
+    // the menu camera as it is right now (orbit: pitch + is looking down)
+    };
     mapFog0 = [U.uFogNear.value, U.uFogFar.value];
     mapMode = true;
     mapS = 0;
@@ -11297,7 +11713,8 @@ void main(){
     if (shopT >= 0) {
       shopStep(dt);
       return;
-    } // the shop flight places the camera itself
+    // the shop flight places the camera itself
+    }
     if (mapDir !== 0) {
       const i = Math.min(
         2,
@@ -11348,7 +11765,8 @@ void main(){
       mapViewK = q.view;
       applyView();
     }
-    document.body.classList.toggle("map", !(mapDir < 0 && s < 0.8)); // on the way back the menu returns just before the camera lands
+    // on the way back the menu returns just before the camera lands
+    document.body.classList.toggle("map", !(mapDir < 0 && s < 0.8));
     const show = mapDir >= 0 && s >= 2.3;
     document.body.classList.toggle("mapui", show);
     if (s < 1.9) return;
@@ -11372,7 +11790,8 @@ void main(){
       const lx = Math.max(
         10 - sc[0],
         Math.min(W - 10 - pg.lw - sc[0], -pg.lw / 2),
-      ); // the label is centered under its ping but never runs off the screen
+      // the label is centered under its ping but never runs off the screen
+      );
       pg.el.style.transform =
         "translate(" + Math.round(sc[0]) + "px," + Math.round(sc[1]) + "px)";
       pg.lbl.style.transform = "translate(" + Math.round(lx) + "px,0)";
@@ -11393,7 +11812,8 @@ void main(){
     if (mapAcc > 0.3) {
       mapAcc = 0;
       mapRefresh();
-    } // READY / LOADING can change while the map is open
+    // READY / LOADING can change while the map is open
+    }
   }
   addEventListener("keydown", (e) => {
     if (!mapMode || dgBusy) return;
@@ -11404,12 +11824,14 @@ void main(){
         if (k === "Escape" || k === "Backspace") shopDlgSkip();
         else if (k === "Enter" || k === " " || k === "z" || k === "Z")
           shopDlgAdvance();
-      } // while Kris talks: ENTER / SPACE / Z go on, ESC skips the rest
+      // while Kris talks: ENTER / SPACE / Z go on, ESC skips the rest
+      }
       else if (k === "Escape" || k === "Backspace") {
         e.preventDefault();
         if (shopView !== "main") shopBack();
         else shopFarewell();
-      } // in the BUY / TALK lists Escape goes back to the main panel, there it makes Kris say bye and leaves the shop
+      // in the BUY / TALK lists Escape goes back to the main panel, there it makes Kris say bye and leaves the shop
+      }
       else if (shopUi && shopUi.classList.contains("on")) {
         if (k === "ArrowUp" || k === "w" || k === "W") {
           e.preventDefault();
@@ -11423,14 +11845,16 @@ void main(){
         } else if (shopView === "main" && k === "ArrowRight" && shopCur < 2) {
           e.preventDefault();
           shopActivate();
-        } // right opens BUY / TALK
+        // right opens BUY / TALK
+        }
         else if (shopView !== "main" && k === "ArrowLeft") {
           e.preventDefault();
           shopBack();
         }
       }
       return;
-    } // in the shop, Escape walks back out
+    // in the shop, Escape walks back out
+    }
     const k = e.key;
     if (k === "Escape" || k === "Backspace") {
       e.preventDefault();
@@ -11460,20 +11884,25 @@ void main(){
     SHOP_DIST = 2.37,
     SHOP_CAM_Y = 0.79,
     SHOP_LOOK_Y = 0.83,
-    SHOP_DUR = 2.8; // SHOP_DIST: how far from the middle of the stall the camera lands (its open front is about 0.9 knight-heights out)
+    // SHOP_DIST: how far from the middle of the stall the camera lands (its open front is about 0.9 knight-heights out)
+    SHOP_DUR = 2.8;
   const SHOP_FOG = [14, 48],
-    SHOP_VIEW = 0.75; // the fog in the shop view (near, far: knight-heights - much thinner than the menu's) and how far the picture is pushed to the right to make room for the UI on the left (1 = as far as the main menu does, 0 = centered)
+    // the fog in the shop view (near, far: knight-heights - much thinner than the menu's) and how far the picture is pushed to the right to make room for the UI on the left (1 = as far as the main menu does, 0 = centered)
+    SHOP_VIEW = 0.75;
   const SHOP_CLEAR = 2.3,
-    SHOP_LANE = 1.4; // trees are cleared inside this radius around the stall, and in a lane this wide (half-width) in front of it out to the camera (knight-heights)
+    // trees are cleared inside this radius around the stall, and in a lane this wide (half-width) in front of it out to the camera (knight-heights)
+    SHOP_LANE = 1.4;
   const shopF = new THREE.Vector3(1, 0, 0);
-  let shopCleared = null; // shopF: the way the front of the stall faces (set when it is placed: toward the knight)
+  // shopF: the way the front of the stall faces (set when it is placed: toward the knight)
+  let shopCleared = null;
   /* ---------- the shop's item list ----------
    One entry per labelled cylinder in the stall model, named from its label ('SWORD HANDLE HERE. BLADE POINT DOWN.' -> SWORD, 'HATCHED HERE. POINT UP.' -> HATCHET, ...), in the order they are in the model.
    The picked entry's item turns slowly on its hook. UP / DOWN (or W / S) pick, the mouse works too. The old test controls (shine, talk, end talk) are gone. */
   let shopItems = [],
     shopSel = -1,
     shopView = "main",
-    shopCur = 0; // shopView: 'main' (BUY, TALK, SELL, BACK) or 'buy' (the items, then BACK); shopCur: the highlighted row of that view; shopSel: the picked item (only in 'buy')
+    // shopView: 'main' (BUY, TALK, SELL, BACK) or 'buy' (the items, then BACK); shopCur: the highlighted row of that view; shopSel: the picked item (only in 'buy')
+    shopCur = 0;
   function shopLabel(n) {
     let s = n
       .split(/[\s_]+HERE(?=[\s_.]|$)/i)[0]
@@ -11489,7 +11918,8 @@ void main(){
       : shopView === "talk"
         ? SHOP_VOICE.talk.length + 1
         : 4;
-  } // main: BUY, TALK, SELL, BACK - buy: every item, then BACK - talk: each question, then BACK
+  // main: BUY, TALK, SELL, BACK - buy: every item, then BACK - talk: each question, then BACK
+  }
   function shopMarkSel() {
     if (!shopUi) return;
     const rows = shopUi.querySelectorAll(
@@ -11501,7 +11931,8 @@ void main(){
     );
     rows.forEach((b, i) => b.classList.toggle("on", i === shopCur));
     const r = rows[shopCur];
-    if (r && r.scrollIntoView) r.scrollIntoView({ block: "nearest" }); // a long list scrolls inside the panel instead of running off the screen
+    // a long list scrolls inside the panel instead of running off the screen
+    if (r && r.scrollIntoView) r.scrollIntoView({ block: "nearest" });
   }
   function shopSelect(k, sound) {
     const n = shopRowCount();
@@ -11529,7 +11960,8 @@ void main(){
       if (sm) sm.textContent = v === "main" ? "ESC: LEAVE" : "ESC: BACK";
     }
     shopMarkSel();
-    if (!shopDlg.on) shopTalkOn = v === "talk"; // in the TALK panel the camera is in close
+    // in the TALK panel the camera is in close
+    if (!shopDlg.on) shopTalkOn = v === "talk";
   }
   function shopBack() {
     blip(300, 0.08);
@@ -11554,7 +11986,8 @@ void main(){
     else {
       blip(880, 0.09);
       if (window.toast) window.toast("COMING SOON");
-    } // (nothing to pay with yet)
+    // (nothing to pay with yet)
+    }
   }
   /* ---------- inspecting an item in the BUY list (Resident Evil style) ----------
    The highlighted item leaves its shelf, flies to the front of the camera and turns slowly at a tilt. Everything else (the stall, the keeper, the forest) is blurred and darkened;
@@ -11617,7 +12050,8 @@ void main(){
     const sp = new THREE.Vector3(),
       sq = new THREE.Quaternion(),
       ss = new THREE.Vector3();
-    h.matrixWorld.decompose(sp, sq, ss); // where it hangs now, in the world
+    // where it hangs now, in the world
+    h.matrixWorld.decompose(sp, sq, ss);
     inspect.saved = {
       parent: h.parent,
       pos: h.position.clone(),
@@ -11630,18 +12064,21 @@ void main(){
     h.position.set(0, 0, 0);
     h.quaternion.identity();
     h.scale.set(1, 1, 1);
-    scratch.updateMatrixWorld(true); // measure it on its own
+    // measure it on its own
+    scratch.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(h),
       sz = box.getSize(new THREE.Vector3());
     box.getCenter(inspect.center);
     inspect.maxDim = Math.max(sz.x, sz.y, sz.z) || 1;
-    if (it.pivotCylinder) inspect.center.set(0, inspect.center.y, 0); // the hatchet only: it turns about its handle (the cylinder), not the middle of its box, which the head drags to one side; same height as before
+    // the hatchet only: it turns about its handle (the cylinder), not the middle of its box, which the head drags to one side; same height as before
+    if (it.pivotCylinder) inspect.center.set(0, inspect.center.y, 0);
     const grp = new THREE.Group(),
       pivot = new THREE.Group();
     pivot.position.copy(inspect.center).negate();
     pivot.add(h);
     grp.add(pivot);
-    scene.add(grp); // turns about its own middle (the hatchet: about its handle)
+    // turns about its own middle (the hatchet: about its handle)
+    scene.add(grp);
     h.traverse((o) => o.layers.set(1));
     inspect.grp = grp;
     inspect.it = it;
@@ -11662,7 +12099,8 @@ void main(){
     inspect.it = null;
   }
   function inspectStep(dt) {
-    const inShop = !!(shopGroup && shopGroup.visible && shopT >= 0); // (still true while the shop fades out, so the item flies home and the dimming lifts before the black)
+    // (still true while the shop fades out, so the item flies home and the dimming lifts before the black)
+    const inShop = !!(shopGroup && shopGroup.visible && shopT >= 0);
     let want = null;
     if (inShop && shopView === "buy" && shopSel >= 0) {
       const it = shopItems[shopSel];
@@ -11677,7 +12115,8 @@ void main(){
     if (want && want !== inspect.it) {
       inspectEnd();
       inspectBegin(want);
-    } // a new pick: the old one goes back to its shelf at once, the new one flies out (the dimming carries on)
+    // a new pick: the old one goes back to its shelf at once, the new one flies out (the dimming carries on)
+    }
     const a = 1 - Math.exp(-dt / INSPECT.ease),
       t = want ? 1 : 0;
     inspect.k += (t - inspect.k) * a;
@@ -11704,17 +12143,20 @@ void main(){
       .sub(camera.position)
       .normalize()
       .multiplyScalar(d)
-      .add(camera.position); // the spot in front of the camera
+      // the spot in front of the camera
+      .add(camera.position);
     _ie.set(INSPECT.tilt[0], 0, INSPECT.tilt[1]);
     _iq.setFromEuler(_ie);
     _iq2.setFromAxisAngle(_iY, inspect.spin);
-    _iq3.copy(camera.quaternion).multiply(_iq).multiply(_iq2); // facing the camera, leaning, and turning about its own axis
+    // facing the camera, leaning, and turning about its own axis
+    _iq3.copy(camera.quaternion).multiply(_iq).multiply(_iq2);
     const ts =
         (INSPECT.size * (INSPECT.sizeBy[inspect.it.label] || 1) * Hw) /
         inspect.maxDim,
       S = inspect.shelf;
     const e = inspect.fly * inspect.fly * (3 - 2 * inspect.fly);
-    _ip.copy(inspect.center).multiplyScalar(S.s).applyQuaternion(S.q).add(S.p); // the shelf pose, as the position of the item's middle
+    // the shelf pose, as the position of the item's middle
+    _ip.copy(inspect.center).multiplyScalar(S.s).applyQuaternion(S.q).add(S.p);
     g.position.lerpVectors(_ip, _tp, e);
     g.quaternion.copy(S.q).slerp(_iq3, e);
     g.scale.setScalar(S.s + (ts - S.s) * e);
@@ -11781,21 +12223,25 @@ void main(){
     inspectPose();
     const M = inspect.mat,
       k = inspect.k,
-      r = (INSPECT.blur * k * h) / 240; // (240 = the PS1 picture's height, so the Modern look blurs as much on screen)
+      // (240 = the PS1 picture's height, so the Modern look blurs as much on screen)
+      r = (INSPECT.blur * k * h) / 240;
     renderer.setRenderTarget(inspect.rtA);
-    renderer.render(scene, camera); // the world, without the item (it is on layer 1)
+    // the world, without the item (it is on layer 1)
+    renderer.render(scene, camera);
     M.uniforms.k.value = k;
     M.uniforms.dk.value.set(INSPECT.dark[0], INSPECT.dark[1]);
     M.uniforms.tex.value = inspect.rtA.texture;
     M.uniforms.step.value.set(r / w, 0);
     M.uniforms.fin.value = 0;
     renderer.setRenderTarget(inspect.rtB);
-    renderer.render(inspect.quadScene, inspect.quadCam); // blurred sideways
+    // blurred sideways
+    renderer.render(inspect.quadScene, inspect.quadCam);
     M.uniforms.tex.value = inspect.rtB.texture;
     M.uniforms.step.value.set(0, r / h);
     M.uniforms.fin.value = 1;
     renderer.setRenderTarget(null);
-    renderer.render(inspect.quadScene, inspect.quadCam); // blurred up and down, darkened, onto the screen
+    // blurred up and down, darkened, onto the screen
+    renderer.render(inspect.quadScene, inspect.quadCam);
     // the item on top: its own light, no night tint, no fog
     const L = INSPECT.light,
       Hw = inspect.grp.userData.hw || 1,
@@ -11893,7 +12339,8 @@ void main(){
   let magmaT = 0;
   function updateMagma(dt) {
     magmaT += dt;
-    const w = 0.5 - 0.5 * Math.cos((magmaT * Math.PI * 2) / MAGMA_PERIOD); // smooth 0..1..0
+    // smooth 0..1..0
+    const w = 0.5 - 0.5 * Math.cos((magmaT * Math.PI * 2) / MAGMA_PERIOD);
     U.uMagmaPulse.value = MAGMA_LOW + (1 - MAGMA_LOW) * w;
   }
   function updateShopLamp() {
@@ -11925,7 +12372,8 @@ void main(){
         0,
       );
     } else P2.y = 0;
-    _lampB.setFromObject(shopBulb).getCenter(_lampV); // the middle of the bulb, in the world
+    // the middle of the bulb, in the world
+    _lampB.setFromObject(shopBulb).getCenter(_lampV);
     U.uLampPos.value.copy(_lampV);
     U.uLampCol.value.set(
       SHOP_LAMP.color[0],
@@ -12007,7 +12455,8 @@ void main(){
       const name = mk.name.toUpperCase(),
         c = mk.center;
       const it = { label: shopLabel(mk.name), holder: null };
-      shopItems.push(it); // one entry in the shop list per labelled cylinder
+      // one entry in the shop list per labelled cylinder
+      shopItems.push(it);
       if (name.indexOf("SWORD") >= 0) {
         // SWORD HANDLE HERE. BLADE POINT DOWN.
         buildParts("sword-data", (grp) => {
@@ -12041,7 +12490,8 @@ void main(){
           grp.position.set(-HAMMER_GRIP[0], -1.031, -HAMMER_GRIP[2]);
           const turn = new THREE.Group();
           turn.rotation.y = HAMMER_TURN_DEG * D;
-          turn.add(grp); // turned about the vertical line through the handle (the shop's spin turns the holder, so this is a layer of its own); flip the sign if it turned the wrong way
+          // turned about the vertical line through the handle (the shop's spin turns the holder, so this is a layer of its own); flip the sign if it turned the wrong way
+          turn.add(grp);
           holder.add(turn);
           holder.scale.setScalar(itemScale);
           holder.position.set(c.x, HAMMER_RING_TOP, c.z);
@@ -12050,7 +12500,8 @@ void main(){
         });
       } else if (name.indexOf("HATCHED") >= 0 || name.indexOf("HATCHET") >= 0) {
         // HATCHED HERE. POINT UP.
-        it.pivotCylinder = true; // spins about its handle in the inspect view (see inspectBegin)
+        // spins about its handle in the inspect view (see inspectBegin)
+        it.pivotCylinder = true;
         buildParts("hatchet-data", (grp) => {
           const holder = new THREE.Group();
           grp.position.set(0, -1.25, 0);
@@ -12174,13 +12625,15 @@ void main(){
               }
               const m = ps1Mat(tex, 1);
               registerShopMat(m, 0.3);
-              cache.set(om.uuid, m); // wood, like the stall: a little shiny, so the lantern and the sign light catch it
+              // wood, like the stall: a little shiny, so the lantern and the sign light catch it
+              cache.set(om.uuid, m);
             }
             o.material = cache.get(om.uuid);
             o.frustumCulled = false;
           });
           g.scene.updateMatrixWorld(true);
-          const cb = new THREE.Box3().setFromObject(g.scene); // so every crate can stand on its own foot, centred
+          // so every crate can stand on its own foot, centred
+          const cb = new THREE.Box3().setFromObject(g.scene);
           SHOP_CRATES.forEach((c) => {
             const inner = g.scene.clone(true);
             inner.position.set(
@@ -12240,7 +12693,8 @@ void main(){
               if (o.isMesh && o.geometry) {
                 const bb =
                   o.geometry.boundingBox ||
-                  (o.geometry.computeBoundingBox(), o.geometry.boundingBox); // the cylinder's foot, its length and its lean (the shovel's marker leans a little)
+                  // the cylinder's foot, its length and its lean (the shovel's marker leans a little)
+                  (o.geometry.computeBoundingBox(), o.geometry.boundingBox);
                 mk.bottom = o.localToWorld(
                   new THREE.Vector3(
                     (bb.min.x + bb.max.x) / 2,
@@ -12271,7 +12725,8 @@ void main(){
                   ? 0.55
                   : isMetalHardware
                     ? 0.55
-                    : 0.36; // wood (the roof, and everything else that is not metal): a little shinier than before (0.45 / 0.22)
+                    // wood (the roof, and everything else that is not metal): a little shinier than before (0.45 / 0.22)
+                    : 0.36;
             const key = om.uuid + "_" + shineLvl;
             if (!cache.has(key)) {
               let tex = om.map;
@@ -12315,7 +12770,8 @@ void main(){
           grp.visible = false;
           scene.add(grp);
           shopGroup = grp;
-          placeShopCrates(root, box.min.y); // after the stall was measured, so they don't change its size or where it stands
+          // after the stall was measured, so they don't change its size or where it stands
+          placeShopCrates(root, box.min.y);
         },
         (e) => console.error("shop load failed", e),
       );
@@ -12331,7 +12787,8 @@ void main(){
     if (sk.curAct !== sk.idleAct || shopTalkOn) {
       shopEvt.clock = 0;
       return;
-    } // not while talking, or while the event is already playing
+    // not while talking, or while the event is already playing
+    }
     shopEvt.clock += dt;
     if (shopEvt.clock < shopEvt.next) return;
     const a = sk.mixer.clipAction(actions.ShopIdleAnimation1.getClip());
@@ -12351,14 +12808,16 @@ void main(){
         idle.play();
         sk.curAct = idle;
       }
-    }; // (if the keeper started talking meanwhile, the talk clips already took over)
+    // (if the keeper started talking meanwhile, the talk clips already took over)
+    };
     sk.mixer.addEventListener("finished", onFin);
     shopEvt.clock = 0;
     shopEvt.next = 5 + Math.random() * 6;
   }
   function spawnShopKeeperInBuilding() {
     if (shopKeeper || !shopGroup || !knightScene || !actions.ShopIdle) return;
-    if (helmetNames.indexOf("Helmet 6") < 0 || !helm6.pane) return; // the helmets (and Helmet 6's face pane) load a moment after the model; the keeper is cloned only once they are there, or the keeper would end up with the first helmet
+    // the helmets (and Helmet 6's face pane) load a moment after the model; the keeper is cloned only once they are there, or the keeper would end up with the first helmet
+    if (helmetNames.indexOf("Helmet 6") < 0 || !helm6.pane) return;
     const root = (() => {
       const st = [];
       knightScene.traverse((o) => {
@@ -12378,7 +12837,8 @@ void main(){
     const cache = new Map(),
       pTex = [],
       rocks = [];
-    root.scale.x = MIRROR_MODEL ? 1 : -1; // the keeper is mirrored the other way from the player, so every shop clip plays flipped left-for-right (mirroring the model is the exact way to mirror an animation: see MIRROR_MODEL)
+    // the keeper is mirrored the other way from the player, so every shop clip plays flipped left-for-right (mirroring the model is the exact way to mirror an animation: see MIRROR_MODEL)
+    root.scale.x = MIRROR_MODEL ? 1 : -1;
     root.traverse((o) => {
       if (
         o.name === "Shortsword" ||
@@ -12403,7 +12863,8 @@ void main(){
     );
     shopKeeperMats = [];
     const ah = "#a38aeb",
-      ph = "#9177b6"; // ph: the keeper's plume colour, sampled from their new helmet's plume texture
+      // ph: the keeper's plume colour, sampled from their new helmet's plume texture
+      ph = "#9177b6";
     root.traverse((o) => {
       if (o.name === "SeatRock") rocks.push(o);
       if (!o.isMesh || o.name === "SeatRock") return;
@@ -12411,7 +12872,8 @@ void main(){
         shopFaceAttach(o, root);
         o.frustumCulled = false;
         return;
-      } // the keeper's own animated face (shop-face-data), not tinted
+      // the keeper's own animated face (shop-face-data), not tinted
+      }
       const om = o.material;
       if (!om.uniforms) {
         o.visible = false;
@@ -12450,11 +12912,13 @@ void main(){
         if (/h6_/.test(o.name)) {
           nm.uniforms.uBlackNoShine.value = 1;
           nm.uniforms.uBlackGrey.value = SHOP_H6_GREY;
-        } // (until shopHelmApply swaps in their new helmet textures)
+        // (until shopHelmApply swaps in their new helmet textures)
+        }
         if (!isPl) tintMat(nm, ah, SHOP_ARMOR_TINT);
         nm.uniforms.uShine.value = shopShineOn ? 1 : 0;
         if (/Plume$/.test(o.name)) nm.uniforms.uShine.value = 0;
-        else shopKeeperMats.push(nm); // the plume never shines
+        // the plume never shines
+        else shopKeeperMats.push(nm);
         cache.set(om.uuid, nm);
       }
       o.material = nm;
@@ -12489,8 +12953,10 @@ void main(){
    measured on the real pose (every 1/12 of the idle loop, the posed hand meshes in the stall's space), their lowest hand point ends on the shelf's top face and their hands reach SHOP_REST of the way across it.
    SHOP_TABLE is that shelf in the stall's own model units: the height of its top face, and where it starts / ends toward the open front (+x). */
   const SHOP_TABLE = { top: 0.281, x0: 0.234, x1: 0.484 },
-    SHOP_REST = 0.6; // how far across the shelf their hands reach (0 = back edge, 1 = front edge): 0.3 -> 0.6 moves them forward over the table
-  const SHOP_KEEPER_NUDGE = -0.0549; // their extra height relative to the table, in the stall's model units (so it scales with the stall)
+    // how far across the shelf their hands reach (0 = back edge, 1 = front edge): 0.3 -> 0.6 moves them forward over the table
+    SHOP_REST = 0.6;
+  // their extra height relative to the table, in the stall's model units (so it scales with the stall)
+  const SHOP_KEEPER_NUDGE = -0.0549;
   function shopFitKeeper(sk) {
     const hands = ["Adventurer_Left_Hand", "Adventurer_Right_Hand"]
       .map((n) => sk.root.getObjectByName(n))
@@ -12525,9 +12991,11 @@ void main(){
     const wantX =
       X(SHOP_TABLE.x0) + SHOP_REST * (X(SHOP_TABLE.x1) - X(SHOP_TABLE.x0));
     const dy = Math.max(0, Math.min(0.8 * playerH, topY - low)),
-      dx = Math.max(-0.5 * playerH, Math.min(1.2 * playerH, wantX - fx / n)); // (clamped, in case the pose ever measures oddly)
+      // (clamped, in case the pose ever measures oddly)
+      dx = Math.max(-0.5 * playerH, Math.min(1.2 * playerH, wantX - fx / n));
     sk.rig.position.y += dy + SHOP_KEEPER_NUDGE * shopScale;
-    sk.rig.position.x += dx; // SHOP_KEEPER_LIFT: extra height (knight-heights) so their arms, not just their hands, sit on the table; x / z unchanged
+    // SHOP_KEEPER_LIFT: extra height (knight-heights) so their arms, not just their hands, sit on the table; x / z unchanged
+    sk.rig.position.x += dx;
   }
   function shopSync() {
     // put the stall on its spot (once the knight's home is known) and show it everywhere but inside the ruins
@@ -12544,8 +13012,10 @@ void main(){
           0,
           homeTarget.z - shopGroup.position.z,
         )
-        .normalize(); // faces the knight's clearing
-      shopGroup.rotation.y = Math.atan2(-shopF.z, shopF.x); // model +x (the open front, with the sign) -> shopF
+        // faces the knight's clearing
+        .normalize();
+      // model +x (the open front, with the sign) -> shopF
+      shopGroup.rotation.y = Math.atan2(-shopF.z, shopF.x);
       shopPlaced = true;
     }
     if (shopPlaced) spawnShopKeeperInBuilding();
@@ -12597,13 +13067,15 @@ void main(){
         ],
       },
     ],
-    sell: [{ t: "I don't want your JUNK.", f: "angrytalking" }], // SELL on the main panel: Kris says this (CAPS words in gold) with their angry face
+    // SELL on the main panel: Kris says this (CAPS words in gold) with their angry face
+    sell: [{ t: "I don't want your JUNK.", f: "angrytalking" }],
     bye: ["Um. Okay. Bye."],
     cps: 30,
     pause: { ",": 0.16, ".": 0.3, "!": 0.3, "?": 0.3 },
     every: 2,
     gain: 0.55,
-    byeWait: 0.9, // letters per second, the wait after punctuation (s), a meow every N letters, meow volume, how long Kris waits before you leave
+    // letters per second, the wait after punctuation (s), a meow every N letters, meow volume, how long Kris waits before you leave
+    byeWait: 0.9,
   };
   const SHOP_CSS = `
 /* Where everything sits (landscape): the shop panel top-left, the song button top-right, the chat bar along the bottom. --sdH is the room the chat bar can take (three lines of text,
@@ -12738,7 +13210,8 @@ void main(){
         );
       }
     } else if (actions.ShopIdleAnimationOutroTalk) {
-      shopTalkOn = false; // the camera zooms back out
+      // the camera zooms back out
+      shopTalkOn = false;
       const a = shopKeeper.mixer.clipAction(
         actions.ShopIdleAnimationOutroTalk.getClip(),
       );
@@ -12760,7 +13233,8 @@ void main(){
       };
       shopKeeper.mixer.addEventListener("finished", onFin);
     }
-    if (!on && shopView === "talk") shopTalkOn = true; // in the TALK panel the camera stays close
+    // in the TALK panel the camera stays close
+    if (!on && shopView === "talk") shopTalkOn = true;
   }
   const _dlgEsc = (t) =>
     t
@@ -12786,7 +13260,8 @@ void main(){
   function shopDlgDone() {
     // the line is fully typed: the little arrow blinks
     shopDlg.typing = false;
-    shopDlg.el.classList.add("wait"); // (their face stays as the line set it - it goes back to normal only when the box closes, see shopDlgEnd)
+    // (their face stays as the line set it - it goes back to normal only when the box closes, see shopDlgEnd)
+    shopDlg.el.classList.add("wait");
     if (shopDlg.auto && shopDlg.li >= shopDlg.lines.length - 1)
       shopDlg.autoT = shopDlg.auto;
   }
@@ -12855,7 +13330,8 @@ void main(){
       shopDlgDrawn();
       shopDlgDone();
       return;
-    } // first press finishes the line
+    // first press finishes the line
+    }
     shopDlg.autoT = 0;
     shopDlg.li++;
     if (shopDlg.li < shopDlg.lines.length) shopDlgStart();
@@ -12904,11 +13380,13 @@ void main(){
   }
   function shopSell() {
     shopSay(SHOP_VOICE.sell);
-  } // works like a TALK question: Kris zooms in, talks, and keeps their face until the box closes
+  // works like a TALK question: Kris zooms in, talks, and keeps their face until the box closes
+  }
   function shopFarewell() {
     if (shopDlg.on || shopOut || shopT < 0) return;
     shopSay(SHOP_VOICE.bye, () => exitShop(), SHOP_VOICE.byeWait);
-  } // Kris says bye, then it is the map (not the main menu) again
+  // Kris says bye, then it is the map (not the main menu) again
+  }
   function enterShop() {
     if (shopT >= 0 || !shopGroup || !shopPlaced) return;
     shopDlgReset();
@@ -13005,12 +13483,14 @@ void main(){
       document.body.appendChild(shopLbl);
     }
     shopDlgInit();
-    shopSetView("main"); // every visit starts on the main panel
+    // every visit starts on the main panel
+    shopSetView("main");
   }
   let shopTalkOn = false,
     shopTalkK = 0;
   const _tkV = new THREE.Vector3();
-  const SHOP_TALK_DIST = 1.2; // SHOP_TALK_DIST: how far (knight-heights) in front of the keeper's face the camera stops while the keeper talks
+  // SHOP_TALK_DIST: how far (knight-heights) in front of the keeper's face the camera stops while the keeper talks
+  const SHOP_TALK_DIST = 1.2;
   function shopTalkCam(dt, u) {
     const want = shopTalkOn ? 1 : 0;
     shopTalkK += (want - shopTalkK) * (1 - Math.exp(-dt * 3.5));
@@ -13039,12 +13519,14 @@ void main(){
     const ex = S.x + shopF.x * SHOP_DIST * H,
       ey = blobHome.y + SHOP_CAM_Y * H,
       ez = S.z + shopF.z * SHOP_DIST * H,
-      ep = Math.atan2(blobHome.y + SHOP_LOOK_Y * H - ey, SHOP_DIST * H); // where the camera lands (out in front of the stall), and how it is tilted there (level, a hair up)
+      // where the camera lands (out in front of the stall), and how it is tilted there (level, a hair up)
+      ep = Math.atan2(blobHome.y + SHOP_LOOK_Y * H - ey, SHOP_DIST * H);
     const eyaw = Math.atan2(shopF.x, shopF.z),
       dyaw =
         ((((eyaw - shopFrom.yaw + Math.PI) % (Math.PI * 2)) + Math.PI * 2) %
           (Math.PI * 2)) -
-        Math.PI; // turned to look back at the stall, the short way round
+        // turned to look back at the stall, the short way round
+        Math.PI;
     const kh = mapIOC(u),
       kp = mapIO(map01(u / 0.9)),
       kx = mapIO(u);
@@ -13061,18 +13543,21 @@ void main(){
     shopTalkCam(dt, u);
     camera.updateMatrixWorld(true);
     U.uFogNear.value = mapLerp(shopFog[0], SHOP_FOG[0] * H, kx);
-    U.uFogFar.value = mapLerp(shopFog[1], SHOP_FOG[1] * H, kx); // thin haze instead of the menu's thick fog
+    // thin haze instead of the menu's thick fog
+    U.uFogFar.value = mapLerp(shopFog[1], SHOP_FOG[1] * H, kx);
     const tk = shopTalkK * shopTalkK * (3 - 2 * shopTalkK),
       vk = mapLerp(shopFrom.view, SHOP_VIEW, kx) * (1 - tk);
     if (Math.abs(vk - mapViewK) > 1e-4) {
       mapViewK = vk;
       applyView();
-    } // the stall slides a little right of center
+    // the stall slides a little right of center
+    }
     if (shopUi) shopUi.classList.toggle("on", u >= 1 && !shopOut);
     if (u >= 1 && !shopOut && !shopDlg.greeted) {
       shopDlg.greeted = true;
       shopGreet();
-    } // Kris says hello once you are at the stall
+    // Kris says hello once you are at the stall
+    }
     if (shopLbl) shopLbl.classList.toggle("on", u >= 1 && !shopOut);
     if (shopSongBtn) shopSongBtn.classList.toggle("on", u >= 1 && !shopOut);
     shopSpin(dt);
@@ -13093,7 +13578,8 @@ void main(){
       shopT = -1;
       shopOut = false;
       mapSnap();
-    }); // under the black: back to the menu camera
+    // under the black: back to the menu camera
+    });
   }
   /* ---------- INVENTORY (main menu > INVENTORY) ----------
    The camera eases in on the knight (closer, a little above the middle of him) with the picture pushed right to leave room for the panel on the left - the same layout as the shop -
@@ -13149,20 +13635,24 @@ void main(){
     invBg = m;
     return m;
   }
-  const INV_BG_PALE = 0.3; // the background is the armor colour mixed this far toward white (0 = the armor colour itself, 1 = white); with no armor colour it is the usual fog colour, lightened by INV_FOG_LIGHT
+  // the background is the armor colour mixed this far toward white (0 = the armor colour itself, 1 = white); with no armor colour it is the usual fog colour, lightened by INV_FOG_LIGHT
+  const INV_BG_PALE = 0.3;
   const _invWhite = new THREE.Color(0xffffff);
   const INV_CUST_VIEW = 0.85;
-  let invCustK = 0; // INV_CUST_VIEW: on the CUSTOMIZE screen the picture slides right (1 = the menu's usual shift, 0 = centred) so he sits in the free space beside the panel
+  // INV_CUST_VIEW: on the CUSTOMIZE screen the picture slides right (1 = the menu's usual shift, 0 = centred) so he sits in the free space beside the panel
+  let invCustK = 0;
   const INV_ZOOM = 0.72,
     INV_PITCH = 0.06,
     INV_TY = 0.08,
     INV_VIEW = 0,
-    INV_FOG_LIGHT = 0.4; // zoom (bigger = further away = smaller on screen), tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift; 0 = centred, between the item list on the left and the details on the right)
+    // zoom (bigger = further away = smaller on screen), tilt, how high he is looked at (knight-heights above his middle), how far the picture is pushed right (1 = the menu's usual shift; 0 = centred, between the item list on the left and the details on the right)
+    INV_FOG_LIGHT = 0.4;
   /* ---------- ITEMS tab: inspecting the potion ----------
    While the POTION is highlighted in the inventory's ITEMS tab the knight plays UAL_Consume (mirrored, see UALX_ConsumeM), holding the bottle in his LEFT hand, and the camera pushes in on that hand.
    The animation is FROZEN at INV_DRINK_FREEZE_T (the hand held out with the bottle). Leaving the item (other tab, other row, CUSTOMIZE, closing the inventory) lets it play on to the end, and then he goes back to idle.
    INV_DRINK_OUT_AT: clip time the bottle appears. INV_DRINK_ZOOM: camera zoom while inspecting (smaller = closer). INV_DRINK_UP: how far above the hand the camera looks (knight-heights). */
-  const INV_DRINK_TILT = 0.75; // how far the bottle is tipped up while inspecting: 0 = the old angle (neck pointing down-forward), 1 = straight up
+  // how far the bottle is tipped up while inspecting: 0 = the old angle (neck pointing down-forward), 1 = straight up
+  const INV_DRINK_TILT = 0.75;
   const _invUp = new THREE.Vector3(),
     _invY = new THREE.Vector3(),
     _invDir = new THREE.Vector3(),
@@ -13188,7 +13678,8 @@ void main(){
     const want = invDrinkWant(),
       a = actions.UALX_ConsumeM;
     if (!a) return;
-    if (want) potionKind = invList()[invCur].haste ? "haste" : "heal"; // the green bottle for the haste potion
+    // the green bottle for the haste potion
+    if (want) potionKind = invList()[invCur].haste ? "haste" : "heal";
     if (want && (!invDrink.on || invDrink.release)) {
       // (re)start: reach for the bottle
       invDrink.on = true;
@@ -13206,7 +13697,8 @@ void main(){
     } else if (!want && invDrink.on && !invDrink.release) {
       invDrink.release = true;
       a.paused = false;
-    } // let it finish
+    // let it finish
+    }
   }
   function invDrinkStep() {
     if (!invDrink.on) return;
@@ -13237,7 +13729,8 @@ void main(){
     if (invOn)
       invHid.forEach((h) => {
         h.o.visible = false;
-      }); // (kept hidden every frame, in case something else switches it back on)
+      // (kept hidden every frame, in case something else switches it back on)
+      });
     const goal = invOn ? 1 : 0;
     invK += (goal - invK) * (1 - Math.exp(-dt * 4));
     if (Math.abs(goal - invK) < 0.002) invK = goal;
@@ -13261,7 +13754,8 @@ void main(){
       u.uTime.value += dt * INV_BG_DRIFT;
       u.uAsp.value = innerWidth / innerHeight;
       u.uK.value = invK;
-    } // the background layer, over that colour   // the background / fog is lightened while the inventory is open (INV_FOG_LIGHT: 0 = as usual, 1 = white) and settles back as it closes
+    // the background layer, over that colour   // the background / fog is lightened while the inventory is open (INV_FOG_LIGHT: 0 = as usual, 1 = white) and settles back as it closes
+    }
     if (!invPrev) return;
     const dg = invDrink.on && !invDrink.release && invOn ? 1 : 0;
     invDrink.k += (dg - invDrink.k) * (1 - Math.exp(-dt * 5));
@@ -13284,7 +13778,8 @@ void main(){
         _invHand.setY(_invHand.y + playerH * INV_DRINK_UP),
         invDrink.k * invK,
       );
-    } // the camera looks at the hand holding the bottle
+    // the camera looks at the hand holding the bottle
+    }
     invCustK += ((invCust ? 1 : 0) - invCustK) * (1 - Math.exp(-dt * 6));
     if (Math.abs((invCust ? 1 : 0) - invCustK) < 0.002)
       invCustK = invCust ? 1 : 0;
@@ -13433,7 +13928,8 @@ void main(){
           : e.isGolem
             ? GOLD_FOR.golem
             : 0;
-  } // (the enemy knights pay nothing)
+  // (the enemy knights pay nothing)
+  }
   function awardGold(e) {
     if (e.goldGiven) return;
     e.goldGiven = true;
@@ -13647,7 +14143,8 @@ void main(){
     return T.subs
       ? own.filter((i) => i.cls === T.subs[invSub[invTab]].cls)
       : own;
-  } // only what you own
+  // only what you own
+  }
   function invKey() {
     return invTab + ":" + invSub[invTab];
   }
@@ -13880,7 +14377,8 @@ void main(){
     invUi.classList.remove("on");
     document.body.classList.remove("map");
     invGoMenu("custom");
-  } // the customize window takes the inventory's place, same camera
+  // the customize window takes the inventory's place, same camera
+  }
   function invShowInv() {
     invCust = false;
     invGoMenu("main");
@@ -13903,15 +14401,20 @@ void main(){
     };
     invOn = true;
     todHold = "day";
-    lookSnap = true; // the inventory is always shown by day (and the time goes back to what it was when it closes)
+    // the inventory is always shown by day (and the time goes back to what it was when it closes)
+    lookSnap = true;
     invResetState();
-    if (spin) toggleSpin(); // the turntable stays off
+    // the turntable stays off
+    if (spin) toggleSpin();
     invHid = scene.children
       .filter((o) => o !== playerRig && o !== invBg && o !== sparkle)
       .map((o) => ({ o: o, v: o.visible }));
-    if (rockMesh) invHid.push({ o: rockMesh, v: rockMesh.visible }); // everything but the knight goes
-    play(idleName()); // his proper idle (the axe's with the axe)
-    document.body.classList.add("map"); // the menu window steps aside, as it does for the map
+    // everything but the knight goes
+    if (rockMesh) invHid.push({ o: rockMesh, v: rockMesh.visible });
+    // his proper idle (the axe's with the axe)
+    play(idleName());
+    // the menu window steps aside, as it does for the map
+    document.body.classList.add("map");
     invBuild();
     invRefresh();
     requestAnimationFrame(() => invUi.classList.add("on"));
@@ -13920,8 +14423,10 @@ void main(){
     if (!invOn) return;
     invOn = false;
     invDrinkSync();
-    invOn = true; // a potion inspection plays out first (play() below is queued until it ends)
-    invApply(invCommit); // a weapon that was only previewed goes back to the one he really has equipped
+    // a potion inspection plays out first (play() below is queued until it ends)
+    invOn = true;
+    // a weapon that was only previewed goes back to the one he really has equipped
+    invApply(invCommit);
     invOn = false;
     invCust = false;
     invUi.classList.remove("on");
@@ -13929,18 +14434,21 @@ void main(){
       todHold = null;
       lookSnap = true;
     }
-    if (invPrev && invPrev.spin !== spin) toggleSpin(); // the turntable goes back to how it was before the inventory
+    // the turntable goes back to how it was before the inventory
+    if (invPrev && invPrev.spin !== spin) toggleSpin();
     invHid.forEach((h) => {
       h.o.visible = h.v;
     });
     invHid = [];
-    if (invPrev && invPrev.clip && actions[invPrev.clip]) play(invPrev.clip); // the world comes back and he returns to the pose he was in
+    // the world comes back and he returns to the pose he was in
+    if (invPrev && invPrev.clip && actions[invPrev.clip]) play(invPrev.clip);
     document.body.classList.remove("map");
   }
   addEventListener("keydown", (e) => {
     if (!invOn || invCust) return;
     const k = e.key;
-    e.stopImmediatePropagation(); // this key is the inventory's alone: otherwise, once it closes the inventory, the main menu's own handler sees the same key press (Escape = back to the START SCREEN, Enter = a menu item)
+    // this key is the inventory's alone: otherwise, once it closes the inventory, the main menu's own handler sees the same key press (Escape = back to the START SCREEN, Enter = a menu item)
+    e.stopImmediatePropagation();
     if (k === "c" || k === "C") {
       e.preventDefault();
       invShowCust();
@@ -13960,14 +14468,16 @@ void main(){
     } else if (k === "q" || k === "Q" || k === "PageUp") {
       e.preventDefault();
       invGoto(invTab - 1, undefined, true);
-    } // tabs
+    // tabs
+    }
     else if (k === "e" || k === "E" || k === "PageDown" || k === "Tab") {
       e.preventDefault();
       invGoto(invTab + 1, undefined, true);
     } else if (k === "ArrowLeft" || k === "a" || k === "A") {
       e.preventDefault();
       if (INV_TABS[invTab].subs) invGoto(undefined, invSub[invTab] - 1, true);
-    } // types within the tab
+    // types within the tab
+    }
     else if (k === "ArrowRight" || k === "d" || k === "D") {
       e.preventDefault();
       if (INV_TABS[invTab].subs) invGoto(undefined, invSub[invTab] + 1, true);
@@ -13991,8 +14501,10 @@ void main(){
     EDIT_FIRST = 57.844,
     EDIT_PERIOD = 0.4488,
     EDIT_LEAD = 0.035,
-    EDIT_GAIN = 0.9; // EDIT_LEAD: the picture is changed a hair before the beat (the sound reaches the ear a little later than the frame is drawn)
-  const EDIT_BG = ["#ececec", "#d3121f"]; // the background: light, then red, a new one every bar
+    // EDIT_LEAD: the picture is changed a hair before the beat (the sound reaches the ear a little later than the frame is drawn)
+    EDIT_GAIN = 0.9;
+  // the background: light, then red, a new one every bar
+  const EDIT_BG = ["#ececec", "#d3121f"];
   const EDIT_SHOTS = [
     // camera shots: zoom (bigger = further), pitch (negative = from below), height he is looked at (fraction of his height from the middle), roll (tilt)
     { z: 0.85, p: -0.18, y: 0.0, r: 0 },
@@ -14005,7 +14517,8 @@ void main(){
     { z: 1.05, p: 0.0, y: 0.0, r: 0 },
     { z: 0.58, p: 0.1, y: 0.12, r: 0.3 },
   ];
-  const EDIT_POSE_Y = [0, 0, -0.18, -0.08, 0, -0.42, 0]; // per pose: look lower at the crouch, the dance and (a lot) the pose lying down
+  // per pose: look lower at the crouch, the dance and (a lot) the pose lying down
+  const EDIT_POSE_Y = [0, 0, -0.18, -0.08, 0, -0.42, 0];
   let editBusy = false,
     editBuf = null,
     editLoading = null,
@@ -14089,7 +14602,8 @@ void main(){
     editPoseLast = editPoseNow = editBag.pop();
     const a = actions["UALX_EditPose" + (editPoseNow + 1)];
     if (!a) return;
-    a.reset().setEffectiveWeight(1).setLoop(THREE.LoopRepeat, Infinity).play(); // a hard cut: the new pose starts BEFORE the old one stops (else one frame shows the bind pose)
+    // a hard cut: the new pose starts BEFORE the old one stops (else one frame shows the bind pose)
+    a.reset().setEffectiveWeight(1).setLoop(THREE.LoopRepeat, Infinity).play();
     Object.keys(actions).forEach((k) => {
       if (actions[k] !== a && actions[k].isRunning()) actions[k].stop();
     });
@@ -14105,7 +14619,8 @@ void main(){
     EDIT_SWORD_GAIN = 1.0,
     EDIT_SWORD_PEAK = 0.16;
   const EDIT_SWORD_FACE = [0, 0.15, 0.36],
-    EDIT_SWORD_CY = 1.1; // where the middle of the blade lands (in the head's own space: just in front of the visor), and where the middle of the blade is along the sword's own axis
+    // where the middle of the blade lands (in the head's own space: just in front of the visor), and where the middle of the blade is along the sword's own axis
+    EDIT_SWORD_CY = 1.1;
   const edSw = {
     st: 0,
     grp: null,
@@ -14198,24 +14713,31 @@ void main(){
     playerRig.updateMatrixWorld(true);
     const Wf = fore.matrixWorld,
       cy = EDIT_SWORD_CY;
-    _em1.compose(edSw.p0, edSw.q0, edSw.s0).premultiply(Wf); // the sword where it is in his hand, in the world
-    _em1.decompose(_e1, _eq1, _es); // _e1 origin, _eq1 turn, _es scale
+    // the sword where it is in his hand, in the world
+    _em1.compose(edSw.p0, edSw.q0, edSw.s0).premultiply(Wf);
+    // _e1 origin, _eq1 turn, _es scale
+    _em1.decompose(_e1, _eq1, _es);
     const sc = _es.y,
       C0 = _e2
         .set(0, cy, 0)
         .multiplyScalar(sc)
         .applyQuaternion(_eq1)
         .add(_e1)
-        .clone(); // the middle of the blade, in his hand
-    const C1 = edSw.shoulder.getWorldPosition(new THREE.Vector3()); // up the arm: his shoulder
+        // the middle of the blade, in his hand
+        .clone();
+    // up the arm: his shoulder
+    const C1 = edSw.shoulder.getWorldPosition(new THREE.Vector3());
     const C2 = edSw.head.localToWorld(
       _e3.set(EDIT_SWORD_FACE[0], EDIT_SWORD_FACE[1], EDIT_SWORD_FACE[2]),
-    ); // and on to his face
+    // and on to his face
+    );
     edSw.head.getWorldQuaternion(_eq2);
-    _eq2.multiply(_eqz); // blade across the face, flat against it, hilt on the sword-arm side
+    // blade across the face, flat against it, hilt on the sword-arm side
+    _eq2.multiply(_eqz);
     const L1 = C0.distanceTo(C1),
       L2 = C1.distanceTo(C2),
-      d = u * u * (L1 + L2); // speeds up all the way: it hits at full speed
+      // speeds up all the way: it hits at full speed
+      d = u * u * (L1 + L2);
     const C = _e4;
     if (d <= L1) C.lerpVectors(C0, C1, L1 > 0 ? d / L1 : 1);
     else C.lerpVectors(C1, C2, L2 > 0 ? (d - L1) / L2 : 1);
@@ -14238,7 +14760,8 @@ void main(){
     if (edSw.st === 1) {
       edSw.st = 2;
       land = true;
-    } // the second beat of the sword pose: the pose is held, the sword has just landed
+    // the second beat of the sword pose: the pose is held, the sword has just landed
+    }
     else {
       editSwordEnd();
       editPoseNext();
@@ -14249,7 +14772,8 @@ void main(){
       k = Math.floor(Math.random() * EDIT_SHOTS.length);
     } while (k === editShotLast);
     if (drop || land) k = 1;
-    editShotLast = k; // the landing is a close-up, like the drop   // the drop is always the close-up
+    // the landing is a close-up, like the drop   // the drop is always the close-up
+    editShotLast = k;
     const sh = EDIT_SHOTS[k];
     editZoomGoal = sh.z;
     editPitchGoal = sh.p;
@@ -14257,11 +14781,13 @@ void main(){
     editRollGoal = sh.r;
     editDir = Math.random() < 0.5 ? -1 : 1;
     editYawGoal +=
-      editDir * (0.9 + Math.random() * 1.5) * (bar === 0 ? 1.4 : 1); // the sharp turn: a big jump round him
+      // the sharp turn: a big jump round him
+      editDir * (0.9 + Math.random() * 1.5) * (bar === 0 ? 1.4 : 1);
     editPunch = 1;
     editShake = bar === 0 ? 1 : 0.45;
     editBlur = 1;
-    editVisor = 1; // editVisor: the visor flashes white on every beat (it only shows when his face is turned to the camera)
+    // editVisor: the visor flashes white on every beat (it only shows when his face is turned to the camera)
+    editVisor = 1;
     if (bar === 0) {
       editFlash = 0.85;
       editBg = (editBg + 1) % EDIT_BG.length;
@@ -14332,18 +14858,22 @@ void main(){
     editHid = scene.children
       .filter((o) => o !== playerRig && o !== invBg)
       .map((o) => ({ o: o, v: o.visible }));
-    if (rockMesh) editHid.push({ o: rockMesh, v: rockMesh.visible }); // everything but the knight goes
-    document.body.classList.add("map"); // the menu steps aside
+    // everything but the knight goes
+    if (rockMesh) editHid.push({ o: rockMesh, v: rockMesh.visible });
+    // the menu steps aside
+    document.body.classList.add("map");
     editBlack(true);
     showWeapons();
-    syncAudio(); // black, no weapon, and the menu music out
+    // black, no weapon, and the menu music out
+    syncAudio();
     [srcNode, flauntSrc, battleSrc]
       .concat(Object.keys(xtra).map((k) => xtra[k].src))
       .forEach((t) => {
         if (t) stopTrack(t);
       });
     srcNode = flauntSrc = battleSrc = null;
-    for (const k in xtra) xtra[k].src = null; // and straight away, whatever was still starting up
+    // and straight away, whatever was still starting up
+    for (const k in xtra) xtra[k].src = null;
     editSwordEnd();
     loadSfxSet("honor-sfx-data");
     editBeat0 = -99;
@@ -14363,7 +14893,8 @@ void main(){
     src.buffer = buf;
     src.loop = true;
     src.loopStart = EDIT_START;
-    src.loopEnd = buf.duration; // starts at 0:57 and loops from there
+    // starts at 0:57 and loops from there
+    src.loopEnd = buf.duration;
     g.gain.value = EDIT_GAIN;
     src.connect(g);
     g.connect(sfx.destination);
@@ -14463,7 +14994,8 @@ void main(){
     pitch += (editPitchGoal - pitch) * k(22);
     editRoll += (editRollGoal - editRoll) * k(18);
     const zg = editZoomGoal * (1 - 0.1 * ph) * (1 - 0.22 * editPunch);
-    zoom += (zg - zoom) * k(24); // a slow push in across each beat, and a punch on it
+    // a slow push in across each beat, and a punch on it
+    zoom += (zg - zoom) * k(24);
     const ty = (editPrev ? homeTarget.y : 0) + playerH * (editYGoal + 0.08);
     target.y += (ty - target.y) * k(22);
     target.x = editPrev.tx;
@@ -14556,9 +15088,12 @@ void main(){
       tt = setTimeout(() => toastEl.classList.remove("show"), 1700);
     }
     const BACK = { t: "BACK", go: "main" },
-      BACK_OPT = { t: "BACK", go: "options" }; // BACK_OPT: from a group of options back to OPTIONS
-    const BACK_ANIM = { t: "BACK", go: "anims" }; // from an ANIMATIONS sub-menu back to the ANIMATIONS list
-    const BACK_ENEMIES = { t: "BACK", go: "anims_enemies" }; // from one enemy's animations back to the enemy list
+      // BACK_OPT: from a group of options back to OPTIONS
+      BACK_OPT = { t: "BACK", go: "options" };
+    // from an ANIMATIONS sub-menu back to the ANIMATIONS list
+    const BACK_ANIM = { t: "BACK", go: "anims" };
+    // from one enemy's animations back to the enemy list
+    const BACK_ENEMIES = { t: "BACK", go: "anims_enemies" };
     const evRows = (key) => {
       const d = evDefs(key);
       return d
@@ -14699,14 +15234,16 @@ void main(){
             v: () => (forest ? "FOREST" : "CLASSIC"),
             run: () => setWorld(!forest),
           },
-          { t: "TIME", v: todText, adj: todSlide }, // AUTO (local clock) or a slider over the 24 hours: LEFT / RIGHT
+          // AUTO (local clock) or a slider over the 24 hours: LEFT / RIGHT
+          { t: "TIME", v: todText, adj: todSlide },
           {
             t: "FOG",
             v: () => "#".repeat(fogT) + ".".repeat(9 - fogT),
             adj: (d) => {
               fogT = d ? Math.max(1, Math.min(9, fogT + d)) : (fogT % 9) + 1;
             },
-          }, // thickness: LEFT / RIGHT (or click) - 5 is the normal fog
+          // thickness: LEFT / RIGHT (or click) - 5 is the normal fog
+          },
           {
             t: "LEAVES",
             v: () => (leavesOn ? "ON" : "OFF"),
@@ -14921,7 +15458,8 @@ void main(){
       root.innerHTML = "";
       btns = [];
       startScr = cur === "start";
-      document.body.classList.toggle("startscr", startScr); // the start screen's camera can't be dragged
+      // the start screen's camera can't be dragged
+      document.body.classList.toggle("startscr", startScr);
       if (sc.text) {
         const d = document.createElement("div");
         d.className = "txt";
@@ -14929,7 +15467,8 @@ void main(){
         root.appendChild(d);
       }
       cust.hidden = !sc.panel;
-      document.body.classList.toggle("custscr", !!sc.panel); // the customize screen gets the blue inventory-style panel (see index.html)
+      // the customize screen gets the blue inventory-style panel (see index.html)
+      document.body.classList.toggle("custscr", !!sc.panel);
       const items = sc.items,
         vis = visRows(),
         scrolls = items.length > vis;
@@ -14985,7 +15524,8 @@ void main(){
       idx = 0;
       top = 0;
       render();
-    } // CUSTOMIZE lives in the inventory now: its BACK returns there
+    // CUSTOMIZE lives in the inventory now: its BACK returns there
+    }
     invGoMenu = go;
     function act() {
       const it = SCREENS[cur].items[idx];
@@ -15052,4 +15592,7 @@ void main(){
     });
     render();
   }
+  // Tells the loading screen (index.html) when the knight and the golem are built.
+  // Their state lives inside this closure, so the loader can't read it directly.
+  window.__knightReady = () => ({ knight: !!playerRig, golem: !!playerRig && golemReady() });
 })();

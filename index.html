@@ -2114,8 +2114,9 @@
               let k = false,
                 g = false;
               try {
-                k = !!playerRig;
-                g = k && golemReady();
+                const r = window.__knightReady && window.__knightReady();
+                k = !!(r && r.knight);
+                g = !!(r && r.golem);
               } catch (e) {}
               if (k && !kd) {
                 kd = true;
