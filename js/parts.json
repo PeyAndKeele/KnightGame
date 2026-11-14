@@ -1,0 +1,16 @@
+[
+  "01-setup.js",
+  "02-knight.js",
+  "03-world.js",
+  "04-weapons.js",
+  "05-chest-save-loot.js",
+  "06-swoosh-helmets.js",
+  "07-audio-animation.js",
+  "08-input-explore.js",
+  "09-dungeon-battle.js",
+  "10-menu-loop-sound.js",
+  "11-map.js",
+  "12-shop.js",
+  "13-inventory-save.js",
+  "14-edit.js"
+]

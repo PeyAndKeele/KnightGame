@@ -26,7 +26,7 @@
         --t-mid: #4558c8;
         --t-lo: #1a2468;
         --t-glow: rgba(130, 160, 255, 0.5);
-        --t-rule: #3a4aa8; /* the title's lettering and the rule under a screen's name: these follow the armor colour (see UI_THEME in main.js) */
+        --t-rule: #3a4aa8; /* the title's lettering and the rule under a screen's name: these follow the armor colour (see UI_THEME in js/) */
         --ui-edge: var(--ui-edge);
         --ui-text: #d4ecff;
         --ui-dim: #9fc9ff;
@@ -38,7 +38,7 @@
           140,
           255,
           0.5
-        ); /* the blue panels' colours; main.js repaints all of these (and --win-* / --edge / --dim above) from the armor colour: see uiThemeApply */
+        ); /* the blue panels' colours; the game scripts (js/) repaint all of these (and --win-* / --edge / --dim above) from the armor colour: see uiThemeApply */
         box-sizing: border-box;
         color-scheme: dark;
         padding-top: env(safe-area-inset-top, 0px);
@@ -1127,7 +1127,7 @@
       }
 
       /* CUSTOMIZE restyled to match the inventory / shop panels: the same blue box on the left, a header, two columns of controls, BACK at the bottom, no inner scrollbar.
-   (body.custscr is set by main.js while the customize screen is showing.) */
+   (body.custscr is set by the game scripts while the customize screen is showing.) */
       body.custscr .title,
       body.custscr .sub {
         display: none;
@@ -2013,14 +2013,12 @@
           return r;
         }
         (async () => {
-          let list, mainUrl;
+          let list;
           try {
             list = await (await get("assets/manifest.json")).json();
-            mainUrl = "js/main.js";
           } catch (e1) {
             try {
               list = await (await get("manifest.json")).json();
-              mainUrl = "main.js";
             } catch (e2) {
               say(
                 "Could not find manifest.json (tried assets/manifest.json and manifest.json).\nThe data files did not upload to the right place.",
@@ -2098,37 +2096,64 @@
           }
           status("STARTING GAME");
           set(0.88, 0.5);
-          const s = document.createElement("script");
-          s.src = mainUrl + "?t=" + Date.now();
-          s.onerror = () => {
+          // three.js comes from a CDN: if it did not arrive there is nothing to start
+          if (!window.THREE || !THREE.GLTFLoader) {
             loadDone();
-            say("Could not load " + mainUrl + " (404). Is it uploaded?");
-          };
-          s.onload = () => {
-            // the script has run; now wait for the models it parses asynchronously (knight, golem) before lifting the screen
-            status("BUILDING MODELS");
-            set(0.985, 28); // the bar keeps creeping on its own while the main thread is busy
-            const t0 = Date.now();
-            let kd = false;
-            (function wait() {
-              let k = false,
-                g = false;
-              try {
-                k = !!playerRig;
-                g = k && golemReady();
-              } catch (e) {}
-              if (k && !kd) {
-                kd = true;
-                status("KNIGHT READY. WAKING THE GOLEM");
-              }
-              if (g || Date.now() - t0 > 20000) {
-                set(1, 0.3);
-                status("READY");
-                setTimeout(() => loadDone(true), 350);
-              } else setTimeout(wait, 100);
-            })();
-          };
-          document.body.appendChild(s);
+            document.getElementById("err").style.display = "block";
+            return;
+          }
+          // the game is split into js/*.js (listed in js/parts.json, in load order). They share one
+          // scope, so they are downloaded first and then run back to back in this one task: nothing
+          // (a timer, a promise callback) can run between two parts and find a later one missing.
+          let jsFiles;
+          try {
+            const names = await (await get("js/parts.json")).json();
+            const texts = await Promise.all(
+              names.map(async (n) => (await (await get("js/" + n)).text())),
+            );
+            jsFiles = names.map((n, i) => ({ name: n, text: texts[i] }));
+          } catch (e) {
+            loadDone();
+            say("Could not load the game scripts in js/ (" + e.message + "). Are they uploaded?");
+            return;
+          }
+          let broke = false;
+          const stop = () => (broke = true);
+          window.addEventListener("error", stop);
+          for (const f of jsFiles) {
+            if (broke) break; // a part threw: later parts would only pile errors on top of it
+            const el = document.createElement("script");
+            el.textContent = f.text + "\n//# sourceURL=js/" + f.name;
+            document.body.appendChild(el);
+          }
+          window.removeEventListener("error", stop);
+          if (broke) {
+            loadDone();
+            return; // the error box is already showing what went wrong
+          }
+          // every part has run; now wait for the models they parse asynchronously (knight, golem) before lifting the screen
+          status("BUILDING MODELS");
+          set(0.985, 28); // the bar keeps creeping on its own while the main thread is busy
+          const t0 = Date.now();
+          let kd = false;
+          (function wait() {
+            let k = false,
+              g = false;
+            try {
+              const r = window.__knightReady && window.__knightReady();
+              k = !!(r && r.knight);
+              g = !!(r && r.golem);
+            } catch (e) {}
+            if (k && !kd) {
+              kd = true;
+              status("KNIGHT READY. WAKING THE GOLEM");
+            }
+            if (g || Date.now() - t0 > 20000) {
+              set(1, 0.3);
+              status("READY");
+              setTimeout(() => loadDone(true), 350);
+            } else setTimeout(wait, 100);
+          })();
         })();
       })();
     </script>
