@@ -782,15 +782,17 @@ function addTombFurniture(grp, RD, lib, dScale) {
     .catch((e) => console.error("tomb furniture failed", e));
 }
 /* THE TOMB'S HANGING CAGES (cage-data = the prisoner cage, cagechain-data = its chain, four links, which is stacked up as many times as the cage needs to reach the ceiling).
- `tall` = how tall a cage is in knight-heights (the knight is 1: inside, the cage is about 1.4 knight-heights tall and 1 wide, so he fits with room to spare). Each cage: x / z = where it hangs, k = how many chain
- segments hold it, which sets how high it hangs (more segments = lower: k = 2 hangs about 1.2 knight-heights off the floor, 3 about 0.9, 4 about 0.5), phase = where in its sway it starts.
+ `tall` = how tall a cage is in knight-heights (the knight is 1: inside, the cage is about 1.25 knight-heights tall and 0.9 wide, so he fits with a little room to spare). Each cage: x / z = where it hangs,
+ k = how many chain segments hold it, which sets how high it hangs (k = 1 hangs its floor about 1.9 knight-heights off the ground, 2 about 1.55, 3 about 1.2, 4 about 0.9, 5 about 0.6), yaw = which way it is turned,
+ phase = where in its sway it starts. The four are spread down the hall, alternating sides, all at different heights, and kept off the doorways, the enemy line, the knight's spot and the table.
  They hang from a pivot in the ceiling and sway a very little (`sway` = the largest angle, in radians, about 1 degree), each at its own slow rhythm - see updateTombCages. */
 const TOMB_CAGES = [
-    { x: 0.62, z: 0.5, k: 3, phase: 0 },
-    { x: -0.62, z: 0.98, k: 2, phase: 2.1 },
-    { x: 0.64, z: -0.55, k: 4, phase: 4.2 },
+    { x: 0.64, z: -0.45, k: 2, yaw: 20, phase: 0 },
+    { x: -0.62, z: -0.68, k: 3, yaw: 65, phase: 1.7 },
+    { x: 0.6, z: 0.55, k: 5, yaw: 40, phase: 3.4 },
+    { x: -0.6, z: 1.0, k: 1, yaw: 10, phase: 5.1 },
   ],
-  TOMB_CAGE = { tall: 1.5, sway: 0.018, ceil: 1.938 },
+  TOMB_CAGE = { tall: 1.3, sway: 0.018, ceil: 1.938 },
   // the chain segment's repeat length, in the cage model's units: its 4 links span 0.3125 between first and last, plus one link's pitch (0.104) to interlock with the next segment
   CAGE_CHAIN_PERIOD = 0.4167;
 let tombCages = [];
@@ -815,6 +817,7 @@ function addTombCages(grp, RD, dScale) {
           asm.add(seg);
         }
         asm.scale.setScalar(sf);
+        asm.rotation.y = THREE.MathUtils.degToRad(c.yaw);
         // hang it so the top of its highest link is at the ceiling
         asm.position.y = -(chb.hi[1] + (c.k - 1) * CAGE_CHAIN_PERIOD) * sf;
         piv.add(asm);
