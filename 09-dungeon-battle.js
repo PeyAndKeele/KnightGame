@@ -593,6 +593,165 @@ function decorateTomb(grp, RD, lib, dScale) {
       ),
     ),
   );
+  addTombFurniture(grp, RD, lib, dScale);
+}
+/* THE TOMB'S TABLE AND LANTERN.
+ The table (table-data = table.gltf) stands against the west colonnade, in front of the gap between the two bays of shelves, its long side along the wall. `tall` = how tall it stands in knight-heights;
+ x / z = where its middle is on the floor (the tomb file's units), yaw = which way its long side runs (-90 = along z, the length of the hall). Three things stand on it (dz = along the table, dx = across it,
+ yaw), spread out so most of the top stays bare.
+ The lantern is the shop's lantern (lantern-data) hung from the ceiling by the shop sign's chain (chain-data: two links, tiled): the top link is sunk into the ceiling slab (the ceiling's underside is at
+ y = CEIL), the bottom link goes through the lantern's ring. `ringTop` = about how high the top of the ring hangs, `tall` = the lantern's height in knight-heights. It is also a LIGHT, just like the shop's:
+ a warm point light at its bulb that lights SHINY things only (the knight's armour, the barrels' hoops ...) and fades out over `range` knight-heights - see updateTombLamp, which updateShopLamp calls. */
+const TOMB_TABLE = {
+    x: -0.76,
+    z: -0.04,
+    tall: 0.45,
+    yaw: -90,
+    items: [
+      ["potion", -0.2, 0.0, 15],
+      ["skull", 0.02, -0.04, 12],
+      ["pouch", 0.21, 0.03, 35],
+    ],
+  },
+  TOMB_LAMP = {
+    x: TOMB_TABLE.x,
+    z: TOMB_TABLE.z,
+    ringTop: 1.2,
+    ceil: 1.938,
+    tall: 0.3,
+    color: [1.0, 0.78, 0.45],
+    intensity: 1.3,
+    range: 3.4,
+    spec: 14,
+  },
+  // the shop sign's chain links and the lantern's ring, in the models' own units
+  LINK_LEN = 0.0875,
+  LINK_PITCH = 0.046875;
+let tombLamp = null;
+function bakedBounds(RD) {
+  const lo = [Infinity, Infinity, Infinity],
+    hi = [-Infinity, -Infinity, -Infinity];
+  RD.parts.forEach((pt) => {
+    for (let q = 0; q < pt.p.length; q += 3)
+      for (let a = 0; a < 3; a++) {
+        if (pt.p[q + a] < lo[a]) lo[a] = pt.p[q + a];
+        if (pt.p[q + a] > hi[a]) hi[a] = pt.p[q + a];
+      }
+  });
+  return { lo: lo, hi: hi };
+}
+function addTombFurniture(grp, RD, lib, dScale) {
+  Promise.all([
+    loadBakedModel("table-data"),
+    loadBakedModel("lantern-data"),
+    loadBakedModel("chain-data"),
+  ])
+    .then(([T, L, C]) => {
+      const y0 = RD.c[1];
+      // ---- the table: its middle on (x, z), its feet on the floor
+      const tb = bakedBounds(T.RD),
+        ts = TOMB_TABLE.tall / dScale / (tb.hi[1] - tb.lo[1]),
+        th = new THREE.Group();
+      T.grp.position.set(
+        -(tb.lo[0] + tb.hi[0]) / 2,
+        -tb.lo[1],
+        -(tb.lo[2] + tb.hi[2]) / 2,
+      );
+      th.add(T.grp);
+      th.scale.setScalar(ts);
+      th.rotation.y = THREE.MathUtils.degToRad(TOMB_TABLE.yaw);
+      th.position.set(TOMB_TABLE.x, y0, TOMB_TABLE.z);
+      grp.add(th);
+      const topY = y0 + TOMB_TABLE.tall / dScale + 0.004;
+      TOMB_TABLE.items.forEach((it) =>
+        putProp(
+          grp,
+          lib,
+          it[0],
+          TOMB_TABLE.x + it[2],
+          topY,
+          TOMB_TABLE.z + it[1],
+          it[3],
+          dScale,
+        ),
+      );
+      // ---- the lantern, hung by the chain
+      const lb = bakedBounds(L.RD),
+        ls = TOMB_LAMP.tall / dScale / (lb.hi[1] - lb.lo[1]),
+        pitch = LINK_PITCH * ls,
+        yTop = TOMB_LAMP.ceil - 0.02,
+        // an even number of links, so the bottom one hangs across the ring (the ring is turned the other way from it)
+        links =
+          2 *
+          Math.max(
+            1,
+            Math.round(
+              (yTop - (TOMB_LAMP.ringTop - (LINK_LEN / 2) * ls)) / (2 * pitch),
+            ),
+          ),
+        ringY = yTop - links * pitch,
+        ringLocalY = lb.hi[1] - LINK_LEN / 2,
+        lh = new THREE.Group();
+      L.grp.children.forEach((m, j) => {
+        const mat = m.material;
+        if (L.RD.parts[j].emit) {
+          // the bulb glows instead of being lit
+          mat.uniforms.uEmit.value = 1;
+          const bb = bakedBounds({ parts: [L.RD.parts[j]] });
+          tombLamp = {
+            grp: grp,
+            local: new THREE.Vector3(
+              TOMB_LAMP.x + ((bb.lo[0] + bb.hi[0]) / 2) * ls,
+              ringY + ((bb.lo[1] + bb.hi[1]) / 2 - ringLocalY) * ls,
+              TOMB_LAMP.z + ((bb.lo[2] + bb.hi[2]) / 2) * ls,
+            ),
+          };
+        } else mat.uniforms.uShine.value = 0.55;
+        // (the metal of the shop's lantern)
+      });
+      lh.add(L.grp);
+      lh.scale.setScalar(ls);
+      lh.position.set(TOMB_LAMP.x, ringY - ringLocalY * ls, TOMB_LAMP.z);
+      grp.add(lh);
+      C.grp.children.forEach((m) => (m.material.uniforms.uShine.value = 0.55));
+      // two links per tile, the tiles turned a quarter so the lowest link is the one that crosses the ring
+      for (let k = 0; k < links / 2; k++) {
+        const ch = k === 0 ? C.grp : C.grp.clone(true);
+        ch.scale.setScalar(ls);
+        ch.rotation.y = Math.PI / 2;
+        ch.position.set(TOMB_LAMP.x, yTop - 2 * k * pitch, TOMB_LAMP.z);
+        grp.add(ch);
+      }
+    })
+    .catch((e) => console.error("tomb furniture failed", e));
+}
+/* the tomb lantern's light: called every frame by updateShopLamp whenever the shop is not on screen (they share the one lamp slot of the shaders: uLampPos / uLampP / uLampCol).
+ It is on while you are in the tomb. A slow, small flicker keeps it from looking like a bare bulb. */
+function updateTombLamp() {
+  if (
+    !tombLamp ||
+    !dungeon ||
+    dg !== DUNGEONS.tomb ||
+    !dg.group ||
+    !dg.group.visible
+  )
+    return;
+  tombLamp.grp.updateWorldMatrix(true, false);
+  U.uLampPos.value.copy(tombLamp.local);
+  tombLamp.grp.localToWorld(U.uLampPos.value);
+  U.uLampCol.value.set(
+    TOMB_LAMP.color[0],
+    TOMB_LAMP.color[1],
+    TOMB_LAMP.color[2],
+  );
+  const t = performance.now() / 1000,
+    fl = 1 + 0.05 * Math.sin(t * 7.1) * Math.sin(t * 2.3 + 1) + 0.025 * Math.sin(t * 13.7);
+  U.uLampP.value.set(
+    TOMB_LAMP.range * playerH,
+    TOMB_LAMP.intensity * fl,
+    TOMB_LAMP.spec,
+    0,
+  );
 }
 // adds a dungeon's props once the props and its model have both loaded (the map's copy of the ruins was made before this, so the map is unchanged)
 function decorateDungeon(fn, grp, RD, dScale) {

@@ -108,6 +108,24 @@
     "size": 206969
   },
   {
+    "id": "table-data",
+    "type": "application/json",
+    "url": "table-data.json",
+    "size": 35842
+  },
+  {
+    "id": "lantern-data",
+    "type": "application/json",
+    "url": "lantern-data.json",
+    "size": 37340
+  },
+  {
+    "id": "chain-data",
+    "type": "application/json",
+    "url": "chain-data.json",
+    "size": 46388
+  },
+  {
     "id": "tombentry-data",
     "type": "application/json",
     "url": "tombentry-data.json",
