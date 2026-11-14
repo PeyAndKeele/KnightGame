@@ -14,7 +14,8 @@ let night = false,
   greenTreeGroup = null,
   frostTreeGroup = null,
   ignisTreeGroup = null;
-const SKY_CLASSIC = 0x232a4a,
+// daytime horizon colours (night is blended in separately by SKY_NIGHT, so these must be daylight blues)
+const SKY_CLASSIC = 0x7db4ea,
   SKY_FOREST = 0x6ca8e6;
 function mkFloorTex(c1, c2) {
   const cv = document.createElement("canvas");
