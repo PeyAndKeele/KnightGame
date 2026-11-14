@@ -342,6 +342,423 @@ function placeDungeon(d, RD, grp, H, groundY, ctr) {
   d.group = holder;
   d.slots = makeSlots(d, H, groundY, ctr);
 }
+/* ---------- dungeon props: barrels, skulls, small pouches, potions ----------
+ Four little baked models (barrel-data, skull-data, smallpouch-data, potionprop-data) are cloned into a dungeon's model group, so they are in the dungeon's own file units and turn / scale with it
+ (and are only on screen while you are inside). PROP_TALL = how tall each one stands in KNIGHT-HEIGHTS, so a barrel is about half as tall as the knight in the ruins and in the tomb alike.
+ Positions are [x, z, yaw in degrees] in the model's file units (see the plans above each list). The potion's glass is see-through, so it gets the same translucent-glass treatment as the bottle in his hand. */
+const PROP_FILES = {
+    barrel: "barrel-data",
+    skull: "skull-data",
+    pouch: "smallpouch-data",
+    potion: "potionprop-data",
+  },
+  PROP_TALL = { barrel: 0.5, skull: 0.18, pouch: 0.2, potion: 0.25 },
+  // the barrel's hoops are its 2nd texture: they get uShine (the metal look)
+  BARREL_HOOP_TEX = 1;
+let propLib = null;
+function propAlpha(img) {
+  const c = document.createElement("canvas");
+  c.width = img.width;
+  c.height = img.height;
+  const x = c.getContext("2d");
+  x.drawImage(img, 0, 0);
+  const d = x.getImageData(0, 0, c.width, c.height).data;
+  let mx = 0;
+  for (let i = 3; i < d.length; i += 4) mx = Math.max(mx, d[i]);
+  return mx / 255;
+}
+/* loads the four prop models once: resolves with { barrel: { g: group, lo: lowest y, h: height }, skull: ..., pouch: ..., potion: ... } (in each model's own units) */
+function loadProps() {
+  if (propLib) return propLib;
+  const keys = Object.keys(PROP_FILES);
+  propLib = Promise.all(keys.map((k) => loadBakedModel(PROP_FILES[k]))).then(
+    (rs) => {
+      const lib = {};
+      rs.forEach(({ RD, grp }, i) => {
+        const k = keys[i];
+        let lo = Infinity,
+          hi = -Infinity;
+        RD.parts.forEach((pt, j) => {
+          for (let q = 1; q < pt.p.length; q += 3) {
+            if (pt.p[q] < lo) lo = pt.p[q];
+            if (pt.p[q] > hi) hi = pt.p[q];
+          }
+          const m = grp.children[j].material;
+          if (k === "barrel" && pt.t === BARREL_HOOP_TEX)
+            m.uniforms.uShine.value = 1;
+          // glass: a texture that is see-through all over is drawn as translucent glass (the game's shader drops anything under 50% alpha)
+          const mp = m.uniforms.map.value;
+          if (k === "potion" && mp && mp.image && propAlpha(mp.image) < 0.95) {
+            m.fragmentShader = m.fragmentShader
+              .replace("if(tx.a<0.5) discard;", "if(tx.a<0.05) discard;")
+              .replace(
+                "gl_FragColor=vec4(c,1.0);",
+                "gl_FragColor=vec4(c,tx.a);",
+              );
+            m.transparent = true;
+            m.depthWrite = false;
+            m.needsUpdate = true;
+            grp.children[j].renderOrder = 2;
+          }
+        });
+        lib[k] = { g: grp, lo: lo, h: hi - lo };
+      });
+      return lib;
+    },
+  );
+  return propLib;
+}
+/* stands one prop in a dungeon's group: its lowest point on height y, at (x, z), turned yaw degrees; dScale = the dungeon's scale (knight-heights per file unit) */
+function putProp(parent, lib, kind, x, y, z, yaw, dScale) {
+  const p = lib[kind];
+  if (!p) return;
+  const o = p.g.clone(true),
+    s = PROP_TALL[kind] / (dScale * p.h);
+  o.scale.setScalar(s);
+  o.position.set(x, y - s * p.lo, z);
+  o.rotation.y = THREE.MathUtils.degToRad(yaw);
+  parent.add(o);
+}
+/* MOSSY RUINS: staggered barrels in three corners of the courtyard (checked against the model's walls, the fire and the fight: the knight's circle, the enemy line and the gate are left clear).
+ Looking down the courtyard (gate on the east / +x side): the south-west corner by the broken wall, the south-east corner under the tower, and the north-east corner between the east wall and the big stones. */
+const RUINS_BARRELS = [
+  [-1.2, 0.47, 20],
+  [-0.87, 0.53, 75],
+  [-0.84, 0.2, 140],
+  [0.85, 0.36, 50],
+  [0.55, 0.12, 110],
+  [0.86, -1.5, 160],
+  [0.65, -1.26, 15],
+];
+function decorateRuins(grp, RD, lib, dScale) {
+  const y = RD.c[1];
+  RUINS_BARRELS.forEach((b) =>
+    putProp(grp, lib, "barrel", b[0], y, b[1], b[2], dScale),
+  );
+}
+/* THE TOMB: staggered barrels in the four corners of the hall (each one zig-zags away from the walls, and the doorways stay clear), and skulls, pouches and potions on the 12 stone shelves in the niches behind the colonnade.
+ The hall runs along z in the file: its end walls are at z = -1.69 and +1.61, the side colonnades at x = -0.98 and +0.97, the floor is y = 0. */
+const TOMB_BARRELS = [
+  [-0.86, -1.57, 30],
+  [-0.62, -1.51, 100],
+  [-0.8, -1.31, 160],
+  [0.84, -1.57, 70],
+  [0.62, -1.5, 10],
+  [-0.86, 1.49, 120],
+  [-0.78, 1.26, 55],
+  [0.84, 1.49, 15],
+  [0.6, 1.44, 95],
+  [0.8, 1.25, 145],
+];
+/* the shelves: 3 tiers (the stone tops are at y = 0.422, 0.984 and 1.484), 2 bays on each side of the hall (centred at z = -0.69 and +0.69), the west niches at x = -1.155 and the east ones at x = 1.14.
+ Each item is [kind, dz = along the shelf, dx = in / out of the niche, yaw]; a skull looks toward the hall (yaw 0 faces +x), so the east shelves turn it round by 180. */
+const TOMB_SHELF_Y = [0.422, 0.984, 1.484],
+  TOMB_SHELVES = [
+    // west side (x = -1.155), bay at z = -0.69
+    {
+      x: -1.155,
+      z: -0.69,
+      flip: 0,
+      tier: 0,
+      items: [
+        ["potion", -0.27, 0.03, 0],
+        ["potion", -0.1, -0.03, 40],
+        ["pouch", 0.2, 0, 25],
+      ],
+    },
+    {
+      x: -1.155,
+      z: -0.69,
+      flip: 0,
+      tier: 1,
+      items: [["skull", -0.05, 0.02, 12]],
+    },
+    {
+      x: -1.155,
+      z: -0.69,
+      flip: 0,
+      tier: 2,
+      items: [
+        ["pouch", -0.27, 0, -20],
+        ["skull", 0.12, -0.02, -15],
+        ["potion", 0.3, 0.03, 0],
+      ],
+    },
+    // west side, bay at z = +0.69
+    {
+      x: -1.155,
+      z: 0.69,
+      flip: 0,
+      tier: 0,
+      items: [
+        ["skull", -0.22, 0, -20],
+        ["skull", 0.08, 0.03, 18],
+      ],
+    },
+    {
+      x: -1.155,
+      z: 0.69,
+      flip: 0,
+      tier: 1,
+      items: [
+        ["pouch", -0.28, 0.02, 60],
+        ["potion", 0, -0.03, 0],
+        ["potion", 0.17, 0.03, 70],
+      ],
+    },
+    {
+      x: -1.155,
+      z: 0.69,
+      flip: 0,
+      tier: 2,
+      items: [["potion", 0.2, 0, 0]],
+    },
+    // east side (x = 1.14), bay at z = -0.69
+    {
+      x: 1.14,
+      z: -0.69,
+      flip: 180,
+      tier: 0,
+      items: [
+        ["pouch", -0.12, 0, -40],
+        ["potion", 0.2, 0.03, 0],
+      ],
+    },
+    {
+      x: 1.14,
+      z: -0.69,
+      flip: 180,
+      tier: 1,
+      items: [
+        ["pouch", -0.2, -0.02, 15],
+        ["skull", 0.2, 0.02, 20],
+      ],
+    },
+    {
+      x: 1.14,
+      z: -0.69,
+      flip: 180,
+      tier: 2,
+      items: [
+        ["potion", -0.25, 0.02, 0],
+        ["potion", -0.08, -0.03, 30],
+        ["skull", 0.22, 0, -10],
+      ],
+    },
+    // east side, bay at z = +0.69
+    {
+      x: 1.14,
+      z: 0.69,
+      flip: 180,
+      tier: 0,
+      items: [
+        ["skull", -0.26, 0.02, 15],
+        ["potion", 0.02, 0, 0],
+      ],
+    },
+    {
+      x: 1.14,
+      z: 0.69,
+      flip: 180,
+      tier: 1,
+      items: [["pouch", 0.12, 0, 80]],
+    },
+    {
+      x: 1.14,
+      z: 0.69,
+      flip: 180,
+      tier: 2,
+      items: [
+        ["skull", -0.18, -0.02, -25],
+        ["pouch", 0.16, 0.02, -30],
+      ],
+    },
+  ];
+function decorateTomb(grp, RD, lib, dScale) {
+  const y = RD.c[1];
+  TOMB_BARRELS.forEach((b) =>
+    putProp(grp, lib, "barrel", b[0], y, b[1], b[2], dScale),
+  );
+  TOMB_SHELVES.forEach((sh) =>
+    sh.items.forEach((it) =>
+      putProp(
+        grp,
+        lib,
+        it[0],
+        sh.x + it[2],
+        TOMB_SHELF_Y[sh.tier] + 0.004,
+        sh.z + it[1],
+        sh.flip + it[3],
+        dScale,
+      ),
+    ),
+  );
+  addTombFurniture(grp, RD, lib, dScale);
+}
+/* THE TOMB'S TABLE AND LANTERN.
+ The table (table-data = table.gltf) stands against the west colonnade, in front of the gap between the two bays of shelves, its long side along the wall. `tall` = how tall it stands in knight-heights;
+ x / z = where its middle is on the floor (the tomb file's units), yaw = which way its long side runs (-90 = along z, the length of the hall). Three things stand on it (dz = along the table, dx = across it,
+ yaw), spread out so most of the top stays bare.
+ The lantern is the shop's lantern (lantern-data) hung from the ceiling by the shop sign's chain (chain-data: two links, tiled): the top link is sunk into the ceiling slab (the ceiling's underside is at
+ y = CEIL), the bottom link goes through the lantern's ring. `ringTop` = about how high the top of the ring hangs, `tall` = the lantern's height in knight-heights. It is also a LIGHT, just like the shop's:
+ a warm point light at its bulb that lights SHINY things only (the knight's armour, the barrels' hoops ...) and fades out over `range` knight-heights - see updateTombLamp, which updateShopLamp calls. */
+const TOMB_TABLE = {
+    x: -0.76,
+    z: -0.04,
+    tall: 0.45,
+    yaw: -90,
+    items: [
+      ["potion", -0.2, 0.0, 15],
+      ["skull", 0.02, -0.04, 12],
+      ["pouch", 0.21, 0.03, 35],
+    ],
+  },
+  TOMB_LAMP = {
+    x: TOMB_TABLE.x,
+    z: TOMB_TABLE.z,
+    ringTop: 1.2,
+    ceil: 1.938,
+    tall: 0.3,
+    color: [1.0, 0.78, 0.45],
+    intensity: 1.3,
+    range: 3.4,
+    spec: 14,
+  },
+  // the shop sign's chain links and the lantern's ring, in the models' own units
+  LINK_LEN = 0.0875,
+  LINK_PITCH = 0.046875;
+let tombLamp = null;
+function bakedBounds(RD) {
+  const lo = [Infinity, Infinity, Infinity],
+    hi = [-Infinity, -Infinity, -Infinity];
+  RD.parts.forEach((pt) => {
+    for (let q = 0; q < pt.p.length; q += 3)
+      for (let a = 0; a < 3; a++) {
+        if (pt.p[q + a] < lo[a]) lo[a] = pt.p[q + a];
+        if (pt.p[q + a] > hi[a]) hi[a] = pt.p[q + a];
+      }
+  });
+  return { lo: lo, hi: hi };
+}
+function addTombFurniture(grp, RD, lib, dScale) {
+  Promise.all([
+    loadBakedModel("table-data"),
+    loadBakedModel("lantern-data"),
+    loadBakedModel("chain-data"),
+  ])
+    .then(([T, L, C]) => {
+      const y0 = RD.c[1];
+      // ---- the table: its middle on (x, z), its feet on the floor
+      const tb = bakedBounds(T.RD),
+        ts = TOMB_TABLE.tall / dScale / (tb.hi[1] - tb.lo[1]),
+        th = new THREE.Group();
+      T.grp.position.set(
+        -(tb.lo[0] + tb.hi[0]) / 2,
+        -tb.lo[1],
+        -(tb.lo[2] + tb.hi[2]) / 2,
+      );
+      th.add(T.grp);
+      th.scale.setScalar(ts);
+      th.rotation.y = THREE.MathUtils.degToRad(TOMB_TABLE.yaw);
+      th.position.set(TOMB_TABLE.x, y0, TOMB_TABLE.z);
+      grp.add(th);
+      const topY = y0 + TOMB_TABLE.tall / dScale + 0.004;
+      TOMB_TABLE.items.forEach((it) =>
+        putProp(
+          grp,
+          lib,
+          it[0],
+          TOMB_TABLE.x + it[2],
+          topY,
+          TOMB_TABLE.z + it[1],
+          it[3],
+          dScale,
+        ),
+      );
+      // ---- the lantern, hung by the chain
+      const lb = bakedBounds(L.RD),
+        ls = TOMB_LAMP.tall / dScale / (lb.hi[1] - lb.lo[1]),
+        pitch = LINK_PITCH * ls,
+        yTop = TOMB_LAMP.ceil - 0.02,
+        // an even number of links, so the bottom one hangs across the ring (the ring is turned the other way from it)
+        links =
+          2 *
+          Math.max(
+            1,
+            Math.round(
+              (yTop - (TOMB_LAMP.ringTop - (LINK_LEN / 2) * ls)) / (2 * pitch),
+            ),
+          ),
+        ringY = yTop - links * pitch,
+        ringLocalY = lb.hi[1] - LINK_LEN / 2,
+        lh = new THREE.Group();
+      L.grp.children.forEach((m, j) => {
+        const mat = m.material;
+        if (L.RD.parts[j].emit) {
+          // the bulb glows instead of being lit
+          mat.uniforms.uEmit.value = 1;
+          const bb = bakedBounds({ parts: [L.RD.parts[j]] });
+          tombLamp = {
+            grp: grp,
+            local: new THREE.Vector3(
+              TOMB_LAMP.x + ((bb.lo[0] + bb.hi[0]) / 2) * ls,
+              ringY + ((bb.lo[1] + bb.hi[1]) / 2 - ringLocalY) * ls,
+              TOMB_LAMP.z + ((bb.lo[2] + bb.hi[2]) / 2) * ls,
+            ),
+          };
+        } else mat.uniforms.uShine.value = 0.55;
+        // (the metal of the shop's lantern)
+      });
+      lh.add(L.grp);
+      lh.scale.setScalar(ls);
+      lh.position.set(TOMB_LAMP.x, ringY - ringLocalY * ls, TOMB_LAMP.z);
+      grp.add(lh);
+      C.grp.children.forEach((m) => (m.material.uniforms.uShine.value = 0.55));
+      // two links per tile, the tiles turned a quarter so the lowest link is the one that crosses the ring
+      for (let k = 0; k < links / 2; k++) {
+        const ch = k === 0 ? C.grp : C.grp.clone(true);
+        ch.scale.setScalar(ls);
+        ch.rotation.y = Math.PI / 2;
+        ch.position.set(TOMB_LAMP.x, yTop - 2 * k * pitch, TOMB_LAMP.z);
+        grp.add(ch);
+      }
+    })
+    .catch((e) => console.error("tomb furniture failed", e));
+}
+/* the tomb lantern's light: called every frame by updateShopLamp whenever the shop is not on screen (they share the one lamp slot of the shaders: uLampPos / uLampP / uLampCol).
+ It is on while you are in the tomb. A slow, small flicker keeps it from looking like a bare bulb. */
+function updateTombLamp() {
+  if (
+    !tombLamp ||
+    !dungeon ||
+    dg !== DUNGEONS.tomb ||
+    !dg.group ||
+    !dg.group.visible
+  )
+    return;
+  tombLamp.grp.updateWorldMatrix(true, false);
+  U.uLampPos.value.copy(tombLamp.local);
+  tombLamp.grp.localToWorld(U.uLampPos.value);
+  U.uLampCol.value.set(
+    TOMB_LAMP.color[0],
+    TOMB_LAMP.color[1],
+    TOMB_LAMP.color[2],
+  );
+  const t = performance.now() / 1000,
+    fl = 1 + 0.05 * Math.sin(t * 7.1) * Math.sin(t * 2.3 + 1) + 0.025 * Math.sin(t * 13.7);
+  U.uLampP.value.set(
+    TOMB_LAMP.range * playerH,
+    TOMB_LAMP.intensity * fl,
+    TOMB_LAMP.spec,
+    0,
+  );
+}
+// adds a dungeon's props once the props and its model have both loaded (the map's copy of the ruins was made before this, so the map is unchanged)
+function decorateDungeon(fn, grp, RD, dScale) {
+  loadProps()
+    .then((lib) => fn(grp, RD, lib, dScale))
+    .catch((e) => console.error("dungeon props failed", e));
+}
 function initRuins(H, groundY, ctr) {
   loadBakedModel("ruins-data")
     .then(({ RD, grp }) => {
@@ -360,6 +777,7 @@ function initRuins(H, groundY, ctr) {
       );
       // added after the line above, so the flame is never something the camera collides with
       initFire(grp);
+      decorateDungeon(decorateRuins, grp, RD, d.scale);
       placeDungeon(d, RD, grp, H, groundY, ctr);
     })
     .catch((e) => console.error("ruins load failed", e));
@@ -383,7 +801,10 @@ function initTomb(H, groundY, ctr) {
     )
     .catch((e) => console.error("tomb entrance load failed", e));
   loadBakedModel("tomb-data")
-    .then(({ RD, grp }) => placeDungeon(d, RD, grp, H, groundY, ctr))
+    .then(({ RD, grp }) => {
+      placeDungeon(d, RD, grp, H, groundY, ctr);
+      decorateDungeon(decorateTomb, grp, RD, d.scale);
+    })
     .catch((e) => console.error("tomb load failed", e));
 }
 function fadeThen(fn) {

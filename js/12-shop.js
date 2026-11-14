@@ -474,6 +474,8 @@ function updateShopLamp() {
   if (!shopBulb || !shopGroup || !shopGroup.visible) {
     P.y = 0;
     P2.y = 0;
+    // not at the stall: the tomb's lantern may be using the lamp instead (09-dungeon-battle.js)
+    updateTombLamp();
     return;
   }
   shopGroup.updateMatrixWorld(true);
