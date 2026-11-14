@@ -114,6 +114,30 @@
     "size": 76614
   },
   {
+    "id": "barrel-data",
+    "type": "application/json",
+    "url": "barrel-data.json",
+    "size": 92433
+  },
+  {
+    "id": "skull-data",
+    "type": "application/json",
+    "url": "skull-data.json",
+    "size": 16604
+  },
+  {
+    "id": "smallpouch-data",
+    "type": "application/json",
+    "url": "smallpouch-data.json",
+    "size": 33379
+  },
+  {
+    "id": "potionprop-data",
+    "type": "application/json",
+    "url": "potionprop-data.json",
+    "size": 30751
+  },
+  {
     "id": "pointer-data",
     "type": "text/plain",
     "url": "pointer-data.txt",
