@@ -241,25 +241,54 @@ const sstep = (a, b, x) => {
   return x * x * (3 - 2 * x);
 };
 function setTimeMode(m) {
-  todHour = m === "auto" ? null : m;
-// 'auto' = the local clock, or an hour 0..23
+  // 'random' (the default) = a random starting time that then rotates, 'auto' = the local clock, or an hour 0..23
+  todRandom = m === "random";
+  todHour = m === "auto" || m === "random" ? null : m;
+  if (todRandom) todPick();
+}
+/* RANDOM: every launch (and every time RANDOM is picked in the menu) starts at a random moment from one of three kinds of time,
+   chosen with equal odds: pure day, pure night, or dawn / dusk. From there the clock runs by itself, one full day / night cycle every TOD_CYCLE seconds. */
+const TOD_CYCLE = 20 * 60;
+let todRandom = true,
+  todRStart = 12,
+  todRT0 = performance.now();
+function todPick() {
+  const kind = Math.floor(Math.random() * 3),
+    o = {},
+    ok = [];
+  for (let h = 0; h < 24; h += 0.25) {
+    const e = clockSun(o, h).e;
+    if (kind === 0 ? e >= 30 : kind === 1 ? e <= -30 : e > -9 && e < 5) ok.push(h);
+  }
+  todRStart = ok.length ? ok[Math.floor(Math.random() * ok.length)] : 12;
+  todRT0 = performance.now();
+}
+function randomHour() {
+  return (todRStart + (((performance.now() - todRT0) / 1000) * 24) / TOD_CYCLE) % 24;
+}
+function curHour() {
+  // the hour the sky is showing right now (null never happens: AUTO reads the clock)
+  return todRandom ? randomHour() : todHour === null ? clockHour() : todHour;
 }
 function clockHour() {
   const t = new Date();
   return t.getHours() + t.getMinutes() / 60 + t.getSeconds() / 3600;
 }
 function todSlide(d) {
-  // OPTIONS > WORLD > TIME slider: AUTO, then 12 AM .. 11 PM; LEFT / RIGHT step it, a click flips AUTO <-> the current hour
-  const cur = todHour === null ? -1 : todHour;
+  // OPTIONS > WORLD > TIME slider: RANDOM, AUTO, then 12 AM .. 11 PM (a ring); LEFT / RIGHT step it,
+  // a click goes RANDOM > AUTO > the hour showing now > RANDOM
+  const cur = todRandom ? -2 : todHour === null ? -1 : todHour;
   let n;
-  if (!d) n = cur < 0 ? Math.floor(clockHour()) : -1;
+  if (!d) n = cur === -2 ? -1 : cur === -1 ? Math.floor(clockHour()) : -2;
   else {
-    n = cur < 0 ? Math.floor(clockHour()) : cur + d;
-    if (n > 23 || n < 0) n = -1;
+    n = cur + d;
+    if (n > 23) n = -2;
+    if (n < -2) n = 23;
   }
-  todHour = n < 0 ? null : n;
+  setTimeMode(n === -2 ? "random" : n === -1 ? "auto" : n);
 }
 function todText() {
+  if (todRandom) return "RANDOM";
   if (todHour === null) return "AUTO";
   const n = Math.floor(todHour / 2),
     h = todHour % 12 || 12;
@@ -294,7 +323,7 @@ function todTarget() {
     o.e = 48;
     o.azi = -20;
     o.dp = 0;
-  } else clockSun(o, todHour);
+  } else clockSun(o, todRandom ? randomHour() : todHour);
 }
 function applyLook() {
   const e = todL.e,

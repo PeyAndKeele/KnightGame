@@ -599,8 +599,9 @@ new THREE.GLTFLoader().parse(
           : names[0],
     );
     initMainMenu();
-    // the default look follows the local clock (set 'night' here for the old always-night start)
-    setTimeMode("auto");
+    // the default time of day is RANDOM: a random start (pure day, pure night or dawn / dusk) that then rotates, 20 minutes a full cycle
+    // (setTimeMode("auto") follows the local clock instead)
+    setTimeMode("random");
     if (actions[START_CLIP]) {
       startCam();
       syncRockMeshes();
