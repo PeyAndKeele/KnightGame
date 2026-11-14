@@ -1954,25 +1954,11 @@
             }, 260);
           }
         }
-        const FL = [
-          "POLISHING THE KNIGHT",
-          "FEEDING THE SLIMES",
-          "WAKING THE GOLEM. HE IS GRUMPY",
-          "COUNTING ROCKS. ALL GOOD ROCKS",
-          "SHARPENING THE SWORD",
-          "TELLING THE MORNINGSTAR TO BEHAVE",
-          "TUNING A LOT OF SONGS",
-          "TEACHING THE TREELINGS TO STAND STILL",
-          "DUSTING OFF THE MOSSY RUINS",
-          "TELLING THE TOMB IT IS NOT HAUNTED. IT IS FINE",
-          "STRAIGHTENING A BENT NAIL. MOSTLY",
-          "SHAKING THE SPORES OFF THE SPORELINGS",
-          "LOOKING FOR THE KNIGHTLY SWORD",
-          "BREWING A POTION. DO NOT DRINK",
-          "PRACTICING THE FLAUNT",
-        ];
+        const FL = ["Schloading..."];
         let fi = Math.floor(Math.random() * FL.length);
         function flavor() {
+          // one line only: show it once instead of fading it out and in again
+          if (FL.length < 2 && lfl.textContent.trim()) return;
           lfl.style.opacity = 0;
           setTimeout(() => {
             lfl.textContent = FL[fi++ % FL.length];
