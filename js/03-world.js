@@ -258,7 +258,7 @@ function todPick() {
     ok = [];
   for (let h = 0; h < 24; h += 0.25) {
     const e = clockSun(o, h).e;
-    if (kind === 0 ? e >= 30 : kind === 1 ? e <= -30 : e > -9 && e < 5) ok.push(h);
+    if (kind === 0 ? e >= 30 : kind === 1 ? e <= -30 : e > -9 && e < 0) ok.push(h);
   }
   todRStart = ok.length ? ok[Math.floor(Math.random() * ok.length)] : 12;
   todRT0 = performance.now();
@@ -374,10 +374,11 @@ function applyLook() {
     nightFogDay[0] + (playerH * NIGHT_FOG[0] - nightFogDay[0]) * d;
   U.uFogFar.value =
     nightFogDay[1] + (playerH * NIGHT_FOG[1] - nightFogDay[1]) * d;
-  // stars and moon fade in (a few show at dusk)
-  const sa = sstep(0.18, 0.95, d);
+  // stars and moon fade in as soon as the sun touches the horizon and are full strength by the time it is ~2 degrees under it,
+  // so a sky that is not daylight is never empty
+  const sa = sstep(0.0, 0.5, d);
   if (nightGroup) {
-    nightGroup.visible = d > 0.12;
+    nightGroup.visible = d > 0.02;
     nightStars.material.opacity = sa;
     nightMoon.children[0].material.opacity = 0.16 * sa;
     nightMoon.children[1].material.opacity = sa;
