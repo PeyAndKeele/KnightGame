@@ -1480,12 +1480,13 @@
 @keyframes lscr{to{transform:translate3d(calc(var(--tw)*-1),0,0)}}
 @keyframes lup{to{transform:translate3d(0,-50%,0)}}
 @keyframes ldn{from{transform:translate3d(0,-50%,0)}to{transform:none}}
+@keyframes tbump{0%{transform:translateY(-70vh) rotate(-3deg) skewX(-10deg) scale(1.25);opacity:0}50%{transform:translateY(0) rotate(-3deg) skewX(-10deg) scale(1.1,.86);opacity:1}68%{transform:translateY(-16px) rotate(-3deg) skewX(-10deg) scale(.96,1.05)}84%{transform:translateY(0) rotate(-3deg) skewX(-10deg) scale(1.03,.97)}100%{transform:translateY(0) rotate(-3deg) skewX(-10deg) scale(1);opacity:1}}
 @keyframes ltw{from{opacity:.25}to{opacity:1}}
 @keyframes lrun{to{transform:translate3d(calc(var(--sw)*-1),0,0)}}
 @keyframes lss{0%,90%{opacity:0;transform:translate3d(0,0,0) rotate(-24deg)}92%{opacity:1}100%{opacity:0;transform:translate3d(-28vw,12vh,0) rotate(-24deg)}}
 #loading .hd{position:absolute;left:0;right:0;width:100%;top:calc(4vh + env(safe-area-inset-top,0px));text-align:center;text-shadow:2px 2px 0 #000;z-index:3;--a1:#7fe06a;--a2:#2f8a3a;--a3:#134a24;--ag:rgba(127,224,106,.45)}
 #loading .sb{display:block;width:100%;text-align:center;font-size:22px;letter-spacing:.3em;color:#ffe27a;margin-bottom:10px}
-#loading .tt{display:block;width:100%;margin:0 auto;text-align:center;white-space:nowrap;font-size:clamp(28px,7vw,92px);line-height:.9;letter-spacing:.06em;transition:opacity .25s;text-shadow:0 4px 0 var(--a1),0 8px 0 var(--a2),0 12px 0 var(--a3),6px 14px 0 #000,0 0 30px var(--ag)}
+#loading .tt{display:block;width:100%;margin:0 auto;text-align:center;white-space:nowrap;font-size:clamp(48px,14vw,130px);line-height:.9;letter-spacing:.06em;transition:opacity .25s;transform:rotate(-3deg) skewX(-10deg);animation:tbump .8s cubic-bezier(.3,.7,.4,1) both;text-shadow:0 4px 0 var(--a1),0 8px 0 var(--a2),0 12px 0 var(--a3),6px 14px 0 #000,0 0 30px var(--ag)}
 #loading .tt.sw{opacity:0}
 #loading .pn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(3vh + env(safe-area-inset-bottom,0px));width:min(560px,90vw);padding:12px 16px 10px;z-index:3;text-shadow:2px 2px 0 #000;
   background:linear-gradient(180deg,#5568d4,#1a2468 55%,#0a0f38);border:2px solid #d4dbf7;border-radius:6px;box-shadow:0 0 0 2px #000,inset 0 0 0 1px #3a4aa8,4px 4px 0 2px rgba(0,0,0,.45)}
@@ -1496,11 +1497,11 @@
 #loading .st{display:flex;justify-content:space-between;gap:12px;margin-top:7px;font-size:20px;letter-spacing:.08em;color:#97a8ea}
 #loading.day::after{display:none}
 #loading .sun{position:absolute;image-rendering:pixelated}
-@media (prefers-reduced-motion:reduce){#loading .lay,#loading .part,#loading .spr,#loading .ss,#loading .stars{animation:none}}`;
+@media (prefers-reduced-motion:reduce){#loading .lay,#loading .part,#loading .spr,#loading .ss,#loading .stars,#loading .tt{animation:none}}`;
         document.head.appendChild(st);
         ov.innerHTML =
           '<div id="lsc"></div>' +
-          '<div class="hd" id="lhd"><div class="sb">LOADING</div><div class="tt" id="ltt">THE GREENFIELD</div></div>' +
+          '<div class="hd" id="lhd"><div class="sb">LOADING</div><div class="tt" id="ltt">KNIGHT</div></div>' +
           '<div class="pn"><div class="fl" id="lfl">&nbsp;</div><div class="bar"><div class="fill" id="lbar"></div><div class="tk"></div></div>' +
           '<div class="st"><span id="lmsg">READING FILES</span><span id="lpc">0%</span></div></div>';
 
