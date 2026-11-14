@@ -1441,7 +1441,7 @@
           if (!box.parentNode) document.body.appendChild(box);
         }
         /* loading screen: covers the page until every data file is in AND the game has built the knight / golem, however long that takes.
-     A night run through the game's three areas (The Greenfield, The Veiled Frost, Ignis Mourne) as the bar fills.
+     Right now it is only The Greenfield (the artist's backdrop); the other areas stay in WORLDS for later (see SHOW).
      Everything that moves is a CSS transform / opacity animation, so it keeps going while the main thread is busy building models.
      The scene is built inside try/catch: if anything in it fails, the plain bar and status text still work. */
         const ov = document.createElement("div");
@@ -1451,6 +1451,12 @@
           TWc = TW * U,
           NT = Math.ceil(innerWidth / TWc) + 1; // U = css px per art pixel
         const E = Math.ceil((Math.round(innerHeight * 0.03) + 130) / U); // the progress panel is ~120px tall: the world (and the knight) stand E art pixels higher so it never covers him
+        /* the artist's backdrop (mainscreenwip) is drawn at Ua css px per art pixel. PT = height of the progress panel,
+           FY = where the knight's feet stand (just above the panel), HZ = where the grass starts (the horizon), measured up from the bottom */
+        const Ua = Math.max(2, Math.floor(innerHeight / 90)),
+          PT = Math.round(innerHeight * 0.03) + 130,
+          FY = PT + 16,
+          HZ = FY + 12 * Ua;
         ov.style.setProperty("--u", U + "px");
         const st = document.createElement("style");
         st.textContent = `
@@ -1488,6 +1494,8 @@
 #loading .fill{position:absolute;inset:2px;transform-origin:left;transform:scaleX(0);will-change:transform;background:linear-gradient(180deg,#fff2b0,#ffe27a 45%,#d9a52e)}
 #loading .tk{position:absolute;inset:2px;background:repeating-linear-gradient(90deg,transparent 0 11px,rgba(10,15,56,.85) 11px 13px)}
 #loading .st{display:flex;justify-content:space-between;gap:12px;margin-top:7px;font-size:20px;letter-spacing:.08em;color:#97a8ea}
+#loading.day::after{display:none}
+#loading .sun{position:absolute;image-rendering:pixelated}
 @media (prefers-reduced-motion:reduce){#loading .lay,#loading .part,#loading .spr,#loading .ss,#loading .stars{animation:none}}`;
         document.head.appendChild(st);
         ov.innerHTML =
@@ -1500,6 +1508,7 @@
         const WORLDS = [
           {
             n: "THE GREENFIELD",
+            art: true, // drawn from ART (the hand-made backdrop) instead of procedurally
             sky: ["#0a0f33", "#1d2a5c", "#2c4a6a"],
             far: "#1b2a58",
             edge: "#3a4f8a",
@@ -1562,6 +1571,9 @@
             a: ["#ff8a4a", "#c8381a", "#681408", "rgba(255,120,60,.5)"],
           },
         ];
+        /* biomes shown on the loading screen. Only The Greenfield for now: the other WORLDS entries (and the
+           procedural world() builder that draws them) are kept, so adding an index here brings them back. */
+        const SHOW = [0];
         const worlds = [];
         let kh = null,
           P = null,
@@ -1650,7 +1662,42 @@
             g.fillRect(x + 9, gy - 3, 1, 3);
           }
         }
+        /* ---- the artist's Greenfield backdrop, split into layers (lossless: they re-composite to the original image).
+           Mountains and ground are mirrored to 2x width so they tile with no seam; trees are one repeat each; the sun is separate. ---- */
+        const ART = {"sky":"#009de3","hor":48,"srcW":120,"mtn":{"u":"data:image/png;base64,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","w":240,"h":37,"top":11},"ground":{"u":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAABXCAYAAAA6TMjEAAABZklEQVR42u3bSwrCMBRA0aopijPX4CZcnjt2JkrxswGLYtOQl54zFSV9yS1VcHU6H1/dRLtDP/ra7TJ05Dc282/z/vd91NlGyrFIm1/evzO3VzH2qWjA1HFn//WwTHkvdRHwAu/sYm3H2ghAwICAAQGDgAEBA7NJm+38DT/uzyyfU2Ktua/v1zXnmlEpOa4r4n7Wdl5TTZsdVY7ra3VGEa8r0po9QoPvwICAAQGDgAEBAwIGPmji/8D9ftPk5gzXh/kuYL7hA271gJhL2/Ot4QaQHDgoe95zhp9EB3GfrPyIBYEJGAQMCBgQMAgYEDAgYEDAIGBAwICAQcCAgAEBAwIGAQMCBgQMCBgEDAgYEDAIGBAwIGBAwCBgQMCAgAEBg4ABAQMCBgEDAgYEDAgYBAwIGBAwCBgQMCBgQMAgYEDAgIABAYOAAQEDAgYBAwIGBAwIGAQMCBgQMCBgEDAgYEDAIGAgkDcOZkGIMgUfcAAAAABJRU5ErkJggg==","w":240,"h":87},"treesBack":{"u":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAAOCAYAAADkH9gOAAAA9klEQVR42u1YuQ3DMBC70zyewHWGyAQeKsg8KVJnglTZQqkMpIml+3iyYQEuKR5J0QJElLymZa500DWCtuI1jAaPMiDDaDTnP77iOYx0n9ftwSgztBxanFabd1GKh9Erbt0nGieZFcGRzbuVH1uH8QpZgpVyeZhtDaoHH1EUthidgZOYgeDw5vXmZKsJGUFrG5wVVg82yr/dN3gLv4dgo/0cqsFRJ32EsKKuk2aDL/drJSL6PN8kMVoTjhUnEWblQB3YaN6QBkvDRt3Z6MB6tUUVZVrmylqjrUF5P1y0fn/IFqJ0ZfofJv73y3wCPArf0GGfLrTXF1f2Z/F4tVYbAAAAAElFTkSuQmCC","w":120,"h":14,"top":39,"end":53},"treesFront":{"u":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAAOCAYAAADkH9gOAAAA30lEQVR42u2YsRXDIAxEDYPQMommcJHZXHgKT+I2iygVjQvHoJNQXqQFTqev4wHLEiUq2lb2rJs9Gy9UOSDL9HLAlfs8Xnuy1G16kMUaHTRtK0sbKFTZO2iET03NrAEZsdlN832c6umQLLH3BCetIf8SZITPHq+FKo966tVLaPMjhu8S5RWuxCdicZ/qJ0+bPQu0pU8pXLUEP20KARZxlEWCvwCWpgcJ2vKSpQ3aZYJ7mvkHsNfb62iCUaDvelADIB2CNWjtQaNPxSkzbQ/wGY//mR8dVu9uqe5041H4+gC4LwMlFgytKAAAAABJRU5ErkJggg==","w":120,"h":14,"top":41,"end":55},"sun":{"u":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAkAAAAJCAYAAADgkQYQAAAANElEQVR42mNkQAL/T/L9h7EZzT8xwtnokuiA0fwTIxMDEYARnykwQJRJxClC9gVlDicmnADuJhE6AK/t3QAAAABJRU5ErkJggg==","w":9,"h":9,"top":8,"cx":0.8625}};
+        function artWorld(p) {
+          const A = ART,
+            L = document.createElement("div");
+          L.className = "L";
+          L.style.background = A.sky;
+          const band = (img, bottom, h, speed) => {
+            // one parallax layer: the image repeated across, slid left by exactly one tile (speed is css px per second)
+            const w = img.w * Ua,
+              n = Math.ceil(innerWidth / w) + 1,
+              d = document.createElement("div");
+            d.className = "lay";
+            d.style.cssText =
+              "bottom:" + bottom + "px;height:" + h + "px;width:" + w * n +
+              "px;--tw:" + w + "px;animation-duration:" + w / speed +
+              's;background:url("' + img.u + '") 0 0/' + w + "px " + img.h * Ua + "px repeat-x";
+            return d;
+          };
+          const su = document.createElement("i");
+          su.className = "sun";
+          su.style.cssText =
+            "left:" + Math.round(innerWidth * A.sun.cx - (A.sun.w * Ua) / 2) +
+            "px;bottom:" + (HZ + (A.hor - A.sun.top - A.sun.h) * Ua) +
+            "px;width:" + A.sun.w * Ua + "px;height:" + A.sun.h * Ua +
+            'px;background:url("' + A.sun.u + '") 0 0/100% 100%';
+          L.appendChild(su);
+          L.appendChild(band(A.mtn, HZ, A.mtn.h * Ua, 12)); // far: the mountains barely drift
+          L.appendChild(band(A.ground, 0, HZ, 260)); // the grass, fastest
+          L.appendChild(band(A.treesBack, HZ - (A.treesBack.end - A.hor) * Ua, A.treesBack.h * Ua, 55)); // mid-green trees, further off
+          L.appendChild(band(A.treesFront, HZ - (A.treesFront.end - A.hor) * Ua, A.treesFront.h * Ua, 130)); // light + dark trees, nearer
+          return L;
+        }
         function world(p) {
+          if (p.art) return artWorld(p);
           P = p;
           const L = document.createElement("div");
           L.className = "L";
@@ -1877,21 +1924,28 @@
         }
         try {
           const sc = ov.querySelector("#lsc");
-          WORLDS.forEach((p, i) => {
-            const w = world(p);
+          SHOW.forEach((i) => {
+            const w = world(WORLDS[i]);
             worlds.push(w);
             sc.appendChild(w);
           });
           worlds[0].classList.add("on");
-          const ss = document.createElement("i");
-          ss.className = "ss";
-          sc.appendChild(ss);
+          if (SHOW.every((i) => WORLDS[i].art)) {
+            // a daytime scene: no night backdrop behind it, no vignette / scanlines over the art, no shooting star
+            ov.classList.add("day");
+            ov.style.background = ART.sky;
+            worlds[0].style.transition = "none";
+          } else {
+            const ss = document.createElement("i");
+            ss.className = "ss";
+            sc.appendChild(ss);
+          }
           const sheet = cvs(256, 32),
             sg = sheet.getContext("2d");
           for (let i = 0; i < 8; i++) knightFrame(sg, i);
           kh = document.createElement("div");
           kh.className = "kh";
-          kh.style.bottom = (22 + E) * U + "px";
+          kh.style.bottom = FY + "px";
           kh.innerHTML =
             '<i class="sh"></i><div class="kn"><div class="spr" style="width:' +
             256 * U +
@@ -1937,7 +1991,7 @@
         function tick() {
           const p = cur();
           lpc.textContent = Math.floor(p * 100) + "%";
-          const r = p < 0.34 ? 0 : p < 0.67 ? 1 : 2;
+          const r = Math.min(SHOW.length - 1, Math.floor(p * SHOW.length)); // with one biome shown this is always 0
           if (r !== rg && worlds.length) {
             worlds[rg].classList.remove("on");
             worlds[r].classList.add("on");
@@ -1945,7 +1999,7 @@
             ttl.classList.add("sw");
             clearTimeout(swT);
             swT = setTimeout(() => {
-              const w = WORLDS[r];
+              const w = WORLDS[SHOW[r]];
               ttl.textContent = w.n;
               ["--a1", "--a2", "--a3", "--ag"].forEach((k, j) =>
                 hd.style.setProperty(k, w.a[j]),
