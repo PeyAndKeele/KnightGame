@@ -345,9 +345,8 @@ function applyLook() {
     .multiplyScalar(0.9)
     .lerp(_tdP, Math.min(1, d * 1.15));
   _tdH.lerp(_tdW, w * 0.85);
-  if (forest) _tdT.setHex(dayHor).lerp(_tdC.setHex(0x2c5cc0), 0.6);
-  // zenith
-  else _tdT.setHex(dayHor).multiplyScalar(0.55);
+  // zenith: a deeper daylight blue, same recipe for every world
+  _tdT.setHex(dayHor).lerp(_tdC.setHex(0x2c5cc0), 0.6);
   _tdT.lerp(_tdC.setHex(TOD.nightTop), d);
   _tdW
     .setHex(TOD.duskTop)
