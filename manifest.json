@@ -102,6 +102,18 @@
     "size": 505435
   },
   {
+    "id": "tomb-data",
+    "type": "application/json",
+    "url": "tomb-data.json",
+    "size": 206969
+  },
+  {
+    "id": "tombentry-data",
+    "type": "application/json",
+    "url": "tombentry-data.json",
+    "size": 76614
+  },
+  {
     "id": "pointer-data",
     "type": "text/plain",
     "url": "pointer-data.txt",

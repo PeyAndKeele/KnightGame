@@ -34,6 +34,7 @@ in `index.html`), and the VT323 font from Google Fonts, so you need to be online
 | `manifest.json`             | List of the data files: `{ id, type, url, size }`. `size` weights the loading bar. |
 | `*-data.json`, `*-data.txt` | Models, animations, songs and sound effects as text (about 50 MB in total).        |
 | `scripts/codemap.js`        | Prints a table of contents for the game scripts (`npm run map`).                   |
+| `scripts/bake-gltf.py`      | Bakes a Blockbench glTF into the `*-data.json` model format (see below).           |
 
 ### Loading
 
@@ -97,3 +98,16 @@ numbers.
 npm install
 npm run format
 ```
+
+## Dungeons
+
+Each dungeon is one entry in `DUNGEONS` (top of `js/09-dungeon-battle.js`) and all of them run through the same
+`enterDungeon(id)` code. The fields are documented above the table.
+
+### Adding a dungeon
+
+1. Bake its model(s): `python3 scripts/bake-gltf.py model.gltf name-data.json --center X Y Z`
+   (`--center` is the point of the model that lands under the knight's circle; `--skip NAME` drops helper boxes).
+2. Add the file(s) to `manifest.json`.
+3. Add an entry to `DUNGEONS`, an `initX()` that loads it (copy `initTomb`), and call it next to `initTomb` in `js/02-knight.js`.
+4. Point a map spot in `js/11-map.js` at it with `run: () => enterDungeon("id")`.
