@@ -611,6 +611,7 @@ function decorateTomb(grp, RD, lib, dScale) {
     ),
   );
   addTombFurniture(grp, RD, lib, dScale);
+  addTombCages(grp, RD, dScale);
 }
 /* THE TOMB'S TABLE AND LANTERNS.
  The table (table-data = table.gltf) stands against the west colonnade, in front of the gap between the two bays of shelves, its long side along the wall. `tall` = how tall it stands in knight-heights;
@@ -780,17 +781,66 @@ function addTombFurniture(grp, RD, lib, dScale) {
     })
     .catch((e) => console.error("tomb furniture failed", e));
 }
+/* THE TOMB'S HANGING CAGES (cage-data = the prisoner cage, cagechain-data = its chain, four links, which is stacked up as many times as the cage needs to reach the ceiling).
+ `tall` = how tall a cage is in knight-heights (the knight is 1: inside, the cage is about 1.4 knight-heights tall and 1 wide, so he fits with room to spare). Each cage: x / z = where it hangs, k = how many chain
+ segments hold it, which sets how high it hangs (more segments = lower: k = 2 hangs about 1.2 knight-heights off the floor, 3 about 0.9, 4 about 0.5), phase = where in its sway it starts.
+ They hang from a pivot in the ceiling and sway a very little (`sway` = the largest angle, in radians, about 1 degree), each at its own slow rhythm - see updateTombCages. */
+const TOMB_CAGES = [
+    { x: 0.62, z: 0.5, k: 3, phase: 0 },
+    { x: -0.62, z: 0.98, k: 2, phase: 2.1 },
+    { x: 0.64, z: -0.55, k: 4, phase: 4.2 },
+  ],
+  TOMB_CAGE = { tall: 1.5, sway: 0.018, ceil: 1.938 },
+  // the chain segment's repeat length, in the cage model's units: its 4 links span 0.3125 between first and last, plus one link's pitch (0.104) to interlock with the next segment
+  CAGE_CHAIN_PERIOD = 0.4167;
+let tombCages = [];
+function addTombCages(grp, RD, dScale) {
+  Promise.all([loadBakedModel("cage-data"), loadBakedModel("cagechain-data")])
+    .then(([Cg, Ch]) => {
+      const cb = bakedBounds(Cg.RD),
+        chb = bakedBounds(Ch.RD),
+        sf = TOMB_CAGE.tall / dScale / (cb.hi[1] - cb.lo[1]),
+        top = TOMB_CAGE.ceil + 0.02; // the top link is sunk a little into the ceiling slab
+      // iron: the same metal look as the shop's chains
+      Cg.grp.children.forEach((m) => (m.material.uniforms.uShine.value = 0.55));
+      Ch.grp.children.forEach((m) => (m.material.uniforms.uShine.value = 0.55));
+      tombCages = [];
+      TOMB_CAGES.forEach((c, n) => {
+        const piv = new THREE.Group(),
+          asm = new THREE.Group();
+        asm.add(n === 0 ? Cg.grp : Cg.grp.clone(true));
+        for (let i = 0; i < c.k; i++) {
+          const seg = n === 0 && i === 0 ? Ch.grp : Ch.grp.clone(true);
+          seg.position.y = i * CAGE_CHAIN_PERIOD;
+          asm.add(seg);
+        }
+        asm.scale.setScalar(sf);
+        // hang it so the top of its highest link is at the ceiling
+        asm.position.y = -(chb.hi[1] + (c.k - 1) * CAGE_CHAIN_PERIOD) * sf;
+        piv.add(asm);
+        piv.position.set(c.x, top, c.z);
+        grp.add(piv);
+        tombCages.push({ piv: piv, phase: c.phase, n: n });
+      });
+    })
+    .catch((e) => console.error("tomb cages failed", e));
+}
+/* the cages' sway: a slow, tiny swing about the ceiling, different for each one (called every frame from updateTombLamp, while you are in the tomb) */
+function updateTombCages() {
+  const t = performance.now() / 1000,
+    A = TOMB_CAGE.sway;
+  tombCages.forEach((c) => {
+    c.piv.rotation.x = A * Math.sin(t * (0.55 + 0.07 * c.n) + c.phase);
+    c.piv.rotation.z = A * Math.sin(t * (0.43 + 0.05 * c.n) + c.phase * 1.3);
+    c.piv.rotation.y = 0.3 * A * Math.sin(t * (0.31 + 0.04 * c.n) + c.phase);
+  });
+}
 /* the tomb lanterns' light: called every frame by updateShopLamp whenever the shop is not on screen (they share the two lamp slots of the shaders: uLampPos / uLampP / uLampCol and the uLamp2... ones).
  They are on while you are in the tomb. A slow, small flicker keeps them from looking like bare bulbs. */
 function updateTombLamp() {
-  if (
-    !tombLamps.length ||
-    !dungeon ||
-    dg !== DUNGEONS.tomb ||
-    !dg.group ||
-    !dg.group.visible
-  )
-    return;
+  if (!dungeon || dg !== DUNGEONS.tomb || !dg.group || !dg.group.visible) return;
+  updateTombCages();
+  if (!tombLamps.length) return;
   const t = performance.now() / 1000;
   tombLamps.forEach((L) => {
     L.grp.updateWorldMatrix(true, false);

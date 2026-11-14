@@ -126,6 +126,18 @@
     "size": 46388
   },
   {
+    "id": "cagechain-data",
+    "type": "application/json",
+    "url": "cagechain-data.json",
+    "size": 93404
+  },
+  {
+    "id": "cage-data",
+    "type": "application/json",
+    "url": "cage-data.json",
+    "size": 172118
+  },
+  {
     "id": "tombentry-data",
     "type": "application/json",
     "url": "tombentry-data.json",
