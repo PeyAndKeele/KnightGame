@@ -1099,6 +1099,10 @@ function axePose(nm) {
 const POTION_OUT_AT = 0.78,
   // seconds into Drinking_Potion when the bottle appears, and how long it takes to grow to full size
   POTION_POP = 0.12;
+/* SHINE: a glint sweeps across the bottle's glass every POTION_GLINT_EVERY seconds (a specular highlight on the curved glass, so it slides over the surface as the bottle moves). POTION_GLINT_STRENGTH = how bright (0..1). */
+const POTION_GLINT_EVERY = 1.8,
+  POTION_GLINT_STRENGTH = 0.9;
+let potionGlass = [];
 const POTION_SCALE = 0.8,
   // size (1 = as modeled) and the point of the bottle that sits in his fist (lower body)
   POTION_PIVOT_Y = 1.34;
@@ -1162,6 +1166,25 @@ function initPotion(parent) {
               m.transparent = true;
               m.depthWrite = false;
               m.userData.glass = true;
+              // the glint: a highlight that slides across the glass (view-space normal against a light that swings from one side to the other), in 4 steps like the rest of the look
+              m.uniforms.uGlint = { value: 0 };
+              m.fragmentShader = m.fragmentShader
+                .replace(
+                  "void main(){",
+                  "uniform float uGlint;\nvoid main(){",
+                )
+                .replace(
+                  "gl_FragColor=vec4(c,tx.a);",
+                  `vec3 gN=normalize(vVN); if(!gl_FrontFacing) gN=-gN;
+  vec3 gV=normalize(-vVP);
+  float gp=fract(uGlint/${POTION_GLINT_EVERY.toFixed(2)});
+  vec3 gL=normalize(vec3(mix(-1.3,1.3,smoothstep(0.0,0.55,gp)),0.6,0.8));
+  float gs=pow(max(dot(gN,normalize(gL+gV)),0.0),24.0)*(1.0-smoothstep(0.55,0.7,gp));
+  float gr=pow(1.0-max(dot(gN,gV),0.0),3.0)*0.25;
+  float gg=floor(clamp(gs*1.3+gr,0.0,1.0)*4.0+0.5)/4.0*${POTION_GLINT_STRENGTH.toFixed(2)};
+  gl_FragColor=vec4(mix(c,vec3(1.0),gg),max(tx.a,gg));`,
+                );
+              potionGlass.push(m);
             }
             cache.set(om.uuid, m);
           }
@@ -1372,7 +1395,11 @@ function potionStep() {
   if (sparkle)
     sparkle.material.color.set(potionKind === "haste" ? 0x9dffb0 : 0xffffff);
   potionGrp.visible = k > 0;
-  if (k > 0) potionGrp.scale.setScalar(POTION_SCALE * (0.35 + 0.65 * k));
+  if (k > 0) {
+    potionGrp.scale.setScalar(POTION_SCALE * (0.35 + 0.65 * k));
+    const gt = (performance.now() / 1000) % POTION_GLINT_EVERY; // small numbers only, so phones' low-precision floats stay smooth
+    for (const m of potionGlass) m.uniforms.uGlint.value = gt;
+  }
   sparkleStep(k > 0);
 }
 /* ---------- the potion's sound and sparkle ----------
