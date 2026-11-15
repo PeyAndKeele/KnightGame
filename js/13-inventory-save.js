@@ -483,8 +483,15 @@ const INV_TABS = [
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "morningstar",
-        stats: invLightStats(),
-        desc: "A spiked iron ball on a long haft. It does not cut so much as make an argument.",
+        stats: invLightStats("BLEED", "PASSIVE"),
+        desc:
+          "A spiked iron ball on a long haft. It does not cut so much as make an argument. Carving, or blocking a hit, has a " +
+          Math.round(MORNINGSTAR_BLEED_CHANCE * 100) +
+          "% chance to make the enemy bleed: " +
+          BLEED_DAMAGE +
+          " damage at the start of each of the next " +
+          BLEED_TURNS +
+          " enemy turns.",
       },
       {
         t: "AXE",

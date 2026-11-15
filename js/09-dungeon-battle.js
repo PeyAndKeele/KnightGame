@@ -1877,6 +1877,7 @@ function spawnEnemies() {
   }
 }
 function clearEnemies() {
+  bloodClear();
   hidePointer();
   bmReset();
   barsClear();
@@ -2518,7 +2519,9 @@ const ENEMY_DMG = { slime: 4, sporeling: 5, treeling: 7, golem: 12 },
 /* WEAPON SPECIALS that are not a menu command (the inventory lists them as PASSIVE; Render and Knight Light are ACTIVE):
  HATCHET  PICK-OFF: a carve on an enemy at HATCHET_HALF of its HP or less does HATCHET_BONUS more.
  HAMMER   STUN: a carve stuns its target (it skips its next swing). Never when the target is the last enemy standing, and then HAMMER_STUN_CD of your turns must pass before the next one.
- SHOVEL   DIG: SHOVEL_GOLD extra gold from every kill (0.25 = +25%). */
+ SHOVEL   DIG: SHOVEL_GOLD extra gold from every kill (0.25 = +25%).
+ MORNINGSTAR   BLEED: every carve, and every enemy hit you take while guarding, has MORNINGSTAR_BLEED_CHANCE to make that enemy bleed: BLEED_DAMAGE at the start of each of the next BLEED_TURNS enemy turns
+ (hitting it again while it bleeds just restarts the count). A bleeding enemy drips blood from its middle (see the BLOOD section). */
 const HATCHET_BONUS = 10,
   HATCHET_HALF = 0.5,
   HAMMER_STUN_CD = 2,
@@ -2542,6 +2545,196 @@ function hammerStun(e) {
       ),
     350,
   );
+}
+/* ---------- BLOOD + the Morningstar's BLEED ----------
+ MORNINGSTAR_BLEED_CHANCE = the chance (0.15 = 15%) that a carve, or an enemy's hit while you guard, makes the enemy bleed. BLEED_DAMAGE = what it loses at the start of each enemy turn, BLEED_TURNS = how many of those it lasts.
+ A bleeding enemy (e.bleed = turns left) drips blood from the middle of its body: blood-drop sprites (the 3 drops of red_droplet, darkened and reddened, packed into the strip below) that fall under gravity and fade into the fog like the leaves.
+ BLOOD: max = drops at once, w = drop width (knight-heights), grav = fall acceleration (knight-heights per s^2), every = seconds between drops from one enemy, front = how far in front of its middle (toward the camera) a drop starts, so it is not hidden inside the body. */
+const MORNINGSTAR_BLEED_CHANCE = 0.15,
+  BLEED_DAMAGE = 5,
+  BLEED_TURNS = 3,
+  BLEED_BEAT = 0.9,
+  BLEED_KILL_BEAT = 1.2;
+const BLOOD_ATLAS =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAMCAYAAACNzvbFAAAAvklEQVR42rWSQQrCMBBFf4aQRXEhxYV4Bg/kgVx7jh4oZxAXUrIoQUIZXaVM0qRapH8VmD/zXyYBhK5N+0ZFa2qEDUQy7Wh0kWhtbTtSmZKnxvOhMajRFof2zIiNuWLt2wPJQLqY3SxZGu48omeGdR6PMCYhNZhkp9b5maELg4qDe2bcXk4BwBKMjjSARksE6/zs2l0Y1NIOrfM47xs8fQAAJKkn0pMxEtUke1qiZCUqN/1CVhosYdS/f7IE8wGasW033rKwdQAAAABJRU5ErkJggg==",
+  BLOOD_FRAMES = 3,
+  BLOOD_CELL_W = 7,
+  BLOOD_CELL_H = 12,
+  BLOOD_MAX = 28,
+  BLOOD_W = 0.055,
+  BLOOD_GRAV = 3.4,
+  BLOOD_EVERY_MIN = 0.2,
+  BLOOD_EVERY_MAX = 0.45,
+  BLOOD_FRONT = 0.13;
+let blood = null,
+  bloodLoading = false;
+const isMorningstar = () => weapon === "sword" && swordStyle === "morningstar";
+function initBlood() {
+  if (blood || bloodLoading) return;
+  bloodLoading = true;
+  loadImg(BLOOD_ATLAS)
+    .then((img) => {
+      const pool = [];
+      for (let i = 0; i < BLOOD_MAX; i++) {
+        const tex = new THREE.Texture(img);
+        tex.magFilter = tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.repeat.set(1 / BLOOD_FRAMES, 1);
+        tex.needsUpdate = true;
+        const spr = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: tex,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            fog: false,
+          }),
+        );
+        spr.visible = false;
+        spr.renderOrder = 7;
+        scene.add(spr);
+        pool.push({ spr, tex, on: false, t: 0 });
+      }
+      blood = pool;
+    })
+    .catch((e) => console.error("blood load failed", e));
+}
+// where an enemy's middle is, where its feet are, and how big it is next to the knight (what the blood spawns from)
+function bloodBody(e) {
+  const H = playerH,
+    ground = blobHome ? blobHome.y : homeTarget.y - H / 2;
+  if (e.isSlime) return { mid: ground + 0.2 * H, ground, k: 0.45 };
+  if (e.isGolem) {
+    const m = e.mobName && MOBS[e.mobName.toLowerCase()],
+      k = m ? m.scale : GOLEM_SCALE;
+    return { mid: ground + 0.5 * k * H, ground, k };
+  }
+  return { mid: homeTarget.y, ground, k: 1 };
+}
+function spawnBlood(e) {
+  if (!blood) {
+    initBlood();
+    return;
+  }
+  const d = blood.find((q) => !q.on);
+  if (!d) return;
+  const H = playerH,
+    B = bloodBody(e);
+  let fx = camera.position.x - e.x,
+    fz = camera.position.z - e.z;
+  const fl = Math.hypot(fx, fz) || 1;
+  fx /= fl;
+  fz /= fl;
+  const side = (Math.random() - 0.5) * 0.16 * H * B.k;
+  d.x0 = e.x + fx * BLOOD_FRONT * H * B.k - fz * side;
+  d.z0 = e.z + fz * BLOOD_FRONT * H * B.k + fx * side;
+  d.y0 = B.mid + (Math.random() - 0.5) * 0.06 * H * B.k;
+  d.gy = B.ground + H * 0.012;
+  d.vx = (Math.random() - 0.5) * 0.04 * H;
+  d.vz = (Math.random() - 0.5) * 0.04 * H;
+  d.t = 0;
+  d.on = true;
+  const fi = Math.floor(Math.random() * BLOOD_FRAMES);
+  d.tex.offset.x = fi / BLOOD_FRAMES;
+  const w = H * BLOOD_W * (0.8 + Math.random() * 0.4);
+  d.spr.scale.set(w, (w * BLOOD_CELL_H) / BLOOD_CELL_W, 1);
+  d.spr.material.opacity = 0;
+  d.spr.visible = true;
+}
+function bloodBurst(e, n) {
+  for (let i = 0; i < n; i++) setTimeout(() => spawnBlood(e), i * 70);
+}
+function bloodClear() {
+  if (blood)
+    blood.forEach((d) => {
+      d.on = false;
+      d.spr.visible = false;
+    });
+}
+// every frame (see the loop in 10-menu-loop-sound.js): bleeding enemies shed drops, and the drops fall
+function updateBlood(dt) {
+  if (dungeon && enemies.length)
+    for (const e of enemies) {
+      if (e.dead || !(e.bleed > 0)) continue;
+      e.bloodWait = (e.bloodWait === undefined ? 0 : e.bloodWait) - dt;
+      if (e.bloodWait <= 0) {
+        spawnBlood(e);
+        e.bloodWait =
+          BLOOD_EVERY_MIN + Math.random() * (BLOOD_EVERY_MAX - BLOOD_EVERY_MIN);
+      }
+    }
+  if (!blood) return;
+  const H = playerH,
+    g = BLOOD_GRAV * H,
+    snap = H * 0.015,
+    near = U.uFogNear.value,
+    far = U.uFogFar.value;
+  for (const d of blood) {
+    if (!d.on) continue;
+    d.t += dt;
+    const y = d.y0 - 0.5 * g * d.t * d.t;
+    if (y <= d.gy) {
+      d.on = false;
+      d.spr.visible = false;
+      d.spr.material.opacity = 0;
+      continue;
+    }
+    let x = d.x0 + d.vx * d.t,
+      z = d.z0 + d.vz * d.t,
+      yy = y;
+    if (ps1) {
+      x = Math.round(x / snap) * snap;
+      z = Math.round(z / snap) * snap;
+      yy = Math.round(yy / snap) * snap;
+    }
+    d.spr.position.set(x, yy, z);
+    const dist = camera.position.distanceTo(d.spr.position),
+      f = Math.min(1, Math.max(0, (dist - near) / (far - near))),
+      fog = 1 - f * f * (3 - 2 * f);
+    d.spr.material.opacity =
+      Math.max(0, Math.min(1, d.t / 0.06, (y - d.gy) / (H * 0.06))) * fog;
+  }
+}
+/* the Morningstar's proc: called after a carve landed on e and after e's hit was guarded. delay = ms before the BLEED! popup (so it does not sit on top of the damage number) */
+function morningstarBleed(e, delay) {
+  if (!isMorningstar() || !e || e.dead) return;
+  if (Math.random() >= MORNINGSTAR_BLEED_CHANCE) return;
+  e.bleed = BLEED_TURNS;
+  e.bloodWait = 0;
+  initBlood();
+  bloodBurst(e, 4);
+  setTimeout(
+    () =>
+      popup(
+        "BLEED!",
+        headPos({ isPl: false, ent: e }, new THREE.Vector3()),
+        "bld",
+      ),
+    delay,
+  );
+}
+// BLEED damage: no hit animation (the enemy just takes it and keeps its place), but it can kill
+function bleedHurt(e, dmg) {
+  e.hp = Math.max(0, e.hp - dmg);
+  popup("-" + dmg, headPos({ isPl: false, ent: e }, new THREE.Vector3()), "bld");
+  if (e.hp <= 0) {
+    e.dead = true;
+    e.bleed = 0;
+    awardGold(e);
+    enemyDie(e);
+  } else blip(110, 0.08);
+}
+// the start of the enemy turn: every bleeding enemy loses BLEED_DAMAGE and one turn of bleeding. Returns 0 (nobody bled), 1 (someone bled) or 2 (someone bled out)
+function bleedTick() {
+  let r = 0;
+  for (const e of enemies) {
+    if (e.dead || !(e.bleed > 0)) continue;
+    e.bleed--;
+    bloodBurst(e, 3);
+    bleedHurt(e, BLEED_DAMAGE);
+    r = e.dead ? 2 : Math.max(r, 1);
+  }
+  return r;
 }
 // what one swing of this enemy does, before any guarding
 function enemyDamage(e) {
@@ -2663,7 +2856,7 @@ const pl = {
     ".hpb{position:absolute;left:0;top:0;width:104px;margin-left:-52px;text-align:center;font-size:19px;line-height:1;color:#fff;text-shadow:2px 2px 0 #000;white-space:nowrap;transition:opacity .4s}" +
     ".hpb .bar{height:9px;background:#1a0a0a;border:2px solid #000;box-shadow:0 0 0 1px #d4dbf7;margin-top:2px}.hpb i{display:block;height:100%;width:100%;background:#58b868}" +
     ".hpb.pl{font-size:21px}.hpb.pl .bar{height:11px}.hpb.dead{opacity:0}" +
-    ".dmg{position:absolute;left:0;top:0;font-size:34px;line-height:1;color:#ffe27a;text-shadow:3px 3px 0 #000;white-space:nowrap}.dmg.pl{color:#ff8a7a}.dmg.blk{color:#9fb4ff}.dmg.heal{color:#7dff9a}" +
+    ".dmg{position:absolute;left:0;top:0;font-size:34px;line-height:1;color:#ffe27a;text-shadow:3px 3px 0 #000;white-space:nowrap}.dmg.pl{color:#ff8a7a}.dmg.blk{color:#9fb4ff}.dmg.heal{color:#7dff9a}.dmg.bld{color:#ff3b3b}.hpb.bld span{color:#ff6a6a}" +
     "#turn{position:fixed;left:50%;bottom:calc(46px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);font-size:30px;letter-spacing:.14em;color:#ffe27a;text-shadow:3px 3px 0 #000;display:none;z-index:15;pointer-events:none;white-space:nowrap}" +
     "body.dungeon #turn.on{display:block}#turn.foe{color:#ff8a7a}#turn.big{z-index:50;bottom:auto;top:38%;font-size:clamp(54px,9vw,96px);letter-spacing:.08em;color:#fff;text-shadow:0 4px 0 #8fa4ff,0 8px 0 #4558c8,5px 10px 0 #000}#turn.big.lose{color:#ffb0a0;text-shadow:0 4px 0 #e8604f,0 8px 0 #8a2a20,5px 10px 0 #000}" +
     ".tg-s.dead{opacity:.35}" +
@@ -2798,6 +2991,7 @@ function barsUpdate(dt) {
       b.txt.textContent = b.name + " " + e.hp;
     }
     b.el.classList.toggle("dead", !!e.dead && !b.isPl);
+    b.el.classList.toggle("bld", !b.isPl && !e.dead && e.bleed > 0);
     headPos(b, _hv).project(camera);
     const on = vis && _hv.z < 1 && _hv.z > -1;
     b.el.style.display = on ? "block" : "none";
@@ -3021,6 +3215,12 @@ function startEnemyPhase() {
   btBegin("enemy");
   ep = { i: -1, stage: 9, t: 0, e: null };
   setTurnLabel("ENEMY TURN", "foe");
+  // MORNINGSTAR: bleeding enemies take their damage first (stage 8 waits a beat so it can be seen; a bleed-out can end the fight)
+  const bl = bleedTick();
+  if (bl) {
+    ep.stage = 8;
+    ep.wait = bl === 2 ? BLEED_KILL_BEAT : BLEED_BEAT;
+  }
 }
 function epNext() {
   // dead enemies are passed over, and so are stunned ones (the stun is used up)
@@ -3081,6 +3281,17 @@ function endEnemyPhase() {
   btEnd(true);
   setTurnLabel("YOUR TURN" + hasteTag());
 }
+function bleedFinish() {
+  // every enemy of the wave bled out during the enemy turn: the knight stands down, then the next wave or the victory
+  ep = null;
+  pl.guard = false;
+  pl.buf = false;
+  blockHitBag = [];
+  btEnd(true);
+  if (!pl.dead) play(idleName());
+  if (dgWave < dg.waves.length - 1) nextWave();
+  else battleEnd("win");
+}
 function playerStruck(e) {
   const base = enemyDamage(e),
     g = pl.guard || pl.buf,
@@ -3095,6 +3306,8 @@ function playerStruck(e) {
     headPos({ isPl: true }, new THREE.Vector3()),
     g ? "pl blk" : "pl",
   );
+  // MORNINGSTAR: a hit you guard against can make the attacker bleed
+  if (pl.guard && pl.hp > 0) morningstarBleed(e, 350);
   if (pl.hp <= 0) {
     pl.dead = true;
     play("Death");
@@ -3238,6 +3451,18 @@ function slimeSquishEnd(e) {
 function updateEnemyPhase(dt) {
   if (!ep || turn === "over") return;
   ep.t += dt;
+  if (ep.stage === 8) {
+    if (ep.t < ep.wait) return;
+    if (enemies.length && enemies.every((e) => e.dead)) {
+      // the last enemy bled out: wait for its fall to finish, then the same ending as a killing blow
+      if (!enemies.every((e) => e.deathDone) && ep.t < ep.wait + 4) return;
+      bleedFinish();
+      return;
+    }
+    ep.stage = 9;
+    ep.t = ENEMY_START_BEAT * 0.4;
+    return;
+  }
   if (ep.stage === 9) {
     if (ep.t >= ENEMY_START_BEAT) epNext();
     return;
@@ -3357,6 +3582,8 @@ function updateBattle(dt) {
       hurtEnemy(e, dmg);
       // HAMMER: stun
       hammerStun(e);
+      // MORNINGSTAR: bleed
+      morningstarBleed(e, 350);
     // the blade connects
     }
     else if (

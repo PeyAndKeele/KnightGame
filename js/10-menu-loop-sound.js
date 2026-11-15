@@ -169,6 +169,7 @@ function frame(now) {
     updateHelm6Face(dt);
     updateSnow(dt);
     updateLeaves(dt);
+    updateBlood(dt);
     updateSwoosh(dt);
     updateFire(dt);
     footstepStep();
