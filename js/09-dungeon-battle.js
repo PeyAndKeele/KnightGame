@@ -22,6 +22,7 @@
              pitch in radians, dist in knight-heights, ty = look-at height above his middle in knight-heights, mid = where it looks between him (0) and the enemy line (1)
    chestX    how far west of the circle he stands for the chest scene, in knight-heights
    waves     the fights in a row, see WAVES below
+   dmg       multiplier on every enemy's damage in this dungeon (ruins 1, tomb 1.25), see ENEMY_DMG in the battle section
    group / slots  filled in when the model has loaded (the model, and the floor rings) */
 const RUINS_SCALE = 1.15,
   TOMB_SCALE = 1.8,
@@ -64,6 +65,7 @@ const DUNGEONS = {
     chestShot: { yaw: 35, drift: 0.6, pitch: 0.2, dist: 3.0, ty: 0.2, mid: 0 },
     // (the fence is at ~3.45, the trees start at 5.6)
     chestX: 4.1,
+    dmg: 1,
     waves: [
       ["slime", "mob", "slime"],
       ["mob", "slime", "mob"],
@@ -102,6 +104,7 @@ const DUNGEONS = {
     // from the south-east corner of the hall: his side, the lid and the chest's front are all in view
     chestShot: { yaw: 60, drift: 0.6, pitch: 0.2, dist: 2.2, ty: 0.2, mid: 0 },
     chestX: 1.5,
+    dmg: 1.25,
     waves: [
       ["mob", "slime", "mob"],
       ["slime", "mob", "slime"],
@@ -1498,6 +1501,13 @@ function nextWave() {
   setTimeout(() => {
     if (!dungeon || turn !== "wave") return;
     dgWave++;
+    // a short breather between waves: the knight gets WAVE_HEAL hit points back (never above his max)
+    const wh = Math.min(WAVE_HEAL, pl.max - pl.hp);
+    if (wh > 0 && !pl.dead) {
+      pl.hp += wh;
+      popup("+" + wh, headPos({ isPl: true }, new THREE.Vector3()), "heal");
+      blip(660, 0.1);
+    }
     try {
       spawnEnemies();
     } catch (e) {
@@ -2379,8 +2389,9 @@ function startBlock() {
   btBegin("block");
   bt.heading = -Math.PI / 2;
   pl.guard = true;
-  // the enemies' attacks this round do much less damage
-  bmToast("GUARDING");
+  // the enemies' attacks this round do much less damage, and his next carve hits harder
+  pl.brace = true;
+  bmToast("GUARDING - NEXT CARVE x" + BRACE_MULT);
   playBlockAnim();
   playBlockSfx();
 }
@@ -2488,16 +2499,35 @@ function enemyHit(e) {
 }
 /* ---------- turn-based battle: hit points, turn order, health bars ----------
  Each round: YOUR TURN (pick a command) -> the action plays -> ENEMY TURN (every living enemy swings at you, one after the other) -> back to you.
- CARVE does SWING_DAMAGE. BLOCK puts a guard up for the coming enemy turn (damage x GUARD_FACTOR). FLAUNT just spends the turn. All enemies down = VICTORY; your HP at 0 = DEFEATED. */
+ CARVE does SWING_DAMAGE. BLOCK puts a guard up for the coming enemy turn (damage x GUARD_FACTOR) and BRACES him: his next CARVE does BRACE_MULT times the damage (it is kept through a potion, and used up by the carve). FLAUNT just spends the turn. All enemies down = VICTORY; your HP at 0 = DEFEATED. */
 const PLAYER_HP = 100,
   ENEMY_HP = 100,
   // starting hit points
   SLIME_HP = 50;
 // what your swing does
 const SWING_DAMAGE = 25;
-const ENEMY_DAMAGE = 12,
-  // what an enemy swing does, and the share of it that gets through while you are guarding
-  GUARD_FACTOR = 0.25;
+/* BALANCE (checked with a simulator of these exact rules - see balance notes): a full dungeon is ~9 enemies in a row with no healing but WAVE_HEAL between waves, so the numbers are tight on purpose.
+ ENEMY_DMG = what one swing of each enemy does (times the dungeon's `dmg`); ENEMY_DAMAGE is the fallback for anything not in the table (the enemy knights).
+ GUARD_FACTOR = the share of a hit that gets through while guarding. BRACE_MULT = how much harder the carve after a BLOCK hits (2 = 50, which one-shots a slime or sporeling).
+ Blocking costs the turn and deals nothing, so without BRACE it could never beat just attacking: the brace is what makes BLOCK > CARVE when it does not kill. */
+const ENEMY_DMG = { slime: 4, sporeling: 5, treeling: 7, golem: 12 },
+  ENEMY_DAMAGE = 12,
+  GUARD_FACTOR = 0.25,
+  BRACE_MULT = 2,
+  WAVE_HEAL = 15;
+// what one swing of this enemy does, before any guarding
+function enemyDamage(e) {
+  const base = e.isSlime
+    ? ENEMY_DMG.slime
+    : e.mobName === "SPORELING"
+      ? ENEMY_DMG.sporeling
+      : e.mobName === "TREELING"
+        ? ENEMY_DMG.treeling
+        : e.isGolem
+          ? ENEMY_DMG.golem
+          : ENEMY_DAMAGE;
+  return Math.max(1, Math.round(base * (dg.dmg || 1)));
+}
 const ENEMY_START_BEAT = 0.5,
   ENEMY_HOLD = 0.45,
   DEATH_HOLD = 0.6,
@@ -2505,7 +2535,7 @@ const ENEMY_START_BEAT = 0.5,
   END_SHOW = 3.2;
 // haste potions you start a fight with: drinking one (it uses that turn) gives you TWO actions on your next turn, each one counting for the KNIGHT LIGHT gauge
 const HASTE_COUNT = 3;
-const POTION_HEAL = 25,
+const POTION_HEAL = 40,
   POTION_COUNT = 3,
   // hit points a potion restores, how many you start a fight with, and when in the clip (s) the heal lands: his hand is at his lips
   POTION_HEAL_AT = 1.5;
@@ -2591,7 +2621,13 @@ let turn = "player",
   endT = 0,
   endKind = null,
   endDone = false;
-const pl = { hp: PLAYER_HP, max: PLAYER_HP, guard: false, dead: false };
+const pl = {
+  hp: PLAYER_HP,
+  max: PLAYER_HP,
+  guard: false,
+  brace: false,
+  dead: false,
+};
 (function () {
   const st = document.createElement("style");
   st.textContent =
@@ -2782,6 +2818,7 @@ function battleReset() {
   klShown = "";
   pl.hp = pl.max = PLAYER_HP;
   pl.guard = false;
+  pl.brace = false;
   pl.render = false;
   pl.buf = false;
   pl.dead = false;
@@ -2912,7 +2949,10 @@ function startHaste() {
   play("Drinking_Potion");
 }
 function hasteTag() {
-  return pl.haste > 0 ? "  HASTE " + (3 - pl.haste) + "/2" : "";
+  return (
+    (pl.haste > 0 ? "  HASTE " + (3 - pl.haste) + "/2" : "") +
+    (pl.brace ? "  BRACED" : "")
+  );
 // 'HASTE 1/2', 'HASTE 2/2' while the double turn is on
 }
 function afterPlayerAction() {
@@ -2995,12 +3035,13 @@ function endEnemyPhase() {
   setTurnLabel("YOUR TURN" + hasteTag());
 }
 function playerStruck(e) {
-  const g = pl.guard || pl.buf,
+  const base = enemyDamage(e),
+    g = pl.guard || pl.buf,
     dmg = pl.guard
-      ? Math.max(1, Math.round(ENEMY_DAMAGE * GUARD_FACTOR))
+      ? Math.max(1, Math.round(base * GUARD_FACTOR))
       : pl.buf
-        ? Math.max(1, Math.round(ENEMY_DAMAGE * (1 - RENDER_GUARD)))
-        : ENEMY_DAMAGE;
+        ? Math.max(1, Math.round(base * (1 - RENDER_GUARD)))
+        : base;
   pl.hp = Math.max(0, pl.hp - dmg);
   popup(
     "-" + dmg,
@@ -3261,7 +3302,12 @@ function updateBattle(dt) {
     if (bt.stage === 0 && bt.t >= CARVE_HIT_AT / SWING_SPEED) {
       bt.stage = 1;
       bt.hitT = bt.t;
-      hurtEnemy(e, SWING_DAMAGE);
+      const braced = pl.brace;
+      pl.brace = false;
+      hurtEnemy(
+        e,
+        braced ? Math.round(SWING_DAMAGE * BRACE_MULT) : SWING_DAMAGE,
+      );
     // the blade connects
     }
     else if (
