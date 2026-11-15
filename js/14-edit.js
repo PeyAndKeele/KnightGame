@@ -636,12 +636,116 @@ function initMainMenu() {
       items: [
         { t: "MAP", run: openMap },
         { t: "INVENTORY", run: openInventory },
+        { t: "INFO", go: "info" },
         { t: "OPTIONS", go: "options" },
         { t: "ANIMATIONS", go: "anims" },
         { t: "CREDITS", go: "credits" },
       ],
     },
     custom: { name: "CUSTOMIZE", panel: 1, items: [BACK] },
+    /* INFO: how to fight, what changed in the last balance pass, and a reminder that it is all unfinished. Every number is read from the game's own constants (09, 13), so retuning them updates this screen too.
+       It is a text screen like CREDITS: one block of lines (the block scrolls) and BACK as the only row. Keep lines short; they wrap. */
+    info: {
+      name: "INFO",
+      get text() {
+        const T = DUNGEONS.tomb.dmg || 1,
+          pct = (n) => Math.round(n * 100) + "%";
+        return [
+          "ALL OF THIS IS SUBJECT TO CHANGE",
+          "NUMBERS AND RULES ARE STILL BEING TUNED",
+          "",
+          "--- HOW TO FIGHT ---",
+          "COMBAT IS TURN BASED.",
+          "YOU PICK ONE COMMAND, THEN EVERY",
+          "ENEMY STILL STANDING SWINGS AT YOU,",
+          "THEN IT IS YOUR TURN AGAIN.",
+          "CLEAR ALL " +
+            DUNGEONS.ruins.waves.length +
+            " WAVES TO OPEN THE CHEST.",
+          "YOUR HP CARRIES OVER BETWEEN WAVES.",
+          "",
+          "ATTACK > CARVE",
+          "HITS ONE ENEMY FOR " + SWING_DAMAGE + ".",
+          "",
+          "ACTIONS > BLOCK",
+          "ENEMY HITS DO ONLY " + pct(GUARD_FACTOR) + " DAMAGE",
+          "THIS ROUND, AND YOUR NEXT",
+          "CARVE HITS FOR " +
+            Math.round(SWING_DAMAGE * BRACE_MULT) +
+            " (X" +
+            BRACE_MULT +
+            "). THE TURN SHOWS BRACED.",
+          "BLOCK DOES NO DAMAGE ITSELF.",
+          "TIP: BLOCK FIRST, THEN CARVE, UNLESS",
+          "A PLAIN CARVE ALREADY KILLS.",
+          "",
+          "ITEMS > POTION",
+          "HEALS " + POTION_HEAL + " HP BUT USES YOUR TURN.",
+          "YOU START EACH FIGHT WITH " + POTION_COUNT + ".",
+          "BEST WHEN FEW ENEMIES ARE LEFT.",
+          "",
+          "ITEMS > HASTE POTION",
+          "YOUR NEXT TURN IS TWO ACTIONS.",
+          "YOU START EACH FIGHT WITH " + HASTE_COUNT + ".",
+          "",
+          "ACTIONS > FLAUNT",
+          "JUST SPENDS THE TURN.",
+          "",
+          "ACTIONS > RENDER (AXE ONLY)",
+          "HITS EVERY ENEMY FOR " + RENDER_DAMAGE + ".",
+          "",
+          "KNIGHT LIGHT (KNIGHTLY SWORD)",
+          "EVERY COMMAND FILLS THE GAUGE BY ONE.",
+          "AT " +
+            KL_MAX +
+            " YOU CAN USE KNIGHT LIGHT FOR " +
+            KL_DAMAGE +
+            ".",
+          "",
+          "FLEE LEAVES THE DUNGEON.",
+          "",
+          "--- ENEMIES (HP / DAMAGE / GOLD) ---",
+          "SLIME " +
+            SLIME_HP +
+            " / " +
+            ENEMY_DMG.slime +
+            " / " +
+            GOLD_FOR.slime,
+          "SPORELING " +
+            MOBS.sporeling.hp +
+            " / " +
+            ENEMY_DMG.sporeling +
+            " / " +
+            GOLD_FOR.sporeling,
+          "TREELING " +
+            MOBS.treeling.hp +
+            " / " +
+            ENEMY_DMG.treeling +
+            " / " +
+            GOLD_FOR.treeling,
+          "GOLEM " +
+            ENEMY_HP +
+            " / " +
+            ENEMY_DMG.golem +
+            " / " +
+            GOLD_FOR.golem,
+          "THE TOMB HITS " + T + "X AS HARD AS THE RUINS.",
+          "",
+          "--- WHAT CHANGED LATELY ---",
+          "ENEMY DAMAGE IS NOW SET PER ENEMY",
+          "(IT WAS 12 FOR EVERYTHING).",
+          "YOU GET " + WAVE_HEAL + " HP BACK BETWEEN WAVES.",
+          "POTIONS NOW HEAL " + POTION_HEAL + " (WAS 25).",
+          "BLOCK NOW MAKES YOUR NEXT CARVE HIT",
+          "HARDER (IT USED TO DO NOTHING EXTRA).",
+          "THE TOMB IS HARDER THAN THE RUINS.",
+          "",
+          "SHOP BUYING AND CHEST LOOT ARE NOT",
+          "FINISHED YET. NUMBERS WILL CHANGE.",
+        ];
+      },
+      items: [BACK],
+    },
     /* TEMPORARY: lists every animation in the model so you can preview them. Delete this screen and the ANIMATIONS entry above when you no longer need it */
     anims: {
       name: "ANIMATIONS (TEMP)",
