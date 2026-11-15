@@ -100,9 +100,10 @@ uniform vec4 uSc[6]; uniform float uScR; uniform vec3 uScCol;
 uniform float uStoneLit; uniform vec3 uLampPos; uniform vec4 uLampP; uniform vec3 uLamp2Pos; uniform vec4 uLamp2P; varying vec3 vVP; varying vec3 vVN;
 uniform vec4 uOccF[6]; uniform float uOccN; uniform float uOccGap; uniform float uOccOn; uniform vec2 uOccNear;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying float vEnv; varying float vSpec;
+uniform vec2 uTexBias;   // see ps1Mat: a hair past the texel corner, so a UV exactly on a texel border always picks the same texel
 float b2(vec2 p){ p=mod(p,2.0); if(p.x<1.0) return p.y<1.0?0.0:3.0; return p.y<1.0?2.0:1.0; }
 void main(){
-  vec2 st=uAffine>0.5 ? vUvA/vW : vUvP;
+  vec2 st=(uAffine>0.5 ? vUvA/vW : vUvP)+uTexBias;
   vec4 tx=texture2D(map,st);
   if(tx.a<0.5) discard;
   if(uBladeGlow>0.0){ float ch=max(tx.r,max(tx.g,tx.b))-min(tx.r,min(tx.g,tx.b)); tx.rgb=mix(tx.rgb,vec3(1.0),uBladeGlow*0.85*(1.0-smoothstep(0.08,0.16,ch))); }   // uBladeGlow (the Knightly sword): the grey steel is pushed towards white (the coloured gems are left alone)
@@ -260,11 +261,20 @@ void main(){
   }
   gl_FragColor=vec4(c,1.0);
 }`;
+/* Texel-border fix. Many faces of the models have UVs exactly ON a texel border (a palette colour is often a face whose UV is a single point at a texel's corner). With nearest-pixel sampling, which of the texels around that corner a pixel
+ gets is decided by float rounding, and the rounding differs between PS1 mode (affine) and Modern mode (perspective-correct), so those faces changed colour when the look was switched (and could speckle). Every lookup is therefore nudged
+ TEX_BIAS of a texel past the corner (the texel whose corner it is, the one Blockbench shows), the same way in both modes. 0 = off. (Textures under 8 px, such as a 1x1 placeholder that is swapped later, are left alone.) */
+const TEX_BIAS = 0.003;
 function ps1Mat(tex, uvScale) {
   tex.encoding = THREE.LinearEncoding;
   tex.generateMipmaps = false;
   tex.minFilter = tex.magFilter = THREE.NearestFilter;
   tex.needsUpdate = true;
+  const im = tex.image,
+    tb = new THREE.Vector2(
+      im && im.width >= 8 ? TEX_BIAS / im.width : 0,
+      im && im.height >= 8 ? TEX_BIAS / im.height : 0,
+    );
   return new THREE.ShaderMaterial({
     vertexShader: VS,
     fragmentShader: FS,
@@ -272,6 +282,7 @@ function ps1Mat(tex, uvScale) {
     uniforms: Object.assign(
       {
         map: { value: tex },
+        uTexBias: { value: tb },
         uUvScale: { value: uvScale || 1 },
         uTint: { value: new THREE.Vector3(1, 1, 1) },
         uShine: { value: 0 },

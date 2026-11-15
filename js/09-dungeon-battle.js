@@ -1494,7 +1494,7 @@ function spawnMob(k, sx, sz, H, th) {
 }
 /* ---------- SKELETON: takes the place of the TREELING and the SPORELING ----------
  Every 'mob' in a wave is now a skeleton (skeleton-data: the knight's own rig, so every bone has the knight's name, with a skeleton's body and head). It moves exactly like an enemy knight: the knight's Idle, Hit, Swing and Death clips, his sounds, his
- timing. Each one carries a random one-handed weapon (the Shortsword, Hatchet, Hammer, Knightly Sword or Morningstar) that is only for looks: none of that weapon's passives or specials apply to it.
+ timing. Each one carries a random one-handed weapon (the Shortsword, Hatchet, Hammer or Morningstar; never the Knightly Sword) that is only for looks: none of that weapon's passives or specials apply to it.
  SKELETON_HEAD_SCALE = how big its skull is next to the head as it was modeled (1 = as modeled), shrunk about the neck. SKELETON_HP = its hit points (the sporeling had 50 and the treeling 80), its damage is ENEMY_DMG.skeleton and its gold GOLD_FOR.skeleton (a bit above the treeling's). If the model is not loaded yet, a knight steps up instead. */
 const SKELETON_HP = 90,
   SKELETON_HEAD_SCALE = 0.6;
@@ -1513,7 +1513,27 @@ function loadSkeleton() {
         const cache = new Map();
         g.scene.traverse((o) => {
           if (!o.isMesh) return;
-          const om = o.material;
+          const om = o.material,
+            geo = o.geometry,
+            img = om.map && om.map.image;
+          /* Texture bleed fix (see insetIslandUV): the model's UV faces end exactly on texel borders, so with nearest-pixel sampling an edge pixel can land in the NEXT texel, and it lands differently in PS1 mode (affine) and Modern mode
+           (perspective-correct): the textures seemed to change when the look was switched. Pulling each face's UVs a hair towards its own middle keeps every pixel inside its own texel in both modes. */
+          if (img && img.width && geo.index && geo.attributes.uv && !geo.userData.uvInset) {
+            geo.setAttribute(
+              "uv",
+              new THREE.Float32BufferAttribute(
+                insetIslandUV(
+                  geo.attributes.uv.array,
+                  geo.index.array,
+                  img.width,
+                  img.height,
+                  AXE_UV_INSET,
+                ),
+                2,
+              ),
+            );
+            geo.userData.uvInset = true;
+          }
           if (!cache.has(om.uuid)) cache.set(om.uuid, ps1Mat(om.map, 1));
           o.material = cache.get(om.uuid);
           o.frustumCulled = false;
@@ -1566,9 +1586,7 @@ function spawnSkeleton(k, sx, sz, H, th) {
   const skull = root.getObjectByName("skull");
   if (skull) skull.scale.setScalar(SKELETON_HEAD_SCALE);
   // a random weapon in the hand, looks only: its own textures, none of its specials
-  const ws = [swordGrp, hatchetGrp, hammerGrp, knightlyGrp, morningstarGrp].filter(
-      Boolean,
-    ),
+  const ws = [swordGrp, hatchetGrp, hammerGrp, morningstarGrp].filter(Boolean),
     fore = root.getObjectByName("Left_Forearm");
   if (ws.length && fore) {
     const wg = cloneNoUserData(ws[Math.floor(Math.random() * ws.length)]),
