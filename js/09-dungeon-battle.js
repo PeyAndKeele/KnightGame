@@ -82,7 +82,7 @@ const DUNGEONS = {
     start: 3.5,
     enemy: { n: 3, dist: 2.0, gap: 0.6 },
     fog: [3.0, 8.5],
-    look: { fog: 0x07080d, tint: [0.62, 0.7, 0.8] },
+    look: { fog: 0x07080d, tint: [0.5, 0.58, 0.72] },
     forest: false,
     // straight behind him, so the camera follows him through the doorway
     intro: { yaw: 95, drift: 0.4, pitch: 0.2, dist: 2.5, ty: 0.2, mid: 0 },
@@ -983,6 +983,7 @@ function dgLookOn(look) {
   if (floorMesh) floorMesh.visible = false;
   setSkyFog(look.fog);
   U.uNight.value.set(look.tint[0], look.tint[1], look.tint[2]);
+  U.uStoneLit.value = 1;
   if (nightGroup) nightGroup.visible = false;
   if (skyGroup) skyGroup.visible = false;
   // no sky underground: the sky dome (and its dusk glow) would show through the doorways
@@ -990,6 +991,7 @@ function dgLookOn(look) {
 }
 function dgLookOff() {
   if (floorMesh) floorMesh.visible = true;
+  U.uStoneLit.value = 0;
   if (todDome) todDome.visible = true;
   lookSnap = true;
 }

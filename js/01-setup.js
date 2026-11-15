@@ -34,6 +34,8 @@ const U = {
   uLampP: { value: new THREE.Vector4(1, 0, 14, 0) },
   uLampCol: { value: new THREE.Vector3(1, 0.78, 0.45) },
   uMagmaPulse: { value: 0 },
+  // 1 inside the tomb: the two lanterns also light the plain (non-shiny) stone, per pixel (dgLookOn / dgLookOff)
+  uStoneLit: { value: 0 },
   uLamp2Pos: { value: new THREE.Vector3() },
   uLamp2P: { value: new THREE.Vector4(1, 0, 10, 0) },
   // the shop's sign light (updateShopLamp)   // the shop lantern (updateShopLamp)
@@ -49,6 +51,7 @@ uniform vec2 uRes; uniform float uSnap; uniform vec3 uSunDir; uniform vec3 uFill
 uniform float uAmb; uniform float uSun; uniform float uFill; uniform float uFogNear; uniform float uFogFar; uniform float uUvScale;
 uniform float uShine; uniform vec3 uLampPos; uniform vec4 uLampP; varying float vLampD; varying float vLampS;
 uniform vec3 uLamp2Pos; uniform vec4 uLamp2P; varying float vLamp2D; varying float vLamp2S;
+varying vec3 vVP; varying vec3 vVN;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying float vEnv; varying float vSpec;
 void main(){
   vec4 mv=modelViewMatrix*vec4(position,1.0);
@@ -57,6 +60,7 @@ void main(){
   gl_Position=cp;
   vec2 t=uv*uUvScale; vUvP=t; vUvA=t*cp.w; vW=cp.w;
   vec3 nr=normalize(normalMatrix*normal);
+  vVP=mv.xyz; vVN=nr;
   float d=max(dot(nr,normalize(mat3(viewMatrix)*uSunDir)),0.0);
   float f=max(dot(nr,normalize(mat3(viewMatrix)*uFillDir)),0.0);
   vLit=uAmb+uSun*d+uFill*f;
@@ -88,6 +92,7 @@ uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float 
 uniform vec3 uLampCol; uniform float uEmit; varying float vLampD; varying float vLampS;
 uniform float uMagma; uniform float uGem; uniform float uBladeGlow; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
 uniform vec3 uLamp2Col; varying float vLamp2D; varying float vLamp2S;
+uniform float uStoneLit; uniform vec3 uLampPos; uniform vec4 uLampP; uniform vec3 uLamp2Pos; uniform vec4 uLamp2P; varying vec3 vVP; varying vec3 vVN;
 uniform vec4 uOccF[6]; uniform float uOccN; uniform float uOccGap; uniform float uOccOn; uniform vec2 uOccNear;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying float vEnv; varying float vSpec;
 float b2(vec2 p){ p=mod(p,2.0); if(p.x<1.0) return p.y<1.0?0.0:3.0; return p.y<1.0?2.0:1.0; }
@@ -122,6 +127,20 @@ void main(){
     lit=mix(lit,m,0.8*sh)+mix(vec3(1.0),uTint,0.5)*sp;
     lampT=(base*uLampCol*vLampD*mix(0.45,1.0,sh)+mix(vec3(1.0),uTint,0.5)*uLampCol*vLampS*sh)*sh;
     lampT+=(base*uLamp2Col*vLamp2D*mix(0.45,1.0,sh)+mix(vec3(1.0),uTint,0.5)*uLamp2Col*vLamp2S*sh)*sh;
+  }
+  if(uStoneLit>0.01){                                          // the tomb's lanterns light the plain stone (and anything else that is not shiny) per pixel: warm pools that flicker with the lamps
+    vec3 nf=normalize(gl_FrontFacing?vVN:-vVN);
+    float k=uStoneLit*(1.0-clamp(uShine,0.0,1.0))*(1.0-uEmit)*1.5;
+    if(uLampP.y>0.0){
+      vec3 ld=(viewMatrix*vec4(uLampPos,1.0)).xyz-vVP; float dd=length(ld);
+      float q=clamp(1.0-dd*dd/(uLampP.x*uLampP.x),0.0,1.0);
+      lampT+=base*uLampCol*(max(dot(nf,ld/max(dd,0.0001)),0.0)*0.8+0.2)*q*q*uLampP.y*k;
+    }
+    if(uLamp2P.y>0.0){
+      vec3 ld2=(viewMatrix*vec4(uLamp2Pos,1.0)).xyz-vVP; float dd2=length(ld2);
+      float q2=clamp(1.0-dd2*dd2/(uLamp2P.x*uLamp2P.x),0.0,1.0);
+      lampT+=base*uLamp2Col*(max(dot(nf,ld2/max(dd2,0.0001)),0.0)*0.8+0.2)*q2*q2*uLamp2P.y*k;
+    }
   }
   float mgm=uMagma*smoothstep(0.40,0.52,tx.r-0.5*tx.b);                                          // 1 on the orange texels (the charred dark ones stay dark), 0 elsewhere
   lit=mix(lit,base*(1.30+0.55*uMagmaPulse)*vec3(1.0,0.94,0.82),mgm);                                // the magma shines from within: brighter than any light would make it, and it swells with the pulse
