@@ -699,13 +699,18 @@
       /* target tracker: a small window that shows which enemy knight is selected (numbers match the battle menu: 1 = far left of the player) */
       .tg {
         display: none;
-        left: 50%;
+        left: calc(12px + env(safe-area-inset-left, 0px));
         right: auto;
         top: calc(12px + env(safe-area-inset-top, 0px));
         bottom: auto;
         width: auto;
         max-height: none;
-        transform: translateX(-50%);
+        transform: none;
+        /* fully opaque: the theme gradient sits on a solid base, so nothing behind it shows through */
+        background:
+          linear-gradient(180deg, var(--win-hi) 0%, var(--win-mid) 55%, var(--win-lo) 100%),
+          #0a0f38;
+        opacity: 1;
         padding: 8px 14px 9px;
         font-size: 22px;
         z-index: 15;
@@ -777,6 +782,7 @@
       @media (max-width: 640px) {
         .tg {
           left: calc(10px + env(safe-area-inset-left, 0px));
+          top: calc(10px + env(safe-area-inset-top, 0px));
           transform: none;
           padding: 6px 10px 7px;
         }
