@@ -2515,6 +2515,34 @@ const ENEMY_DMG = { slime: 4, sporeling: 5, treeling: 7, golem: 12 },
   GUARD_FACTOR = 0.25,
   BRACE_MULT = 2,
   WAVE_HEAL = 15;
+/* WEAPON SPECIALS that are not a menu command (the inventory lists them as PASSIVE; Render and Knight Light are ACTIVE):
+ HATCHET  PICK-OFF: a carve on an enemy at HATCHET_HALF of its HP or less does HATCHET_BONUS more.
+ HAMMER   STUN: a carve stuns its target (it skips its next swing). Never when the target is the last enemy standing, and then HAMMER_STUN_CD of your turns must pass before the next one.
+ SHOVEL   DIG: SHOVEL_GOLD extra gold from every kill (0.25 = +25%). */
+const HATCHET_BONUS = 10,
+  HATCHET_HALF = 0.5,
+  HAMMER_STUN_CD = 2,
+  SHOVEL_GOLD = 0.25;
+let hammerCd = 0;
+const isHatchet = () => weapon === "sword" && swordStyle === "hatchet",
+  isHammer = () => weapon === "sword" && swordStyle === "hammer",
+  isShovel = () => weapon === "axe" && axeStyle === "shovel";
+// the hammer's stun, after a carve landed on e: only with another enemy still standing, and not while it is cooling down
+function hammerStun(e) {
+  if (!isHammer() || e.dead || hammerCd > 0) return;
+  if (enemies.filter((x) => !x.dead).length < 2) return;
+  e.stun = true;
+  hammerCd = HAMMER_STUN_CD;
+  setTimeout(
+    () =>
+      popup(
+        "STUN!",
+        headPos({ isPl: false, ent: e }, new THREE.Vector3()),
+        "blk",
+      ),
+    350,
+  );
+}
 // what one swing of this enemy does, before any guarding
 function enemyDamage(e) {
   const base = e.isSlime
@@ -2826,6 +2854,7 @@ function battleReset() {
   pl.hasteArm = false;
   potions = POTION_COUNT;
   hastes = HASTE_COUNT;
+  hammerCd = 0;
   potionKind = "heal";
   turn = "player";
   ep = null;
@@ -2951,7 +2980,8 @@ function startHaste() {
 function hasteTag() {
   return (
     (pl.haste > 0 ? "  HASTE " + (3 - pl.haste) + "/2" : "") +
-    (pl.brace ? "  BRACED" : "")
+    (pl.brace ? "  BRACED" : "") +
+    (isHammer() && hammerCd > 0 ? "  STUN IN " + hammerCd : "")
   );
 // 'HASTE 1/2', 'HASTE 2/2' while the double turn is on
 }
@@ -2993,9 +3023,25 @@ function startEnemyPhase() {
   setTurnLabel("ENEMY TURN", "foe");
 }
 function epNext() {
-  do {
+  // dead enemies are passed over, and so are stunned ones (the stun is used up)
+  for (;;) {
     ep.i++;
-  } while (ep.i < enemies.length && enemies[ep.i].dead);
+    const s = enemies[ep.i];
+    if (!s || s.dead) {
+      if (!s) break;
+      continue;
+    }
+    if (s.stun) {
+      s.stun = false;
+      popup(
+        "STUNNED",
+        headPos({ isPl: false, ent: s }, new THREE.Vector3()),
+        "blk",
+      );
+      continue;
+    }
+    break;
+  }
   if (ep.i >= enemies.length) {
     endEnemyPhase();
     return;
@@ -3028,6 +3074,7 @@ function endEnemyPhase() {
   enemies.forEach((e) => setEnemyYaw(e, Math.PI / 2));
   pl.guard = false;
   pl.buf = false;
+  if (hammerCd > 0) hammerCd--;
   ep = null;
   turn = "player";
   if (!pl.dead) play(idleName());
@@ -3304,10 +3351,12 @@ function updateBattle(dt) {
       bt.hitT = bt.t;
       const braced = pl.brace;
       pl.brace = false;
-      hurtEnemy(
-        e,
-        braced ? Math.round(SWING_DAMAGE * BRACE_MULT) : SWING_DAMAGE,
-      );
+      let dmg = braced ? Math.round(SWING_DAMAGE * BRACE_MULT) : SWING_DAMAGE;
+      // HATCHET: pick-off
+      if (isHatchet() && e.hp <= e.max * HATCHET_HALF) dmg += HATCHET_BONUS;
+      hurtEnemy(e, dmg);
+      // HAMMER: stun
+      hammerStun(e);
     // the blade connects
     }
     else if (

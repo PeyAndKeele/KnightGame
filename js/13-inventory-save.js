@@ -268,18 +268,19 @@ function invIcon(k) {
     "</svg>"
   );
 }
-const invLightStats = () => [
+/* Every weapon lists its SPECIAL and the SPECIAL TYPE: ACTIVE = a command you pick in battle (Render, Knight Light), PASSIVE = it just happens (pick-off, stun, dig), NONE.
+   invLightStats(special, type) and invHeavyStats(special, type) give the weapon's stats function. */
+const invStats = (grip, swing, special, type) => () => [
   ["DAMAGE", "" + SWING_DAMAGE],
-  ["GRIP", "ONE-HANDED"],
-  ["SWING", "SWING"],
-  ["SPECIAL", "NONE"],
+  ["GRIP", grip],
+  ["SWING", swing],
+  ["SPECIAL", special || "NONE"],
+  ["SPECIAL TYPE", type || "NONE"],
 ];
-const invHeavyStats = () => [
-  ["DAMAGE", "" + SWING_DAMAGE],
-  ["GRIP", "TWO-HANDED"],
-  ["SWING", "AXE SWING"],
-  ["SPECIAL", "RENDER (" + RENDER_DAMAGE + " TO ALL)"],
-];
+const invLightStats = (special, type) =>
+    invStats("ONE-HANDED", "SWING", special, type),
+  invHeavyStats = (special, type) =>
+    invStats("TWO-HANDED", "AXE SWING", special, type);
 /* A weapon row says which weapon slot it fills (w: 'sword' = light, 'axe' = heavy) and which style (ss: swordStyle, or as: axeStyle). */
 /* ---------- SAVE: what you own and how much gold you have ----------
  One object, `save`, is the single source of truth: the inventory lists only what owns(id) says you have, OPTIONS > KNIGHT's weapon rows skip what you do not own, and enemies pay gold into it.
@@ -353,8 +354,10 @@ function goldFor(e) {
 function awardGold(e) {
   if (e.goldGiven) return;
   e.goldGiven = true;
-  const g = goldFor(e);
+  let g = goldFor(e);
   if (!g) return;
+  // SHOVEL: dig - extra gold from every kill (see SHOVEL_GOLD in 09)
+  if (isShovel()) g = Math.round(g * (1 + SHOVEL_GOLD));
   addGold(g);
   setTimeout(
     () =>
@@ -434,7 +437,7 @@ const INV_TABS = [
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "sword",
-        stats: invLightStats,
+        stats: invLightStats(),
         desc: "A plain, balanced blade. Quick to swing and easy to trust.",
       },
       {
@@ -444,8 +447,11 @@ const INV_TABS = [
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "hatchet",
-        stats: invLightStats,
-        desc: "A woodcutter's hatchet on a short haft. Light enough to swing all day.",
+        stats: invLightStats("PICK-OFF", "PASSIVE"),
+        desc:
+          "A woodcutter's hatchet on a short haft. Hits +" +
+          HATCHET_BONUS +
+          " harder against enemies at half health or less.",
       },
       {
         t: "HAMMER",
@@ -454,8 +460,11 @@ const INV_TABS = [
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "hammer",
-        stats: invLightStats,
-        desc: "A blunt hammer. It lands with a thud instead of a slash.",
+        stats: invLightStats("STUN", "PASSIVE"),
+        desc:
+          "A blunt hammer. A hit stuns its target, which skips its next swing. Not on the last enemy, and every " +
+          (HAMMER_STUN_CD + 1) +
+          "rd turn at most.",
       },
       {
         t: "KNIGHTLY SWORD",
@@ -464,7 +473,7 @@ const INV_TABS = [
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "knightly",
-        stats: invLightStats,
+        stats: invLightStats("KNIGHT LIGHT (" + KL_DAMAGE + ")", "ACTIVE"),
         desc: "A knight's sword with gems set in the blade. Its swing leaves a trail of every colour.",
       },
       {
@@ -474,7 +483,7 @@ const INV_TABS = [
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "morningstar",
-        stats: invLightStats,
+        stats: invLightStats(),
         desc: "A spiked iron ball on a long haft. It does not cut so much as make an argument.",
       },
       {
@@ -484,7 +493,7 @@ const INV_TABS = [
         kind: "HEAVY WEAPON",
         w: "axe",
         as: "axe",
-        stats: invHeavyStats,
+        stats: invHeavyStats("RENDER (" + RENDER_DAMAGE + " TO ALL)", "ACTIVE"),
         desc: "A two-handed axe. It takes both hands to bring around, and it is the kind of weapon that can RENDER.",
       },
       {
@@ -494,8 +503,11 @@ const INV_TABS = [
         kind: "HEAVY WEAPON",
         w: "axe",
         as: "shovel",
-        stats: invHeavyStats,
-        desc: "A digger's shovel put to work as a weapon. It swings like the axe and can RENDER too.",
+        stats: invHeavyStats("RENDER + DIG", "ACTIVE + PASSIVE"),
+        desc:
+          "A digger's shovel put to work as a weapon. It swings like the axe and can RENDER too, and it digs up " +
+          Math.round(SHOVEL_GOLD * 100) +
+          "% more gold from every kill.",
       },
     ],
   },
