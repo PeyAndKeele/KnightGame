@@ -985,9 +985,12 @@ function dgLookOn(look) {
   U.uNight.value.set(look.tint[0], look.tint[1], look.tint[2]);
   if (nightGroup) nightGroup.visible = false;
   if (skyGroup) skyGroup.visible = false;
+  // no sky underground: the sky dome (and its dusk glow) would show through the doorways
+  if (todDome) todDome.visible = false;
 }
 function dgLookOff() {
   if (floorMesh) floorMesh.visible = true;
+  if (todDome) todDome.visible = true;
   lookSnap = true;
 }
 function enterDungeon(id) {
