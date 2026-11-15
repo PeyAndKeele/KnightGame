@@ -437,7 +437,7 @@ function updateTime(dt) {
     // the horizon is always exactly the fog colour (areas, dungeon ...); the zenith follows it
     fc = U.uFogColor.value;
   u.uHor.value.copy(fc);
-  u.uTop.value.set(
+  u.uTop.value.setRGB(
     Math.min(1, Math.max(0, _todBase.top.r + (fc.r - _todBase.hor.r) * 0.75)),
     Math.min(1, Math.max(0, _todBase.top.g + (fc.g - _todBase.hor.g) * 0.75)),
     Math.min(1, Math.max(0, _todBase.top.b + (fc.b - _todBase.hor.b) * 0.75)),
