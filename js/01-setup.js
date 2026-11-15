@@ -36,6 +36,10 @@ const U = {
   uMagmaPulse: { value: 0 },
   // 1 inside the tomb: the two lanterns also light the plain (non-shiny) stone, per pixel (dgLookOn / dgLookOff)
   uStoneLit: { value: 0 },
+  // the tomb's six wall sconces (updateTombLamp): xyz = where, w = how bright (0 = off); uScR = their reach, uScCol = their colour
+  uSc: { value: Array.from({ length: 6 }, () => new THREE.Vector4(0, 0, 0, 0)) },
+  uScR: { value: 1 },
+  uScCol: { value: new THREE.Vector3(1, 0.7, 0.4) },
   uLamp2Pos: { value: new THREE.Vector3() },
   uLamp2P: { value: new THREE.Vector4(1, 0, 10, 0) },
   // the shop's sign light (updateShopLamp)   // the shop lantern (updateShopLamp)
@@ -92,6 +96,7 @@ uniform sampler2D map; uniform vec3 uTint; uniform float uAffine; uniform float 
 uniform vec3 uLampCol; uniform float uEmit; varying float vLampD; varying float vLampS;
 uniform float uMagma; uniform float uGem; uniform float uBladeGlow; uniform float uMagmaPulse;   // uMagma (1 on the Ignis Mourne trees): the orange, magma-looking texels glow; uMagmaPulse (0..1, shared) slowly swells and fades that glow
 uniform vec3 uLamp2Col; varying float vLamp2D; varying float vLamp2S;
+uniform vec4 uSc[6]; uniform float uScR; uniform vec3 uScCol;
 uniform float uStoneLit; uniform vec3 uLampPos; uniform vec4 uLampP; uniform vec3 uLamp2Pos; uniform vec4 uLamp2P; varying vec3 vVP; varying vec3 vVN;
 uniform vec4 uOccF[6]; uniform float uOccN; uniform float uOccGap; uniform float uOccOn; uniform vec2 uOccNear;
 varying vec2 vUvA; varying vec2 vUvP; varying float vW; varying float vLit; varying float vFog; varying float vEnv; varying float vSpec;
@@ -140,6 +145,12 @@ void main(){
       vec3 ld2=(viewMatrix*vec4(uLamp2Pos,1.0)).xyz-vVP; float dd2=length(ld2);
       float q2=clamp(1.0-dd2*dd2/(uLamp2P.x*uLamp2P.x),0.0,1.0);
       lampT+=base*uLamp2Col*(max(dot(nf,ld2/max(dd2,0.0001)),0.0)*0.8+0.2)*q2*q2*uLamp2P.y*k;
+    }
+    for(int i=0;i<6;i++){                                       // the wall sconces
+      if(uSc[i].w<=0.0) continue;
+      vec3 ls=(viewMatrix*vec4(uSc[i].xyz,1.0)).xyz-vVP; float ds=length(ls);
+      float qs=clamp(1.0-ds*ds/(uScR*uScR),0.0,1.0);
+      lampT+=base*uScCol*(max(dot(nf,ls/max(ds,0.0001)),0.0)*0.8+0.2)*qs*qs*uSc[i].w*k;
     }
   }
   float mgm=uMagma*smoothstep(0.40,0.52,tx.r-0.5*tx.b);                                          // 1 on the orange texels (the charred dark ones stay dark), 0 elsewhere

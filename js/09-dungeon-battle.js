@@ -612,6 +612,8 @@ function decorateTomb(grp, RD, lib, dScale) {
   );
   addTombFurniture(grp, RD, lib, dScale);
   addTombCages(grp, RD, dScale);
+  tombSconceGrp = grp;
+  addTombWebs(grp);
 }
 /* THE TOMB'S TABLE AND LANTERNS.
  The table (table-data = table.gltf) stands against the west colonnade, in front of the gap between the two bays of shelves, its long side along the wall. `tall` = how tall it stands in knight-heights;
@@ -655,6 +657,77 @@ const TOMB_TABLE = {
   LINK_LEN = 0.0875,
   LINK_PITCH = 0.046875;
 let tombLamps = [];
+/* THE TOMB'S SIX WALL SCONCES (they are in tomb-data itself). Each one is a warm light that lights the plain stone, per pixel (the shader's uSc array); `pts` = where each flame is, in the tomb file's units
+ (three along each long wall, a little in front of the sconce), `range` = how far the light reaches in knight-heights, `intensity` = how bright, `color` = its colour. Each flickers at its own rhythm (updateTombLamp). */
+const TOMB_SCONCES = {
+    pts: [
+      [-0.8, 0.98, -1.42],
+      [-0.8, 0.98, 0.0],
+      [-0.8, 0.98, 1.38],
+      [0.78, 0.98, -1.39],
+      [0.78, 0.98, 0.0],
+      [0.78, 0.98, 1.36],
+    ],
+    range: 2.1,
+    intensity: 0.9,
+    color: [1.0, 0.72, 0.42],
+  },
+  /* THE TOMB'S COBWEBS: the cobweb picture (16 x 16, its white made see-through) on a flat pane hung across each upper corner of the hall. `corners` = the corner's x / z, `w` = how far the pane reaches along each wall,
+ `h` = how far down it hangs, `top` = the ceiling's underside. */
+  TOMB_WEBS = {
+    corners: [
+      [-0.975, -1.69],
+      [0.97, -1.69],
+      [-0.975, 1.61],
+      [0.97, 1.61],
+    ],
+    w: 0.42,
+    h: 0.5,
+    top: 1.935,
+    url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA4klEQVR42n1T2w3EIAwzt0A7Axuw/w7pBEFiACqYwPeVHuSgSEjOO7ESiAhJYvdVdWsXkR9YGS1YVel9TP6r5J1rrVz5mA6rrGPwSjfK8EbLLiI0Z1952cFYyfCo82RuORiDvW5MYvgx2rw2Rq2V40irTlSVgSRyzowxBgATBoD7vtlaQ+8dx3HgPE+01gAAMcaw5GDs5o0LVeUHi1dKQUoplFIAACmlkHMmAPTeAQDXdXHqYEXk2IHnw3AgCT9vjHGqmFJ6ODH9w9NuD/zG+duYFml3kXYXu2Ob9mDn8PZFhF/6kdVsjIldKAAAAABJRU5ErkJggg==",
+  };
+let tombSconceGrp = null;
+function addTombWebs(grp) {
+  loadImg(TOMB_WEBS.url)
+    .then((img) => {
+      const tex = new THREE.Texture(img);
+      tex.flipY = false;
+      const mat = ps1Mat(tex, 1),
+        W = TOMB_WEBS;
+      W.corners.forEach(([cx, cz]) => {
+        // the corner is where two walls meet; the pane runs from a point w along one wall to a point w along the other
+        const ix = cx < 0 ? 1 : -1,
+          iz = cz < TOMB_MID[1] ? 1 : -1,
+          y1 = W.top,
+          y0 = W.top - W.h,
+          pos = new Float32Array([
+            cx + ix * W.w, y1, cz,
+            cx, y1, cz + iz * W.w,
+            cx, y0, cz + iz * W.w,
+            cx + ix * W.w, y0, cz,
+          ]),
+          nx = iz * 1,
+          nz = ix * 1,
+          nl = Math.hypot(nx, nz),
+          geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute(
+          "normal",
+          new THREE.BufferAttribute(
+            new Float32Array([nx, 0, nz, nx, 0, nz, nx, 0, nz, nx, 0, nz].map((v) => v / nl)),
+            3,
+          ),
+        );
+        geo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2));
+        geo.setIndex([0, 1, 2, 0, 2, 3]);
+        const m = new THREE.Mesh(geo, mat);
+        m.frustumCulled = false;
+        m.userData.noCam = true; // the camera never bumps into a cobweb
+        grp.add(m);
+      });
+    })
+    .catch((e) => console.error("tomb cobwebs failed", e));
+}
 function bakedBounds(RD) {
   const lo = [Infinity, Infinity, Infinity],
     hi = [-Infinity, -Infinity, -Infinity];
@@ -843,6 +916,21 @@ function updateTombCages() {
 function updateTombLamp() {
   if (!dungeon || dg !== DUNGEONS.tomb || !dg.group || !dg.group.visible) return;
   updateTombCages();
+  const ts = performance.now() / 1000;
+  if (tombSconceGrp) {
+    tombSconceGrp.updateWorldMatrix(true, false);
+    const S = TOMB_SCONCES;
+    U.uScR.value = S.range * playerH;
+    U.uScCol.value.set(S.color[0], S.color[1], S.color[2]);
+    S.pts.forEach((pt, i) => {
+      const v = U.uSc.value[i],
+        ph = i * 1.9,
+        fl = 1 + 0.07 * Math.sin(ts * 8.3 + ph) * Math.sin(ts * 2.9 + 1 + ph) + 0.03 * Math.sin(ts * 15.1 + ph);
+      v.set(pt[0], pt[1], pt[2], 0);
+      tombSconceGrp.localToWorld(v);
+      v.w = S.intensity * fl;
+    });
+  }
   if (!tombLamps.length) return;
   const t = performance.now() / 1000;
   tombLamps.forEach((L) => {
@@ -992,6 +1080,7 @@ function dgLookOn(look) {
 function dgLookOff() {
   if (floorMesh) floorMesh.visible = true;
   U.uStoneLit.value = 0;
+  U.uSc.value.forEach((v) => (v.w = 0));
   if (todDome) todDome.visible = true;
   lookSnap = true;
 }
