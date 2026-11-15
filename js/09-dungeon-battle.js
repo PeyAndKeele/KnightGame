@@ -1348,7 +1348,7 @@ function playSlimeSfx(kind) {
   else if (kind === "win") playSfxSet("slime-win-sfx-data", 0, 0.9, 1, 0);
 }
 /* ---------- WAVES + the new enemies: TREELING and SPORELING ----------
- dg.waves (each dungeon's own list, in DUNGEONS) = the fights in a row, left to right as the enemy ring lays out (slots 0, 1, 2): 'slime', 'golem', or 'mob' (a treeling or a sporeling, picked at random for each 'mob').
+ dg.waves (each dungeon's own list, in DUNGEONS) = the fights in a row, left to right as the enemy ring lays out (slots 0, 1, 2): 'slime', 'golem', or 'mob' (a skeleton now (it took the treeling's and the sporeling's place; see SKELETON below)).
  When a wave is cleared the next one appears after a short pause; the knight keeps his HP. The last wave being cleared is the win (the chest). MOBS = name, hit points, and height as a fraction
  of the knight's. Their model files bring their own Idle, Hit and atk clips; they fight like the golem (same hit timing rule: halfway through atk, same sounds for now). */
 const MOBS = {
@@ -1492,6 +1492,163 @@ function spawnMob(k, sx, sz, H, th) {
   enemies.push(en);
   return true;
 }
+/* ---------- SKELETON: takes the place of the TREELING and the SPORELING ----------
+ Every 'mob' in a wave is now a skeleton (skeleton-data: the knight's own rig, so every bone has the knight's name, with a skeleton's body and head). It moves exactly like an enemy knight: the knight's Idle, Hit, Swing and Death clips, his sounds, his
+ timing. Each one carries a random one-handed weapon (the Shortsword, Hatchet, Hammer, Knightly Sword or Morningstar) that is only for looks: none of that weapon's passives or specials apply to it.
+ SKELETON_HP = its hit points (the sporeling had 50 and the treeling 80), its damage is ENEMY_DMG.skeleton and its gold GOLD_FOR.skeleton (a bit above the treeling's). If the model is not loaded yet, a knight steps up instead. */
+const SKELETON_HP = 90;
+let skelScene = null;
+function loadSkeleton() {
+  const el = document.getElementById("skeleton-data");
+  if (!el) return;
+  try {
+    const t = atob(el.textContent.trim()),
+      u = new Uint8Array(t.length);
+    for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i);
+    new THREE.GLTFLoader().parse(
+      u.buffer,
+      "",
+      (g) => {
+        const cache = new Map();
+        g.scene.traverse((o) => {
+          if (!o.isMesh) return;
+          const om = o.material;
+          if (!cache.has(om.uuid)) cache.set(om.uuid, ps1Mat(om.map, 1));
+          o.material = cache.get(om.uuid);
+          o.frustumCulled = false;
+        });
+        skelScene = g.scene;
+      },
+      (e) => console.error("skeleton failed", e),
+    );
+  } catch (e) {
+    console.error("skeleton failed", e);
+  }
+}
+setTimeout(loadSkeleton, 0);
+// a copy without the userData (it can hold things that cannot be copied), like the enemy knights' clone
+function cloneNoUserData(obj) {
+  const st = [];
+  obj.traverse((o) => {
+    if (o.userData && Object.keys(o.userData).length) {
+      st.push([o, o.userData]);
+      o.userData = {};
+    }
+  });
+  try {
+    return obj.clone(true);
+  } finally {
+    st.forEach(([o, u]) => {
+      o.userData = u;
+    });
+  }
+}
+// the name the knight's clips give his head bone (the model has two nodes called Head, so the loader renames one)
+function headTrackName() {
+  const c = actions.Idle && actions.Idle.getClip();
+  if (c)
+    for (const t of c.tracks) {
+      const b = t.name.slice(0, t.name.lastIndexOf("."));
+      if (/^Head(_\d+)?$/.test(b)) return b;
+    }
+  return "Head";
+}
+function spawnSkeleton(k, sx, sz, H, th) {
+  if (!skelScene || !actions.Idle || !homeTarget) return false;
+  const c = homeTarget,
+    root = cloneNoUserData(skelScene);
+  // enemies keep the normal handedness whatever the player's weapon
+  root.scale.x = MIRROR_MODEL ? -1 : 1;
+  const hb = headTrackName(),
+    hg = root.getObjectByName("Head");
+  if (hg && hb !== "Head") hg.name = hb;
+  // a random weapon in the hand, looks only: its own textures, none of its specials
+  const ws = [swordGrp, hatchetGrp, hammerGrp, knightlyGrp, morningstarGrp].filter(
+      Boolean,
+    ),
+    fore = root.getObjectByName("Left_Forearm");
+  if (ws.length && fore) {
+    const wg = cloneNoUserData(ws[Math.floor(Math.random() * ws.length)]),
+      wm = new Map();
+    wg.visible = true;
+    wg.traverse((o) => {
+      if (!o.isMesh) return;
+      const om = o.material;
+      if (!om.uniforms || !om.uniforms.map || !om.uniforms.map.value) {
+        o.visible = false;
+        return;
+      }
+      if (!wm.has(om.uuid)) wm.set(om.uuid, ps1Mat(om.uniforms.map.value, 1));
+      o.material = wm.get(om.uuid);
+      o.frustumCulled = false;
+    });
+    fore.add(wg);
+  }
+  const rig = new THREE.Group();
+  rig.add(root);
+  rig.rotation.y = th;
+  const ox = -c.x,
+    oz = -c.z;
+  rig.position.set(
+    sx - (ox * Math.cos(th) + oz * Math.sin(th)),
+    0,
+    sz - (-ox * Math.sin(th) + oz * Math.cos(th)),
+  );
+  scene.add(rig);
+  const mx = new THREE.AnimationMixer(root),
+    a = mx.clipAction(actions.Idle.getClip());
+  a.timeScale = 0.92 + Math.random() * 0.16;
+  a.play();
+  a.time = Math.random() * a.getClip().duration;
+  mx.update(0);
+  const blob = new THREE.Mesh(
+    new THREE.CircleGeometry(H * 0.26, 10),
+    new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    }),
+  );
+  blob.rotation.x = -Math.PI / 2;
+  blob.position.set(sx, blobHome.y, sz);
+  scene.add(blob);
+  const en = {
+    isSlime: false,
+    skel: true,
+    mobName: "SKELETON",
+    rig,
+    mixer: mx,
+    root,
+    blob,
+    tex: [],
+    armor: "#d9d3c1",
+    plume: "#7c8190",
+    sword: null,
+    x: sx,
+    z: sz,
+    idle: a,
+    hit: null,
+    hitDone: false,
+    hp: SKELETON_HP,
+    max: SKELETON_HP,
+    dead: false,
+    atk: null,
+    atkDone: false,
+    death: null,
+    deathDone: false,
+  };
+  mx.addEventListener("finished", (ev) => {
+    if (ev.action === en.hit) en.hitDone = true;
+    if (ev.action === en.atk) en.atkDone = true;
+    if (ev.action === en.death) en.deathDone = true;
+  });
+  enemies.push(en);
+  return true;
+}
 function nextWave() {
   // every enemy of this wave is down: a pause, then the next wave steps up (the knight keeps his HP)
   turn = "wave";
@@ -1615,7 +1772,7 @@ function spawnEnemies() {
       enemies.push(en);
       continue;
     }
-    if (lay[k] === "mob" && spawnMob(k, sx, sz, H, th)) continue;
+    if (lay[k] === "mob" && spawnSkeleton(k, sx, sz, H, th)) continue;
     if (lay[k] === "golem" && golemReady()) {
       // the ruins' knight is a golem now: same HP, same damage
       const root = golemScene.clone(true),
@@ -1987,7 +2144,9 @@ function tgSync() {
       ? "ELEMENTAL SLIME"
       : s.isGolem
         ? s.mobName || "GOLEM"
-        : (TG_NAMES[s.armor] || "STEEL") + " KNIGHT") +
+        : s.skel
+          ? "SKELETON"
+          : (TG_NAMES[s.armor] || "STEEL") + " KNIGHT") +
     "</div>";
   tgEl.innerHTML = html;
   tgEl.hidden = false;
@@ -2511,7 +2670,7 @@ const SWING_DAMAGE = 25;
  ENEMY_DMG = what one swing of each enemy does (times the dungeon's `dmg`); ENEMY_DAMAGE is the fallback for anything not in the table (the enemy knights).
  GUARD_FACTOR = the share of a hit that gets through while guarding. BRACE_MULT = how much harder the carve after a BLOCK hits (2 = 50, which one-shots a slime or sporeling).
  Blocking costs the turn and deals nothing, so without BRACE it could never beat just attacking: the brace is what makes BLOCK > CARVE when it does not kill. */
-const ENEMY_DMG = { slime: 4, sporeling: 5, treeling: 7, golem: 12 },
+const ENEMY_DMG = { slime: 4, sporeling: 5, treeling: 7, skeleton: 8, golem: 12 },
   ENEMY_DAMAGE = 12,
   GUARD_FACTOR = 0.25,
   BRACE_MULT = 2,
@@ -2740,7 +2899,9 @@ function bleedTick() {
 function enemyDamage(e) {
   const base = e.isSlime
     ? ENEMY_DMG.slime
-    : e.mobName === "SPORELING"
+    : e.skel
+      ? ENEMY_DMG.skeleton
+      : e.mobName === "SPORELING"
       ? ENEMY_DMG.sporeling
       : e.mobName === "TREELING"
         ? ENEMY_DMG.treeling
@@ -2957,7 +3118,9 @@ function barsBuild() {
         ? "SLIME"
         : e.isGolem
           ? e.mobName || "GOLEM"
-          : TG_NAMES[e.armor] || "STEEL",
+          : e.skel
+            ? "SKELETON"
+            : TG_NAMES[e.armor] || "STEEL",
       false,
     ),
   );

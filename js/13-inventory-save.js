@@ -312,7 +312,7 @@ const SAVE_KEY = DEV ? "knight-save-dev" : "knight-save",
     "potion",
     "haste",
   ];
-const GOLD_FOR = { slime: 10, sporeling: 10, treeling: 15, golem: 25 };
+const GOLD_FOR = { slime: 10, sporeling: 10, treeling: 15, skeleton: 18, golem: 25 };
 function saveLoad() {
   const f = { gold: 0, owned: START_OWNED.slice() };
   try {
@@ -342,7 +342,9 @@ function addGold(n) {
 function goldFor(e) {
   return e.isSlime
     ? GOLD_FOR.slime
-    : e.mobName === "SPORELING"
+    : e.skel
+      ? GOLD_FOR.skeleton
+      : e.mobName === "SPORELING"
       ? GOLD_FOR.sporeling
       : e.mobName === "TREELING"
         ? GOLD_FOR.treeling

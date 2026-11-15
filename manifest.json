@@ -90,6 +90,12 @@
     "size": 291984
   },
   {
+    "id": "skeleton-data",
+    "type": "application/json",
+    "url": "skeleton-data.json",
+    "size": 233852
+  },
+  {
     "id": "sword-data",
     "type": "application/json",
     "url": "sword-data.json",

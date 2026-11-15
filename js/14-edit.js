@@ -738,18 +738,12 @@ function initMainMenu() {
             ENEMY_DMG.slime +
             " / " +
             GOLD_FOR.slime,
-          "SPORELING " +
-            MOBS.sporeling.hp +
+          "SKELETON " +
+            SKELETON_HP +
             " / " +
-            ENEMY_DMG.sporeling +
+            ENEMY_DMG.skeleton +
             " / " +
-            GOLD_FOR.sporeling,
-          "TREELING " +
-            MOBS.treeling.hp +
-            " / " +
-            ENEMY_DMG.treeling +
-            " / " +
-            GOLD_FOR.treeling,
+            GOLD_FOR.skeleton,
           "GOLEM " +
             ENEMY_HP +
             " / " +
