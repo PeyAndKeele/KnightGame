@@ -614,6 +614,7 @@ function decorateTomb(grp, RD, lib, dScale) {
   addTombCages(grp, RD, dScale);
   tombSconceGrp = grp;
   addTombWebs(grp);
+  addTombFlames(grp);
 }
 /* THE TOMB'S TABLE AND LANTERNS.
  The table (table-data = table.gltf) stands against the west colonnade, in front of the gap between the two bays of shelves, its long side along the wall. `tall` = how tall it stands in knight-heights;
@@ -661,12 +662,12 @@ let tombLamps = [];
  (three along each long wall, a little in front of the sconce), `range` = how far the light reaches in knight-heights, `intensity` = how bright, `color` = its colour. Each flickers at its own rhythm (updateTombLamp). */
 const TOMB_SCONCES = {
     pts: [
-      [-0.8, 0.98, -1.42],
-      [-0.8, 0.98, 0.0],
-      [-0.8, 0.98, 1.38],
-      [0.78, 0.98, -1.39],
-      [0.78, 0.98, 0.0],
-      [0.78, 0.98, 1.36],
+      [-0.8, 1.02, -1.42],
+      [-0.8, 1.02, 0.0],
+      [-0.8, 1.02, 1.38],
+      [0.78, 1.02, -1.39],
+      [0.78, 1.02, 0.0],
+      [0.78, 1.02, 1.36],
     ],
     range: 2.1,
     intensity: 0.9,
@@ -687,6 +688,32 @@ const TOMB_SCONCES = {
     url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA4klEQVR42n1T2w3EIAwzt0A7Axuw/w7pBEFiACqYwPeVHuSgSEjOO7ESiAhJYvdVdWsXkR9YGS1YVel9TP6r5J1rrVz5mA6rrGPwSjfK8EbLLiI0Z1952cFYyfCo82RuORiDvW5MYvgx2rw2Rq2V40irTlSVgSRyzowxBgATBoD7vtlaQ+8dx3HgPE+01gAAMcaw5GDs5o0LVeUHi1dKQUoplFIAACmlkHMmAPTeAQDXdXHqYEXk2IHnw3AgCT9vjHGqmFJ6ODH9w9NuD/zG+duYFml3kXYXu2Ob9mDn8PZFhF/6kdVsjIldKAAAAABJRU5ErkJggg==",
   };
 let tombSconceGrp = null;
+/* the sconces' flames: the campfire's own flame (FIRE_ATLAS: 4 frames, 200 ms each, a camera-facing sprite), one above each sconce's cup, each starting at a different frame so they do not flicker in step.
+ `h` = how tall a flame is in the tomb file's units (the width follows the gif's proportions). Each flame stands a little in front of its sconce, at the light's height (TOMB_SCONCES.pts). */
+const TOMB_FLAME = { h: 0.2, inset: 0.06 };
+let tombFlames = [];
+function addTombFlames(grp) {
+  loadImg(FIRE_ATLAS)
+    .then((img) => {
+      tombFlames = TOMB_SCONCES.pts.map((pt) => {
+        const tex = new THREE.Texture(img);
+        tex.magFilter = tex.minFilter = THREE.NearestFilter;
+        tex.generateMipmaps = false;
+        tex.repeat.set(1 / FIRE_FRAMES, 1);
+        tex.needsUpdate = true;
+        const spr = new THREE.Sprite(
+          new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }),
+        );
+        // the sconce's cup is a little further out than the light
+        spr.position.set(pt[0] + (pt[0] < 0 ? -1 : 1) * TOMB_FLAME.inset, pt[1], pt[2]);
+        spr.scale.set(TOMB_FLAME.h * FIRE_ASPECT, TOMB_FLAME.h, 1);
+        spr.renderOrder = 5;
+        grp.add(spr);
+        return { spr, tex, ph: Math.random() * FIRE_FRAMES * FIRE_MS, fi: -1 };
+      });
+    })
+    .catch((e) => console.error("tomb flames failed", e));
+}
 function addTombWebs(grp) {
   loadImg(TOMB_WEBS.url)
     .then((img) => {
@@ -931,6 +958,19 @@ function updateTombLamp() {
       v.w = S.intensity * fl;
     });
   }
+  tombFlames.forEach((f) => {
+    const fi = Math.floor((ts * 1000 + f.ph) / FIRE_MS) % FIRE_FRAMES;
+    if (fi !== f.fi) {
+      f.fi = fi;
+      f.tex.offset.x = fi / FIRE_FRAMES;
+    }
+    // fades into the fog like the campfire does
+    const near = U.uFogNear.value,
+      far = U.uFogFar.value,
+      d = camera.position.distanceTo(f.spr.getWorldPosition(fireV)),
+      k = Math.min(1, Math.max(0, (d - near) / (far - near)));
+    f.spr.material.opacity = 1 - k * k * (3 - 2 * k);
+  });
   if (!tombLamps.length) return;
   const t = performance.now() / 1000;
   tombLamps.forEach((L) => {

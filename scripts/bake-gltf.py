@@ -16,6 +16,10 @@ What it does (the same thing ruins-data.json is):
 Options:
   --skip NAME    leave out every node with this name (Blockbench helper boxes such as "GROUND HERE"); repeatable
   --nocam NAME   flag the parts made of nodes with this name; repeatable
+  --subdivide L  split every triangle that has an edge longer than L (in the file's units) until none does. The game draws with PS1-style affine texture mapping,
+                 so a big flat triangle (a floor made of a few triangles) visibly swims and stretches as the camera moves - more, smaller triangles stop that
+  --subdivide-up only subdivide the triangles that face up (a floor's top; its sides and underside are never seen, so they stay big and cheap)
+  --subdivide-tex I  only subdivide the parts that use image I (repeatable; default = every part)
 """
 import argparse
 import base64
@@ -54,6 +58,47 @@ def node_matrix(n):
     return m
 
 
+def subdivide(P, N, UV, I, maxe, up_only=False):
+    """splits triangles with an edge longer than maxe into four (edge midpoints, shared between neighbours), until every edge is short enough"""
+    P, N, UV, I = [np.array(x, dtype=np.float64) for x in (P, N, UV, I)]
+    I = I.astype(np.int64)
+    for _ in range(12):
+        mid = {}
+        newP, newN, newUV = [P], [N], [UV]
+        count = [len(P)]
+        extraP, extraN, extraUV = [], [], []
+
+        def midpoint(a, b):
+            k = (a, b) if a < b else (b, a)
+            if k not in mid:
+                mid[k] = count[0]
+                count[0] += 1
+                extraP.append((P[a] + P[b]) / 2)
+                nn = N[a] + N[b]
+                extraN.append(nn / max(np.linalg.norm(nn), 1e-9))
+                extraUV.append((UV[a] + UV[b]) / 2)
+            return mid[k]
+
+        out, changed = [], False
+        for a, b, c in I:
+            e = max(np.linalg.norm(P[a] - P[b]), np.linalg.norm(P[b] - P[c]), np.linalg.norm(P[c] - P[a]))
+            nn = N[a] + N[b] + N[c]
+            if e <= maxe or (up_only and nn[1] / max(np.linalg.norm(nn), 1e-9) < 0.9):
+                out.append((a, b, c))
+                continue
+            changed = True
+            ab, bc, ca = midpoint(a, b), midpoint(b, c), midpoint(c, a)
+            out += [(a, ab, ca), (ab, b, bc), (ca, bc, c), (ab, bc, ca)]
+        if not changed:
+            break
+        if extraP:
+            P = np.vstack([P, np.array(extraP)])
+            N = np.vstack([N, np.array(extraN)])
+            UV = np.vstack([UV, np.array(extraUV)])
+        I = np.array(out, dtype=np.int64)
+    return P, N, UV, I.reshape(-1)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("src")
@@ -61,6 +106,9 @@ def main():
     ap.add_argument("--center", nargs=3, type=float, default=[0, 0, 0])
     ap.add_argument("--skip", action="append", default=[])
     ap.add_argument("--nocam", action="append", default=[])
+    ap.add_argument("--subdivide", type=float, default=0)
+    ap.add_argument("--subdivide-up", action="store_true")
+    ap.add_argument("--subdivide-tex", type=int, action="append", default=[])
     a = ap.parse_args()
 
     g = json.load(open(a.src))
@@ -114,6 +162,10 @@ def main():
 
     parts = []
     for (img, nocam), d in sorted(merged.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        PP, NN, UU, II = np.concatenate(d["p"]), np.concatenate(d["n"]), np.concatenate(d["uv"]), np.concatenate(d["i"])
+        if a.subdivide > 0 and (not a.subdivide_tex or img in a.subdivide_tex):
+            PP, NN, UU, II = subdivide(PP, NN, UU, II.reshape(-1, 3), a.subdivide, a.subdivide_up)
+            d = {"p": [PP], "n": [NN], "uv": [UU], "i": [II]}
         part = {
             "t": img,
             "p": flat(d["p"], 4),
