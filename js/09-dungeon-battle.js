@@ -1495,8 +1495,9 @@ function spawnMob(k, sx, sz, H, th) {
 /* ---------- SKELETON: takes the place of the TREELING and the SPORELING ----------
  Every 'mob' in a wave is now a skeleton (skeleton-data: the knight's own rig, so every bone has the knight's name, with a skeleton's body and head). It moves exactly like an enemy knight: the knight's Idle, Hit, Swing and Death clips, his sounds, his
  timing. Each one carries a random one-handed weapon (the Shortsword, Hatchet, Hammer, Knightly Sword or Morningstar) that is only for looks: none of that weapon's passives or specials apply to it.
- SKELETON_HP = its hit points (the sporeling had 50 and the treeling 80), its damage is ENEMY_DMG.skeleton and its gold GOLD_FOR.skeleton (a bit above the treeling's). If the model is not loaded yet, a knight steps up instead. */
-const SKELETON_HP = 90;
+ SKELETON_HEAD_SCALE = how big its skull is next to the head as it was modeled (1 = as modeled), shrunk about the neck. SKELETON_HP = its hit points (the sporeling had 50 and the treeling 80), its damage is ENEMY_DMG.skeleton and its gold GOLD_FOR.skeleton (a bit above the treeling's). If the model is not loaded yet, a knight steps up instead. */
+const SKELETON_HP = 90,
+  SKELETON_HEAD_SCALE = 0.6;
 let skelScene = null;
 function loadSkeleton() {
   const el = document.getElementById("skeleton-data");
@@ -1562,6 +1563,8 @@ function spawnSkeleton(k, sx, sz, H, th) {
   const hb = headTrackName(),
     hg = root.getObjectByName("Head");
   if (hg && hb !== "Head") hg.name = hb;
+  const skull = root.getObjectByName("skull");
+  if (skull) skull.scale.setScalar(SKELETON_HEAD_SCALE);
   // a random weapon in the hand, looks only: its own textures, none of its specials
   const ws = [swordGrp, hatchetGrp, hammerGrp, knightlyGrp, morningstarGrp].filter(
       Boolean,
