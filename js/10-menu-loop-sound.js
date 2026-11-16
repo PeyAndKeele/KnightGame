@@ -468,8 +468,8 @@ const SWISH_COMBO = {
     [1.1, 1.267],
     [1.483, 1.533],
   ],
-  // Heavy_Weapon_Swing: one big overhead-to-side strike (the earlier lift at ~1.5 s is only a wind-up)
-  Heavy_Weapon_Swing: [[2.3, 2.54]],
+  // Heavy_Weapon_Swing: the Great Sword Pack "slash" (one diagonal strike at ~0.43 - 0.73 s)
+  Heavy_Weapon_Swing: [[0.43, 0.6]],
   HeavyCombo: [
     [0.333, 0.517],
     [0.967, 1.017],

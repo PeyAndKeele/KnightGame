@@ -143,6 +143,7 @@ def run(path, name, dump=False):
     best = {}
     for mid, d in anim.items():
         for prop,(axes, layer) in d.items():
+            if not axes: continue
             n = len(list(axes.values())[0][0])
             best[layer] = max(best.get(layer,0), n)
     main_layer = max(best, key=best.get)
@@ -150,7 +151,7 @@ def run(path, name, dump=False):
     T = None
     for mid, d in anim.items():
         for prop,(axes, layer) in d.items():
-            if layer == main_layer and len(list(axes.values())[0][0]) > 1:
+            if axes and layer == main_layer and len(list(axes.values())[0][0]) > 1:
                 T = list(axes.values())[0][0]; break
         if T is not None: break
     n = len(T)
@@ -158,7 +159,8 @@ def run(path, name, dump=False):
         d = anim.get(mid, {}).get(prop)
         if d and d[1] == main_layer:
             axes = d[0]
-            return np.stack([np.interp(T, *axes[a]) for a in 'XYZ'], axis=1)
+            dflt = np.asarray(default, float)
+            return np.stack([np.interp(T, *axes[a]) if a in axes else np.full(n, dflt['XYZ'.index(a)]) for a in 'XYZ'], axis=1)
         return np.tile(np.asarray(default, float), (n,1))
     # FK over frames
     wrot = {}      # mid -> Rotation (n frames)
