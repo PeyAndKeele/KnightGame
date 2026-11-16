@@ -234,9 +234,13 @@ function invStep(dt) {
 /* The inventory is laid out like Elden Ring's: TABS along the top (WEAPONS, ITEMS; Q / E switch them), under them the TYPES inside a tab (WEAPONS: LIGHT / HEAVY; A / D or the left / right arrows switch them),
  the list of what you hold on the left (the equipped one wears an E), and the highlighted item's details on the right. Hovering a weapon shows it on the knight; clicking it (or ENTER) equips it.
  The knight stands between the two columns and wears whatever you equip. To add a weapon, add a row to the WEAPONS tab's items (cls: 'light' or 'heavy'); a new tab or type is one more entry in INV_TABS.
- Light = the one-handed weapons (his 'sword' slot: sword, hatchet, hammer, knightly sword, morningstar); heavy = the two-handed ones (his 'axe' slot: axe, shovel), the ones RENDER needs. */
+ Light = the one-handed weapons (his 'sword' slot: sword, knightly sword, hatchet, iron crescent, wretched cleaver, hammer, morning star); heavy = the two-handed ones (his 'axe' slot: axe, shovel, halberd, rune-forged reaver), the ones RENDER needs. */
 /* The weapons' inventory icons: the hand-drawn pixel sprites (sword, hammer, hatchet, axe, shovel, knightly sword, morningstar), used as a mask and drawn white (.wico background). Potion keeps its line icon. */
 const WEAPON_ICONS = {
+  halberd:
+    "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABf0lEQVR4nO3cS07DQBBAQYy4/5XNFgYJy/LnTZyqHSsinrqbhJCPDwDe1VI/gKdb13X9+fWyLL9+5p/3PhxGAsQEiLkBJ9va+SMTEBMgJkDMDdhp3PGjrZ0/MgExAWICxL7qBzC7rZ1/lAmICRATIOZ5wGDvzt/7e//IBMQEiAkQm+4G3L2D7/5+IxMQEyAmQGy6GzC6+rWYLWfv/JEJiAkQEyA2/Q0YXX0Trt75IxMQEyAmQMwN2OB5wMMJEBMg9nI3YPTqrxWZgJgAMQFiL3cDjv4Nd7abYQJiAsQEiE1/A85+3059A0YmICZATIDYdP8jVr9X824mICZATIBYfgPebed7LWgyAsQEiN1+A56+831e0IsRICZA7PIbYOf/zwTEBIgJEDv9Btj5+5iAmAAxAWKHb4Cdf4wJiAkQEyC2+wbY+ecyATEBYgLENm+AnX8tExATICZA7M/+e/rOn40JiAkQEyC22PktExATICZAbPN5gJ1/LRMQEyAmQOwbUgxo0XBm7qsAAAAASUVORK5CYII=",
+  reaver:
+    "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABmUlEQVR4nO3cwYoDIRBF0Rjy/79s9hWIiNq31Hu2s3F41CvsNF1eydVa67+/l1LKU2dZ4U0f4HYGADMAWLr+bHV+S7adEP+feD4nAGYAMAOAfegDjHZ+Nq3Oj5wAmAHADAD2+A7YvfNnP5tyAmAGADMA2PLnJnTnjz4b6j2/O2AzBgAzANj0ewDd+aNWd37kBMAMAGYAsOF7wG6dHzv76c6PnACYAcAMAHbdDui1+j0jJwBmADADgHX3m50/lxMAMwCYAcBSvUs/w+wd5T3gcAYAMwDY9juAvpf4m/DmDABmALDtdsDob7jZdoYTADMAmAHA0u+A2e/t0DsgcgJgBgAzABj+rYiIflfzaU4AzABgBgDDd8Btne+zoGQMAGYAsPTfCzqt8yMnAGYAMAOALd8Bdv5/TgDMAGAGAMO/F3Rb50dOAMwAYAYAG94Bdv4YJwBmADADgHXvADt/LicAZgAwA4A1d8DpnU+f1wmAGQDMAGA//Xd652fjBMAMAGYAsGLns5wAmAHADADWvAfY+Ws5ATADgBkA7Au1sIDWPDTqMAAAAABJRU5ErkJggg==",
   crescent:
     "iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAABaUlEQVR4nO3bwW6EMBBEwRDl/3+ZXBMuBGHwc1R12xur1kzLZvfjAwAA4F3b7AcYbd/3/efnbduW+o6fsx+A3wQSI5CYpfbrXxw75KjeKSYkRiAxAolJ79MRVusUExIjkBiBxKT25xPOOuRodKdcvVszITECiRFIzNfsB6iZ/T7FhMQIJEYgMTrkxNW7sKvnniMTEiOQGIHE/Lu7rLs7/G3HDjIhMQKJEUjM8ueQ1TrjjAmJEUiMQGKWO4es3hneqS9GIDECicl3yOjfVb3dQVffyZuQGIHECCQmd5c1+7e4s5mQGIHECCRm+v6d3RmjzyV3n8+ExAgkRiAxr3fI253x9N3V6E4zITECiRFIzOMdMvuccab2fCYkRiAxAokZvg9rO3k1JiRGIDECibm9v3XGWCYkRiAxAom5vM91xrNMSIxAYgQSc7rfdca7TEiMQGIEEnP7/yE6YywTEiOQGIEAAAAAAADwqm8HLWCRhO3o1QAAAABJRU5ErkJggg==",
   cleaver:
@@ -305,7 +309,7 @@ const invLightStats = (special, type) =>
  One object, `save`, is the single source of truth: the inventory lists only what owns(id) says you have, OPTIONS > KNIGHT's weapon rows skip what you do not own, and enemies pay gold into it.
  It is kept in localStorage. DEV MODE (open the game with ?dev on the end of the address, or dbg.dev(true) in the console; ?dev=0 turns it off) makes owns() say yes to everything, and it uses a
  SEPARATE save slot, so testing never touches a real playthrough. In the console, dbg.give('hammer'), dbg.give('all'), dbg.add(500), dbg.gold(0), dbg.reset(), dbg.dev(true/false).
- Item ids: sword hatchet hammer knightly morningstar | axe shovel | potion haste. START_OWNED is what a new game begins with. GOLD_FOR is what each enemy pays. */
+ Item ids: sword hatchet crescent cleaver hammer knightly morningstar | axe shovel halberd reaver | potion haste. START_OWNED is what a new game begins with. GOLD_FOR is what each enemy pays. */
 const DEV = (function () {
   try {
     const q = new URLSearchParams(location.search);
@@ -330,6 +334,8 @@ const SAVE_KEY = DEV ? "knight-save-dev" : "knight-save",
     "morningstar",
     "axe",
     "shovel",
+    "halberd",
+    "reaver",
     "potion",
     "haste",
   ];
@@ -465,6 +471,7 @@ const INV_TABS = [
       {
         t: "SWORD",
         cls: "light",
+        grp: "BLADES",
         icon: "sword",
         rarity: "common",
         kind: "LIGHT WEAPON",
@@ -476,6 +483,7 @@ const INV_TABS = [
       {
         t: "HATCHET",
         cls: "light",
+        grp: "CUTTERS",
         icon: "hatchet",
         rarity: "uncommon",
         kind: "LIGHT WEAPON",
@@ -490,6 +498,7 @@ const INV_TABS = [
       {
         t: "IRON CRESCENT",
         cls: "light",
+        grp: "CUTTERS",
         icon: "crescent",
         rarity: "rare",
         kind: "LIGHT WEAPON",
@@ -506,6 +515,7 @@ const INV_TABS = [
       {
         t: "WRETCHED CLEAVER",
         cls: "light",
+        grp: "CUTTERS",
         icon: "cleaver",
         rarity: "epic",
         kind: "LIGHT WEAPON",
@@ -524,6 +534,7 @@ const INV_TABS = [
       {
         t: "HAMMER",
         cls: "light",
+        grp: "MACES",
         icon: "hammer",
         rarity: "rare",
         kind: "LIGHT WEAPON",
@@ -538,6 +549,7 @@ const INV_TABS = [
       {
         t: "KNIGHTLY SWORD",
         cls: "light",
+        grp: "BLADES",
         icon: "knightly",
         rarity: "knightly",
         kind: "LIGHT WEAPON",
@@ -549,6 +561,7 @@ const INV_TABS = [
       {
         t: "MORNING STAR",
         cls: "light",
+        grp: "MACES",
         icon: "morningstar",
         rarity: "rare",
         kind: "LIGHT WEAPON",
@@ -588,6 +601,36 @@ const INV_TABS = [
           "A digger's shovel put to work as a weapon. It swings like the axe and can RENDER too, and it digs up " +
           Math.round(SHOVEL_GOLD * 100) +
           "% more gold from every kill.",
+      },
+      {
+        t: "HALBERD",
+        cls: "heavy",
+        icon: "halberd",
+        rarity: "rare",
+        kind: "HEAVY WEAPON",
+        w: "axe",
+        as: "halberd",
+        stats: invHeavyStats("SWEEP", "PASSIVE"),
+        desc:
+          "A long-hafted blade with a spear point and a spike on its back. Like every two-handed weapon it can RENDER, and each carve also clips the enemies on either side of its target for " +
+          SWEEP_DAMAGE +
+          " each.",
+      },
+      {
+        t: "RUNE-FORGED REAVER",
+        cls: "heavy",
+        icon: "reaver",
+        rarity: "epic",
+        kind: "HEAVY WEAPON",
+        w: "axe",
+        as: "reaver",
+        stats: invHeavyStats("SWEEP + RUNE-BRAND", "ACTIVE + PASSIVE"),
+        desc:
+          "A double-bladed reaver with a rune set in its haft. It sweeps like the halberd, and its RENDER leaves a BLEED (" +
+          STATUS.bleed.damage +
+          " damage a turn for " +
+          STATUS.bleed.turns +
+          " turns) on every enemy it hits.",
       },
     ],
   },
@@ -651,13 +694,18 @@ function invPreview() {
   );
 }
 const itemId = (it) => it.ss || it.as || (it.haste ? "haste" : "potion");
+/* SECTIONS: an item row can carry grp (BLADES, CUTTERS, MACES ...). INV_GROUPS is the order the sections appear in, each under its own small heading in the list; an item with no grp
+ (the heavy weapons so far) is simply listed first, and a list where nothing has a grp shows no headings. A new section is one more name in INV_GROUPS and a grp on its items. */
+const INV_GROUPS = ["BLADES", "CUTTERS", "MACES"];
+const invGroupRank = (it) => (it.grp ? INV_GROUPS.indexOf(it.grp) + 1 : 0);
 function invList() {
   const T = INV_TABS[invTab],
-    own = T.items.filter((i) => owns(itemId(i)));
-  return T.subs
-    ? own.filter((i) => i.cls === T.subs[invSub[invTab]].cls)
-    : own;
-// only what you own
+    own = T.items.filter((i) => owns(itemId(i))),
+    L = T.subs
+      ? own.filter((i) => i.cls === T.subs[invSub[invTab]].cls)
+      : own;
+  // only what you own, with the sections together (the sort keeps the rows' own order inside a section)
+  return L.slice().sort((a, b) => invGroupRank(a) - invGroupRank(b));
 }
 function invKey() {
   return invTab + ":" + invSub[invTab];
@@ -728,6 +776,9 @@ function invRefresh() {
     ? '<div class="ih" style="padding:10px">NOTHING YET</div>'
     : L.map(
         (it, i) =>
+          (it.grp && (i === 0 || L[i - 1].grp !== it.grp)
+            ? '<div class="igh">' + it.grp + "</div>"
+            : "") +
           '<button type="button" class="ir' +
           (i === invCur ? " on" : "") +
           '" data-i="' +
@@ -849,6 +900,7 @@ function invBuild() {
 #inv-list{flex:1;min-height:0;overflow-y:auto;position:relative;scrollbar-width:thin;scrollbar-color:var(--ui-edge) transparent}
 #invui .ir{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:3px 7px;border:2px solid transparent}
 #invui .ir.on{background:var(--ui-hi);border-color:var(--ui-edge);color:#fff}
+#invui .igh{font-size:.6em;letter-spacing:.32em;color:var(--ui-dim);padding:8px 6px 2px;margin-bottom:3px;border-bottom:2px solid var(--ui-edge)}#invui .igh:first-child{padding-top:0}
 #invui .ii{flex:0 0 auto;width:1.35em;height:1.35em;padding:3px;box-sizing:border-box;border:2px solid var(--ui-edge);background:rgba(0,0,0,.4)}
 #invui .in{flex:1;white-space:nowrap}#invui .iv{flex:0 0 auto}
 #invui .eb{display:inline-block;margin-left:8px;min-width:1.2em;text-align:center;font-size:.75em;line-height:1.2;border:2px solid #ffe27a;color:#ffe27a;background:rgba(0,0,0,.45);font-weight:normal}
@@ -951,7 +1003,7 @@ function fxData() {
             ["FOUND IN", "ACTIONS MENU"],
           ],
           desc: "One heavy swing, brought all the way around, that hits every enemy at once. You stay braced afterwards, so the blows that follow land softer.",
-          by: ["axe", "shovel"],
+          by: ["axe", "shovel", "halberd", "reaver"],
         },
         {
           t: "KNIGHT LIGHT",
@@ -980,8 +1032,8 @@ function fxData() {
             ["DAMAGE", STATUS.bleed.damage + " PER TURN"],
             ["LASTS", STATUS.bleed.turns + " ENEMY TURNS"],
           ],
-          desc: "A wound that will not close. The enemy loses health at the start of each of its next turns. Landing it again restarts the count.",
-          by: ["morningstar"],
+          desc: "A wound that will not close. The enemy loses health at the start of each of its next turns. Landing it again restarts the count. The Morning Star carves it in; the Rune-Forged Reaver leaves it with every RENDER.",
+          by: ["morningstar", "reaver"],
         },
         {
           t: "STUN",

@@ -118,7 +118,7 @@ let swordGrp = null,
   swordOn = true,
   axeGrp = null,
   axeStyle = "axe",
-  // axeStyle: 'axe' or 'shovel' (the shovel is the axe's alternate model: same rig, mount, animations and stats)   // weapon: 'sword' (light) or 'axe' (heavy)
+  // axeStyle: 'axe', 'shovel', 'halberd' or 'reaver' (see AXE_STYLES: the others are the axe's alternate models: same rig, mount and animations)   // weapon: 'sword' (light) or 'axe' (heavy)
   weapon = "sword";
 function initSword(parent) {
   const el = document.getElementById("sword-data");
@@ -735,44 +735,101 @@ function initMorningstar(parent) {
     })
     .catch((e) => console.error("morningstar load failed", e));
 }
+/* ---------- the heavy weapons' styles ----------
+ The two-handed weapons are STYLES of one model group (axeGrp), the way the sword's are: every style's meshes ride in it, named "<style>_<part>", and only the current axeStyle's are shown (applyAxeStyle). They all share the axe's mount, animations, swoosh and RENDER.
+ The axe's own model is built in initAxe. Every other style is one row of AXE_STYLE_MODELS (bake its glTF with scripts/bake-weapon.py, add the file to manifest.json), then its item rows elsewhere (README: Adding a weapon).
+   data       the manifest id of its baked model        inset   pull the UVs in from the texel borders (see insetIslandUV; needed for the axe's own textures)
+   darken     0..1, multiplies the steel's colours (the gem is left alone)         plumeGem   the part flagged `plume` is a gem that takes the plume colour and glows, like the Wretched Cleaver's */
+const AXE_STYLE_MODELS = [
+  { key: "shovel", data: "shovel-data" },
+  { key: "halberd", data: "halberd-data", inset: true },
+  {
+    key: "reaver",
+    data: "reaver-data",
+    inset: true,
+    darken: 0.7,
+    plumeGem: true,
+  },
+];
+const AXE_STYLES = ["axe"].concat(AXE_STYLE_MODELS.map((m) => m.key));
 function applyAxeStyle() {
-  if (axeGrp)
-    axeGrp.children.forEach((m) => {
-      if (m.name.indexOf("shovel_") === 0) m.visible = axeStyle === "shovel";
-      else if (m.name.indexOf("axe_") === 0)
-        m.visible = axeStyle !== "shovel";
-    });
+  if (!axeGrp) return;
+  const want = AXE_STYLES.indexOf(axeStyle) >= 0 ? axeStyle : "axe";
+  axeGrp.children.forEach((m) => {
+    const k = m.name.slice(0, m.name.indexOf("_"));
+    if (AXE_STYLES.indexOf(k) >= 0) m.visible = k === want;
+  });
 }
 function toggleAxeStyle() {
-  const o = ["axe", "shovel"].filter(owns);
+  const o = AXE_STYLES.filter(owns);
   if (!o.length) return;
   axeStyle = o[(o.indexOf(axeStyle) + 1) % o.length];
   if (weapon !== "axe") setWeapon("axe");
   else showWeapons();
   refreshAnim();
 }
-function initShovel(grp) {
-  // the shovel's meshes ride in the axe's own group, so they follow every bit of the axe's logic
-  const el = document.getElementById("shovel-data");
-  if (!el) return;
-  const SD = JSON.parse(el.textContent);
-  Promise.all(SD.parts.map((p) => loadImg(p.tex))).then((imgs) => {
-    SD.parts.forEach((p, k) => {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(p.p, 3));
-      geo.setAttribute("normal", new THREE.Float32BufferAttribute(p.n, 3));
-      geo.setAttribute("uv", new THREE.Float32BufferAttribute(p.uv, 2));
-      geo.setIndex(p.i);
-      const tex = new THREE.Texture(imgs[k]);
-      tex.flipY = false;
-      const mat = ps1Mat(tex, 1);
-      swordMats.push(mat);
-      tintMat(mat, swordMatch ? armorHex : swordHex);
-      const m = new THREE.Mesh(geo, mat);
-      m.name = "shovel_" + p.name;
-      grp.add(m);
-    });
-    applyAxeStyle();
+function initAxeStyles(grp) {
+  // every other style's meshes ride in the axe's own group, so they follow every bit of the axe's logic
+  AXE_STYLE_MODELS.forEach((cfg) => {
+    const el = document.getElementById(cfg.data);
+    if (!el) return;
+    const SD = JSON.parse(el.textContent);
+    Promise.all(SD.parts.map((p) => loadImg(p.tex)))
+      .then((imgs) => {
+        SD.parts.forEach((p, k) => {
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute(
+            "position",
+            new THREE.Float32BufferAttribute(p.p, 3),
+          );
+          geo.setAttribute("normal", new THREE.Float32BufferAttribute(p.n, 3));
+          geo.setAttribute(
+            "uv",
+            new THREE.Float32BufferAttribute(
+              cfg.inset
+                ? insetIslandUV(
+                    p.uv,
+                    p.i,
+                    imgs[k].width,
+                    imgs[k].height,
+                    AXE_UV_INSET,
+                  )
+                : p.uv,
+              2,
+            ),
+          );
+          geo.setIndex(p.i);
+          const gem = !!(cfg.plumeGem && p.plume);
+          const tex = new THREE.Texture(
+            cfg.darken && !gem ? darkenImg(imgs[k], cfg.darken) : imgs[k],
+          );
+          tex.flipY = false;
+          const mat = ps1Mat(tex, 1);
+          if (gem) {
+            // the gem takes the plume colour and glows like the Knightly Sword's gems (as the Wretched Cleaver's does)
+            setupPlume(mat);
+            mat.uniforms.uGem.value = 1;
+            mat.uniforms.uBladeGlow.value = 0;
+          } else {
+            swordMats.push(mat);
+            tintMat(mat, swordMatch ? armorHex : swordHex);
+          }
+          const m = new THREE.Mesh(geo, mat);
+          m.name = cfg.key + "_" + p.name;
+          if (p.t) m.position.set(p.t[0], p.t[1], p.t[2]);
+          if (p.r) {
+            m.rotation.order = "ZYX";
+            m.rotation.set(
+              (p.r[0] * Math.PI) / 180,
+              (p.r[1] * Math.PI) / 180,
+              (p.r[2] * Math.PI) / 180,
+            );
+          }
+          grp.add(m);
+        });
+        applyAxeStyle();
+      })
+      .catch((e) => console.error(cfg.key + " load failed", e));
   });
 }
 function toggleStyle() {
@@ -921,7 +978,7 @@ function initAxe(parent) {
       grp.visible = weapon === "axe";
       fore.add(grp);
       axeGrp = grp;
-      initShovel(grp);
+      initAxeStyles(grp);
       // The two-handed weapons use the SWORD's swoosh as it is (same path-following trail, same width and speeds, no alternating bits), with the markers taken from the shovel's model:
       // the tip is the top of the shovel, the hilt is one sword-blade length (SWOOSH_TIP_Y-SWOOSH_HILT_Y) below it, so the trail has the sword's proportions. The axe shares these markers.
       swooshAddRig(

@@ -111,3 +111,43 @@ Each dungeon is one entry in `DUNGEONS` (top of `js/09-dungeon-battle.js`) and a
 2. Add the file(s) to `manifest.json`.
 3. Add an entry to `DUNGEONS`, an `initX()` that loads it (copy `initTomb`), and call it next to `initTomb` in `js/02-knight.js`.
 4. Point a map spot in `js/11-map.js` at it with `run: () => enterDungeon("id")`.
+
+## Status effects
+
+Bleed and haste are the two status effects, and every one lives in the `STATUS` table in
+`js/09-dungeon-battle.js` (search for `STATUS EFFECTS`). Adding another is two steps: add an
+entry to `STATUS` (the comment under the table lists every field), then call
+`giveStatus(target, "id")` where it should land. Use the helpers (`giveStatus`, `hasStatus`,
+`statusLeft`, `clearStatus`, `clearStatuses`) rather than reading the data directly.
+
+## Wave change
+
+When the last enemy of a wave falls, `nextWave()` runs a short timeline (the `WAVE_*` constants
+above it): the corpses fade out, the arena stays empty for a second, then the next wave fades in.
+Every enemy type fades through `prepEnemyFade` / `startEnemyFade` (see `ENEMY FADES`).
+
+## Adding a weapon
+
+Weapons are items; the inventory, the save, the chest loot, the options menu and the battle code
+all know them by id.
+
+1. **Model.** Export the weapon from Blockbench as glTF and bake it:
+   `python3 scripts/bake-weapon.py halberd.gltf halberd-data.json` (add `--plume-node "TEXT"` when a
+   node whose name starts with TEXT is a gem that should take the plume colour and glow). Add the file
+   to `manifest.json` (`id`, `type`, `url`, `size`).
+2. **Heavy (two-handed, the `axe` slot).** Add a row to `AXE_STYLE_MODELS` in `js/04-weapons.js`. The model
+   rides in the axe's group, so it gets the axe's mount, animations, swoosh and RENDER for free.
+   **Light (one-handed, the `sword` slot).** Follow the hatchet-like weapons (`initHatchetLike`) or the Morning Star.
+3. **Item.** In `js/13-inventory-save.js`: add the id to `ALL_IDS`, a pixel icon to `WEAPON_ICONS`, and a row to
+   the WEAPONS tab of `INV_TABS` (`cls`, `rarity`, `w` + `ss`/`as`, `stats`, `desc`; light weapons also a `grp`).
+   Mention it in the effects page (`fxData`, the `by` lists) if it applies RENDER, bleed and so on.
+4. **Loot and menus.** A `LOOT` entry in `js/05-chest-save-loot.js`; the OPTIONS > KNIGHT style rows and the help text in `js/14-edit.js`.
+5. **Special.** Passive and active specials are in `js/09-dungeon-battle.js` (`WEAPON SPECIALS`): add a constant, an
+   `isMyWeapon()` check, and call it where the carve or RENDER lands (see `sweepHit` for the halberd and reaver).
+
+`?dev` then `dbg.give('halberd')` in the console hands you the weapon to try.
+
+### Inventory sections
+
+Light weapons are listed under BLADES, CUTTERS and MACES. A row's `grp` picks its section and `INV_GROUPS`
+(`js/13-inventory-save.js`) sets the order; rows with no `grp` (the heavy weapons) are listed without headings.

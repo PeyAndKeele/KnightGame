@@ -739,7 +739,15 @@ function initMainMenu() {
           "SHOVEL (PASSIVE): DIG",
           "+" + Math.round(SHOVEL_GOLD * 100) + "% GOLD FROM EVERY KILL.",
           "",
-          "AXE AND SHOVEL (ACTIVE): RENDER",
+          "HALBERD (PASSIVE): SWEEP",
+          "A CARVE ALSO HITS THE ENEMY ON EACH SIDE OF",
+          "ITS TARGET FOR " + SWEEP_DAMAGE + ".",
+          "",
+          "RUNE-FORGED REAVER (ACTIVE + PASSIVE)",
+          "SWEEP, AND RUNE-BRAND: RENDER LEAVES BLEED",
+          "ON EVERY ENEMY IT HITS.",
+          "",
+          "EVERY TWO-HANDED WEAPON (ACTIVE): RENDER",
           "KNIGHTLY SWORD (ACTIVE): KNIGHT LIGHT",
           "SWORD: NO SPECIAL YET.",
           "",
@@ -975,7 +983,10 @@ function initMainMenu() {
         },
         {
           t: "AXE STYLE",
-          v: () => (axeStyle === "shovel" ? "SHOVEL" : "AXE"),
+          v: () =>
+            ({ shovel: "SHOVEL", halberd: "HALBERD", reaver: "REAVER" })[
+              axeStyle
+            ] || "AXE",
           run: toggleAxeStyle,
         },
         { t: "ANIM SET", v: () => animSet.toUpperCase(), run: toggleUal },

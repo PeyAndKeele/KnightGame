@@ -283,6 +283,20 @@ const LOOT = [
     blurb: "For digging. Or for hitting.",
   },
   {
+    id: "halberd",
+    name: "HALBERD",
+    rarity: "rare",
+    icon: "B",
+    blurb: "Reach enough for the one beside him, too.",
+  },
+  {
+    id: "reaver",
+    name: "RUNE-FORGED REAVER",
+    rarity: "epic",
+    icon: "R",
+    blurb: "The rune drinks what the blade lets out.",
+  },
+  {
     id: "morningstar",
     name: "MORNING STAR",
     rarity: "rare",

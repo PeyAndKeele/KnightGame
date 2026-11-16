@@ -2363,7 +2363,7 @@ const BM_MENUS = {
         ? ["FLAUNT", "BLOCK", "RENDER", "BACK"]
         : ["FLAUNT", "BLOCK", "BACK"];
     },
-  // RENDER only while a heavy weapon (axe / shovel) is held
+  // RENDER only while a heavy weapon (axe / shovel / halberd / reaver) is held
   },
 
   items: {
@@ -2758,6 +2758,8 @@ const ENEMY_DMG = { slime: 4, sporeling: 5, treeling: 7, skeleton: 8, golem: 12 
  WRETCHED CLEAVER   everything the Crescent does (it uses the Crescent's numbers) and, on top, CLEAVER_HEAL hit points back for you on every kill (never above your max).
  HAMMER   STUN: a carve stuns its target (it skips its next swing). Never when the target is the last enemy standing, and then HAMMER_STUN_CD of your turns must pass before the next one.
  SHOVEL   DIG: SHOVEL_GOLD extra gold from every kill (0.25 = +25%).
+ HALBERD   SWEEP (and RENDER, like every heavy weapon): a carve also clips the nearest living enemy on each side of its target for SWEEP_DAMAGE (10) each.
+ RUNE-FORGED REAVER   SWEEP too, and RUNE-BRAND: its RENDER swing also leaves BLEED (the bleed status) on every enemy it hits.
  MORNINGSTAR   BLEED: every carve, and every enemy hit you take while guarding, has MORNINGSTAR_BLEED_CHANCE to make that enemy bleed (the bleed status: see STATUS EFFECTS below for its damage and length;
  hitting it again while it bleeds just restarts the count). A bleeding enemy drips blood from its middle (see the BLOOD section). */
 const HATCHET_BONUS = 10,
@@ -2766,13 +2768,17 @@ const HATCHET_BONUS = 10,
   CRESCENT_HALF = 0.75,
   CLEAVER_HEAL = 5,
   HAMMER_STUN_CD = 2,
-  SHOVEL_GOLD = 0.25;
+  SHOVEL_GOLD = 0.25,
+  SWEEP_DAMAGE = 10;
 let hammerCd = 0;
 const isHatchet = () => weapon === "sword" && swordStyle === "hatchet",
   isCrescent = () => weapon === "sword" && swordStyle === "crescent",
   isCleaver = () => weapon === "sword" && swordStyle === "cleaver",
   isHammer = () => weapon === "sword" && swordStyle === "hammer",
-  isShovel = () => weapon === "axe" && axeStyle === "shovel";
+  isShovel = () => weapon === "axe" && axeStyle === "shovel",
+  isHalberd = () => weapon === "axe" && axeStyle === "halberd",
+  isReaver = () => weapon === "axe" && axeStyle === "reaver",
+  hasSweep = () => isHalberd() || isReaver();
 // the carve bonus from the hatchet family: how much extra a carve on e does right now (0 if the weapon has no pick-off, or e is too healthy)
 function pickOffBonus(e) {
   if (isCrescent() || isCleaver())
@@ -2790,6 +2796,21 @@ function cleaverHeal() {
     popup("+" + h, headPos({ isPl: true }, new THREE.Vector3()), "heal");
     blip(660, 0.1);
   }, 350);
+}
+// SWEEP (halberd, reaver): after a carve landed on e, the nearest living enemy on each side of it takes SWEEP_DAMAGE too. Returns the enemies it hit.
+function sweepHit(e) {
+  if (!hasSweep()) return [];
+  const i = enemies.indexOf(e),
+    hit = [];
+  [-1, 1].forEach((dir) => {
+    for (let j = i + dir; j >= 0 && j < enemies.length; j += dir)
+      if (!enemies[j].dead) {
+        hit.push(enemies[j]);
+        break;
+      }
+  });
+  hit.forEach((n) => hurtEnemy(n, SWEEP_DAMAGE));
+  return hit;
 }
 // the hammer's stun, after a carve landed on e: only with another enemy still standing, and not while it is cooling down
 function hammerStun(e) {
@@ -3988,6 +4009,8 @@ function updateBattle(dt) {
       hammerStun(e);
       // MORNINGSTAR: bleed
       morningstarBleed(e, 350);
+      // HALBERD / REAVER: sweep (bt.sweep = who it clipped, so they can go back to idle with the target)
+      bt.sweep = sweepHit(e);
     // the blade connects
     }
     else if (
@@ -4007,6 +4030,13 @@ function updateBattle(dt) {
           e.idle.reset().fadeIn(0.12).play();
           e.hit.fadeOut(0.12);
         }
+        (bt.sweep || []).forEach((n) => {
+          if (!n.dead && n.hit) {
+            n.idle.reset().fadeIn(0.12).play();
+            n.hit.fadeOut(0.12);
+          }
+        });
+        bt.sweep = null;
       }
     } else if (bt.stage === 3 && bt.t >= 0.02 && !swinging) {
       btEnd();
@@ -4073,6 +4103,8 @@ function updateBattle(dt) {
       playRenderAttackLayer();
       enemies.forEach((e) => {
         if (!e.dead) hurtEnemy(e, RENDER_DAMAGE);
+        // RUNE-BRAND (reaver): everything the swing hit that is still standing bleeds
+        if (!e.dead && isReaver()) giveStatus(e, "bleed", { delay: 350 });
       });
     // the blade connects: all targets
     }

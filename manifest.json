@@ -510,6 +510,18 @@
     "size": 84796
   },
   {
+    "id": "halberd-data",
+    "type": "application/json",
+    "url": "halberd-data.json",
+    "size": 24562
+  },
+  {
+    "id": "reaver-data",
+    "type": "application/json",
+    "url": "reaver-data.json",
+    "size": 49936
+  },
+  {
     "id": "swingheavywindup-data",
     "type": "application/json",
     "url": "swingheavywindup-data.json",
