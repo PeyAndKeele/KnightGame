@@ -498,7 +498,7 @@ const INV_TABS = [
         ss: "cleaver",
         stats: invLightStats("PICK-OFF + FEAST", "PASSIVE"),
         desc:
-          "The Crescent's bite, with a red gem that takes your plume's colour. Hits +" +
+          "A devious blade crafted from a harrowing vein of iron, it outmatches the axes in its category. Hits +" +
           CRESCENT_BONUS +
           " harder against enemies at " +
           Math.round(CRESCENT_HALF * 100) +

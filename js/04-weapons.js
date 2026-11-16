@@ -264,6 +264,22 @@ function showWeapons() {
     });
   swooshUse();
 }
+/* a copy of a loaded image with its colours multiplied by k (0..1), alpha untouched; used to darken a weapon's steel without touching the tint (the tint only recolours, it never darkens) */
+function darkenImg(img, k) {
+  const c = document.createElement("canvas");
+  c.width = img.width;
+  c.height = img.height;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  const d = ctx.getImageData(0, 0, c.width, c.height);
+  for (let i = 0; i < d.data.length; i += 4) {
+    d.data[i] *= k;
+    d.data[i + 1] *= k;
+    d.data[i + 2] *= k;
+  }
+  ctx.putImageData(d, 0, 0);
+  return c;
+}
 function initHatchetLike(parent, cfg) {
   const el = document.getElementById(cfg.data);
   if (!el) return;
@@ -334,7 +350,12 @@ function initHatchetLike(parent, cfg) {
         geo.setAttribute("normal", new THREE.Float32BufferAttribute(p.n, 3));
         geo.setAttribute("uv", new THREE.Float32BufferAttribute(p.uv, 2));
         geo.setIndex(p.i);
-        const tex = new THREE.Texture(imgs[k]);
+        // cfg.darken (0..1): the steel's colours are multiplied by it (the gem is left alone)
+        const tex = new THREE.Texture(
+          cfg.darken && !(cfg.plumeGem && p.plume)
+            ? darkenImg(imgs[k], cfg.darken)
+            : imgs[k],
+        );
         tex.flipY = false;
         const hmat = ps1Mat(tex, 1);
         if (cfg.plumeGem && p.plume) {
@@ -402,6 +423,8 @@ function initCleaver(parent) {
     gripY: HATCHET_GRIP_Y,
     swoosh: CLEAVER_SWOOSH,
     plumeGem: true,
+    // the Cleaver's steel is a good deal darker than the Crescent's (1 = as modelled; lower = darker)
+    darken: 0.7,
     set: (g) => (cleaverGrp = g),
   });
 }
