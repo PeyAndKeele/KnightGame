@@ -248,6 +248,20 @@ const LOOT = [
     blurb: "Light, quick, easy to carry.",
   },
   {
+    id: "crescent",
+    name: "IRON CRESCENT",
+    rarity: "rare",
+    icon: "C",
+    blurb: "The hatchet, grown up. Picks off the wounded.",
+  },
+  {
+    id: "cleaver",
+    name: "WRETCHED CLEAVER",
+    rarity: "epic",
+    icon: "W",
+    blurb: "Every kill feeds you a little.",
+  },
+  {
     id: "axe",
     name: "AXE",
     rarity: "uncommon",
@@ -542,6 +556,8 @@ function chestStep() {
     }
     if (swordGrp) swordGrp.visible = false;
     if (hatchetGrp) hatchetGrp.visible = false;
+    if (crescentGrp) crescentGrp.visible = false;
+    if (cleaverGrp) cleaverGrp.visible = false;
     if (hammerGrp) hammerGrp.visible = false;
     if (knightlyGrp) knightlyGrp.visible = false;
     if (morningstarGrp) morningstarGrp.visible = false;

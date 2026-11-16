@@ -158,7 +158,11 @@ const _e1 = new THREE.Vector3(),
 function editSwordGroup() {
   return swordStyle === "hatchet"
     ? hatchetGrp
-    : swordStyle === "hammer"
+    : swordStyle === "crescent"
+      ? crescentGrp
+      : swordStyle === "cleaver"
+        ? cleaverGrp
+        : swordStyle === "hammer"
       ? hammerGrp
       : swordStyle === "knightly"
         ? knightlyGrp
@@ -712,6 +716,14 @@ function initMainMenu() {
           "+" + HATCHET_BONUS + " DAMAGE AGAINST ENEMIES AT",
           "HALF HP OR LESS.",
           "",
+          "IRON CRESCENT (PASSIVE): PICK-OFF",
+          "+" + CRESCENT_BONUS + " DAMAGE AGAINST ENEMIES AT",
+          Math.round(CRESCENT_HALF * 100) + "% HP OR LESS.",
+          "",
+          "WRETCHED CLEAVER (PASSIVE): PICK-OFF + FEAST",
+          "THE CRESCENT'S PICK-OFF, AND EVERY KILL",
+          "HEALS YOU " + CLEAVER_HEAL + " HP.",
+          "",
           "HAMMER (PASSIVE): STUN",
           "A HIT MAKES THE TARGET SKIP ITS NEXT",
           "SWING. IT NEVER STUNS THE LAST ENEMY,",
@@ -948,7 +960,11 @@ function initMainMenu() {
           v: () =>
             swordStyle === "hatchet"
               ? "HATCHET"
-              : swordStyle === "hammer"
+              : swordStyle === "crescent"
+                ? "IRON CRESCENT"
+                : swordStyle === "cleaver"
+                  ? "WRETCHED CLEAVER"
+                  : swordStyle === "hammer"
                 ? "HAMMER"
                 : swordStyle === "knightly"
                   ? "KNIGHTLY"

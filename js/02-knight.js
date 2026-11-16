@@ -276,6 +276,8 @@ new THREE.GLTFLoader().parse(
     initRock(gltf.scene, box.min.y);
     initSword(gltf.scene);
     initHatchet(gltf.scene);
+    initCrescent(gltf.scene);
+    initCleaver(gltf.scene);
     initHammer(gltf.scene);
     initMorningstar(gltf.scene);
     initKnightly(gltf.scene);

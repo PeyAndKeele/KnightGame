@@ -63,6 +63,17 @@ const HATCHET_SWOOSH = {
   hilt: [0, 1.0, 0],
   width: 0.5,
 };
+/* the Iron Crescent and Wretched Cleaver have the hatchet's head (the same blade box), plus horns that stay inside the trail's reach, so they share its trail */
+const CRESCENT_SWOOSH = {
+  tip: [0, 1.766, -0.48],
+  hilt: [0, 1.0, 0],
+  width: 0.5,
+};
+const CLEAVER_SWOOSH = {
+  tip: [0, 1.766, -0.48],
+  hilt: [0, 1.0, 0],
+  width: 0.5,
+};
 const HAMMER_SWOOSH = {
   tip: [0, 1.2, 0.44],
   hilt: [0, 0.6, 0.125],
@@ -117,7 +128,11 @@ function swooshUse() {
         ? "axe"
         : swordStyle === "hatchet"
           ? "hatchet"
-          : swordStyle === "hammer"
+          : swordStyle === "crescent"
+            ? "crescent"
+            : swordStyle === "cleaver"
+              ? "cleaver"
+              : swordStyle === "hammer"
             ? "hammer"
             : swordStyle === "knightly"
               ? "knightly"

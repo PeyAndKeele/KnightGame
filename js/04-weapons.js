@@ -223,6 +223,8 @@ function toggleVoice() {
 // preview: one of the voice's flaunt lines
 }
 let hatchetGrp = null,
+  crescentGrp = null,
+  cleaverGrp = null,
   hammerGrp = null,
   knightlyGrp = null,
   morningstarGrp = null,
@@ -234,6 +236,10 @@ function showWeapons() {
     swordGrp.visible = weapon === "sword" && swordStyle === "sword";
   if (hatchetGrp)
     hatchetGrp.visible = weapon === "sword" && swordStyle === "hatchet";
+  if (crescentGrp)
+    crescentGrp.visible = weapon === "sword" && swordStyle === "crescent";
+  if (cleaverGrp)
+    cleaverGrp.visible = weapon === "sword" && swordStyle === "cleaver";
   if (hammerGrp)
     hammerGrp.visible = weapon === "sword" && swordStyle === "hammer";
   if (knightlyGrp)
@@ -246,6 +252,8 @@ function showWeapons() {
     [
       swordGrp,
       hatchetGrp,
+      crescentGrp,
+      cleaverGrp,
       hammerGrp,
       knightlyGrp,
       morningstarGrp,
@@ -256,14 +264,14 @@ function showWeapons() {
     });
   swooshUse();
 }
-function initHatchet(parent) {
-  const el = document.getElementById("hatchet-data");
+function initHatchetLike(parent, cfg) {
+  const el = document.getElementById(cfg.data);
   if (!el) return;
   const HD = JSON.parse(el.textContent);
   const fore = parent.getObjectByName(SWORD_HAND + "_Forearm"),
     hand = parent.getObjectByName("Adventurer_" + SWORD_HAND + "_Hand");
   if (!fore || !hand) {
-    console.error("hatchet: hand bones not found");
+    console.error(cfg.key + ": hand bones not found");
     return;
   }
   parent.updateMatrixWorld(true);
@@ -306,9 +314,9 @@ function initHatchet(parent) {
       new THREE.Quaternion().setFromAxisAngle(Y, HATCHET_TURN_DEG * D),
     );
   const grp = new THREE.Group();
-  grp.name = "Hatchet";
+  grp.name = cfg.name;
   grp.quaternion.copy(q);
-  const grip = new THREE.Vector3(0, HATCHET_GRIP_Y, 0).applyQuaternion(q);
+  const grip = new THREE.Vector3(0, cfg.gripY, 0).applyQuaternion(q);
   grp.position
     .copy(hc)
     .sub(grip)
@@ -329,33 +337,70 @@ function initHatchet(parent) {
         const tex = new THREE.Texture(imgs[k]);
         tex.flipY = false;
         const hmat = ps1Mat(tex, 1);
-        swordMats.push(hmat);
-        // the same weapon color as the sword
-        tintMat(hmat, swordMatch ? armorHex : swordHex);
+        if (cfg.plumeGem && p.plume) {
+          // the Wretched Cleaver's gem takes the plume colour, exactly as the helmet's plume does (setupPlume registers it with the plume picker)
+          setupPlume(hmat);
+        } else {
+          swordMats.push(hmat);
+          // the same weapon color as the sword
+          tintMat(hmat, swordMatch ? armorHex : swordHex);
+        }
         const m = new THREE.Mesh(geo, hmat);
-        m.name = "hatchet_" + p.name;
+        m.name = cfg.key + "_" + p.name;
         m.position.set(p.t[0], p.t[1], p.t[2]);
         m.rotation.order = "ZYX";
         m.rotation.set(p.r[0] * D, p.r[1] * D, p.r[2] * D);
         grp.add(m);
       });
       fore.add(grp);
-      hatchetGrp = grp;
+      cfg.set(grp);
       swooshAddRig(
-        "hatchet",
+        cfg.key,
         grp,
         parent.getObjectByName(SWORD_HAND + "_Arm") || fore,
-        HATCHET_SWOOSH.tip,
-        HATCHET_SWOOSH.hilt,
+        cfg.swoosh.tip,
+        cfg.swoosh.hilt,
         {
-          width: HATCHET_SWOOSH.width,
+          width: cfg.swoosh.width,
           start: SWOOSH_START_SPEED,
           stop: SWOOSH_STOP_SPEED,
         },
       );
       showWeapons();
     })
-    .catch((e) => console.error("hatchet load failed", e));
+    .catch((e) => console.error(cfg.key + " load failed", e));
+}
+function initHatchet(parent) {
+  initHatchetLike(parent, {
+    data: "hatchet-data",
+    key: "hatchet",
+    name: "Hatchet",
+    gripY: HATCHET_GRIP_Y,
+    swoosh: HATCHET_SWOOSH,
+    set: (g) => (hatchetGrp = g),
+  });
+}
+/* the Iron Crescent and the Wretched Cleaver are the hatchet's shape with a bigger head, so they are held, swung and hung exactly like it (the same grip point, the same trail) */
+function initCrescent(parent) {
+  initHatchetLike(parent, {
+    data: "iron-crescent-data",
+    key: "crescent",
+    name: "IronCrescent",
+    gripY: HATCHET_GRIP_Y,
+    swoosh: CRESCENT_SWOOSH,
+    set: (g) => (crescentGrp = g),
+  });
+}
+function initCleaver(parent) {
+  initHatchetLike(parent, {
+    data: "wretched-cleaver-data",
+    key: "cleaver",
+    name: "WretchedCleaver",
+    gripY: HATCHET_GRIP_Y,
+    swoosh: CLEAVER_SWOOSH,
+    plumeGem: true,
+    set: (g) => (cleaverGrp = g),
+  });
 }
 /* ---------- the Knightly Sword (knightly-sword-data): the shortsword's shape with its own textures, a fifth style for the SWORD. Held exactly like the sword (same mount, animations and swoosh).
  Its coloured texels glow like the magma on the Ignis Mourne trees (uGem, in the shader) and the grey steel is pushed far towards white (uBladeGlow, 0.85 in the shader at 1). The steel takes the weapon colour at full strength (userData.tintAmt); the gems keep their own colours. ---------- */
@@ -705,9 +750,15 @@ function initShovel(grp) {
   });
 }
 function toggleStyle() {
-  const o = ["sword", "hatchet", "hammer", "knightly", "morningstar"].filter(
-    owns,
-  );
+  const o = [
+    "sword",
+    "hatchet",
+    "crescent",
+    "cleaver",
+    "hammer",
+    "knightly",
+    "morningstar",
+  ].filter(owns);
   // only styles you own
   swordStyle = o[(o.indexOf(swordStyle) + 1) % o.length] || "sword";
   if (weapon !== "sword") setWeapon("sword");
@@ -1275,6 +1326,18 @@ const WAIST_HANG = {
   },
   hatchet: {
     grp: () => hatchetGrp,
+    grip: [0, 0.95, 0],
+    roll: 180,
+    out: 0.02,
+  },
+  crescent: {
+    grp: () => crescentGrp,
+    grip: [0, 0.95, 0],
+    roll: 180,
+    out: 0.02,
+  },
+  cleaver: {
+    grp: () => cleaverGrp,
     grip: [0, 0.95, 0],
     roll: 180,
     out: 0.02,

@@ -354,6 +354,18 @@
     "size": 47857
   },
   {
+    "id": "iron-crescent-data",
+    "type": "application/json",
+    "url": "iron-crescent-data.json",
+    "size": 18283
+  },
+  {
+    "id": "wretched-cleaver-data",
+    "type": "application/json",
+    "url": "wretched-cleaver-data.json",
+    "size": 77883
+  },
+  {
     "id": "knightly-sword-data",
     "type": "application/json",
     "url": "knightly-sword-data.json",

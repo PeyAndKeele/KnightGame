@@ -222,6 +222,10 @@ function invStep(dt) {
  Light = the one-handed weapons (his 'sword' slot: sword, hatchet, hammer, knightly sword, morningstar); heavy = the two-handed ones (his 'axe' slot: axe, shovel), the ones RENDER needs. */
 /* The weapons' inventory icons: the hand-drawn pixel sprites (sword, hammer, hatchet, axe, shovel, knightly sword, morningstar), used as a mask and drawn white (.wico background). Potion keeps its line icon. */
 const WEAPON_ICONS = {
+  crescent:
+    "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABM0lEQVR4nO3aQW6DQBAAQRPl/18mdx+M0C5u2FRdfUFuzSwgXi8AAAAAAGB1W30BT7fv+/7p923bPv7HP3Mvh7MEiAkQ+60v4GmOdv5ZJiAmQEyAmOeAA2d3/tF9/zsTEBMgJkDs3z0HzL6PH2UCYgLEBIgt/xwwe+efvc8/YgJiAsQEiD3+DLj7jj9iAmICxASIPe5d0N3e5YwyATEBYgLEbn8GrLbz35mAmAAxAWK3exc0+h1OfWb4LuhhBIgJEMvPgKu/vRzl29DFCRATIPb1d0F33/nfZgJiAsQEiF1+Bqy+80ev1wTEBIgJEJu+b1ff+bOZgJgAMQFiw/vXzh9jAmICxASInd7Hdv5cJiAmQEyA2OF+tvOvZQJiAsQEiA0/B9j5Y0xATICYAAAAAADwJX8No0x+78pbygAAAABJRU5ErkJggg==",
+  cleaver:
+    "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABUUlEQVR4nO3c3YqCUBSA0Yx5/1e2+wYSOSc/tbVuh0DmY29/kh4PAAAAAADg7pb6AK5uXdf109+XZfn4P37OPRz2EiAmQOyvPoCr2dr5e5mAmAAxAWLuAzbs3flb1/3vTEBMgJgAsZ+7D5h9HT/KBMQEiAkQu/19wOydv/c6f4sJiAkQEyB2+XPA6LOa98/P3vFbTEBMgJgAscs9Czrbs5xRJiAmQEyA2OnvA47e+e4DfowAMQFipzsHzH62czTvBV2MADEBYvk54NvvXo7ybujNCRATIHb49wFn3/lHMwExAWICxL5+Drj7zh89XhMQEyAmQGz6vr37zp/NBMQEiAkQG96/dv4YExATICZAbPc+tvPnMgExAWICxP7t59F3K+38fUxATICYALHh74Tt/DEmICZATICYADEBYgLEBIhtXsPXv6l2dyYgJkBMAACIvAAXrFCVuLu/TQAAAABJRU5ErkJggg==",
   morningstar:
     "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAABHUlEQVR42u3dQQ7CMAxE0bri/lc2R8giJMHx+1sWVfmamVCQiMx8cI7XW0AAASCAAJzh0+heR8e9kAAVBAJswLWdH4PXZx8JhASoIBBgA8p+Dpjt/NHmSIAKAgE2oG6nL7m+BKggAmADtnT27k2RABUEAmzAPRshASoIBNiAOvzbs6KQABUEAmxA2XN/rri+BKggAmADjpz7V3+f4HdBKggE2IB7Oz8kQAWBABtQpvNnOzwlQAWBABtQtvNnCQlQQSDABrTpfAlQQSDABuh8CVBBIMAG6HwJIAAE2ACdLwEEgAAboPMlgAAQ0HkDdL4EEAAC+myAzpcAAkBAnw3Q+RJAAAjouwE/+Z8sSAABIKDkBjjnSwABIIAAEHAvX8T8JuVY5gM5AAAAAElFTkSuQmCC",
   sword:
@@ -304,6 +308,8 @@ const SAVE_KEY = DEV ? "knight-save-dev" : "knight-save",
   ALL_IDS = [
     "sword",
     "hatchet",
+    "crescent",
+    "cleaver",
     "hammer",
     "knightly",
     "morningstar",
@@ -465,6 +471,40 @@ const INV_TABS = [
           "A woodcutter's hatchet on a short haft. Hits +" +
           HATCHET_BONUS +
           " harder against enemies at half health or less.",
+      },
+      {
+        t: "IRON CRESCENT",
+        cls: "light",
+        icon: "crescent",
+        rarity: "rare",
+        kind: "LIGHT WEAPON",
+        w: "sword",
+        ss: "crescent",
+        stats: invLightStats("PICK-OFF+", "PASSIVE"),
+        desc:
+          "A hatchet with horns, forged to finish what it starts. Hits +" +
+          CRESCENT_BONUS +
+          " harder against enemies at " +
+          Math.round(CRESCENT_HALF * 100) +
+          "% health or less.",
+      },
+      {
+        t: "WRETCHED CLEAVER",
+        cls: "light",
+        icon: "cleaver",
+        rarity: "epic",
+        kind: "LIGHT WEAPON",
+        w: "sword",
+        ss: "cleaver",
+        stats: invLightStats("PICK-OFF + FEAST", "PASSIVE"),
+        desc:
+          "The Crescent's bite, with a red gem that takes your plume's colour. Hits +" +
+          CRESCENT_BONUS +
+          " harder against enemies at " +
+          Math.round(CRESCENT_HALF * 100) +
+          "% health or less, and every kill heals you " +
+          CLEAVER_HEAL +
+          " HP.",
       },
       {
         t: "HAMMER",

@@ -956,6 +956,8 @@ function spawnShopKeeperInBuilding() {
       o.name === "Shortsword" ||
       o.name === "Axe" ||
       o.name === "Hatchet" ||
+      o.name === "IronCrescent" ||
+      o.name === "WretchedCleaver" ||
       o.name === "Hammer" ||
       o.name === "KnightlySword" ||
       o.name === "Morningstar"

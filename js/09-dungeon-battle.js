@@ -1949,6 +1949,8 @@ function spawnEnemies(opts) {
       else if (
         o.name === "Axe" ||
         o.name === "Hatchet" ||
+        o.name === "IronCrescent" ||
+        o.name === "WretchedCleaver" ||
         o.name === "Hammer" ||
         o.name === "KnightlySword" ||
         o.name === "Morningstar"
@@ -2752,18 +2754,43 @@ const ENEMY_DMG = { slime: 4, sporeling: 5, treeling: 7, skeleton: 8, golem: 12 
   WAVE_HEAL = 15;
 /* WEAPON SPECIALS that are not a menu command (the inventory lists them as PASSIVE; Render and Knight Light are ACTIVE):
  HATCHET  PICK-OFF: a carve on an enemy at HATCHET_HALF of its HP or less does HATCHET_BONUS more.
+ IRON CRESCENT   PICK-OFF, wider and harder: the same carve bonus as the hatchet, but from CRESCENT_HALF of the enemy's HP (75%) or less, and CRESCENT_BONUS (+15) instead of +10. It is the hatchet's upgrade.
+ WRETCHED CLEAVER   everything the Crescent does (it uses the Crescent's numbers) and, on top, CLEAVER_HEAL hit points back for you on every kill (never above your max).
  HAMMER   STUN: a carve stuns its target (it skips its next swing). Never when the target is the last enemy standing, and then HAMMER_STUN_CD of your turns must pass before the next one.
  SHOVEL   DIG: SHOVEL_GOLD extra gold from every kill (0.25 = +25%).
  MORNINGSTAR   BLEED: every carve, and every enemy hit you take while guarding, has MORNINGSTAR_BLEED_CHANCE to make that enemy bleed (the bleed status: see STATUS EFFECTS below for its damage and length;
  hitting it again while it bleeds just restarts the count). A bleeding enemy drips blood from its middle (see the BLOOD section). */
 const HATCHET_BONUS = 10,
   HATCHET_HALF = 0.5,
+  CRESCENT_BONUS = 15,
+  CRESCENT_HALF = 0.75,
+  CLEAVER_HEAL = 5,
   HAMMER_STUN_CD = 2,
   SHOVEL_GOLD = 0.25;
 let hammerCd = 0;
 const isHatchet = () => weapon === "sword" && swordStyle === "hatchet",
+  isCrescent = () => weapon === "sword" && swordStyle === "crescent",
+  isCleaver = () => weapon === "sword" && swordStyle === "cleaver",
   isHammer = () => weapon === "sword" && swordStyle === "hammer",
   isShovel = () => weapon === "axe" && axeStyle === "shovel";
+// the carve bonus from the hatchet family: how much extra a carve on e does right now (0 if the weapon has no pick-off, or e is too healthy)
+function pickOffBonus(e) {
+  if (isCrescent() || isCleaver())
+    return e.hp <= e.max * CRESCENT_HALF ? CRESCENT_BONUS : 0;
+  if (isHatchet()) return e.hp <= e.max * HATCHET_HALF ? HATCHET_BONUS : 0;
+  return 0;
+}
+// the Wretched Cleaver's heal: called when one of your hits kills e
+function cleaverHeal() {
+  if (!isCleaver() || pl.dead || pl.hp <= 0) return;
+  const h = Math.min(CLEAVER_HEAL, pl.max - pl.hp);
+  if (h <= 0) return;
+  pl.hp += h;
+  setTimeout(() => {
+    popup("+" + h, headPos({ isPl: true }, new THREE.Vector3()), "heal");
+    blip(660, 0.1);
+  }, 350);
+}
 // the hammer's stun, after a carve landed on e: only with another enemy still standing, and not while it is cooling down
 function hammerStun(e) {
   if (!isHammer() || e.dead || hammerCd > 0) return;
@@ -3396,6 +3423,7 @@ function hurtEnemy(e, dmg) {
   if (e.hp <= 0) {
     e.dead = true;
     awardGold(e);
+    cleaverHeal();
     enemyDie(e);
   } else enemyHit(e);
 }
@@ -3953,8 +3981,8 @@ function updateBattle(dt) {
       const braced = pl.brace;
       pl.brace = false;
       let dmg = braced ? Math.round(SWING_DAMAGE * BRACE_MULT) : SWING_DAMAGE;
-      // HATCHET: pick-off
-      if (isHatchet() && e.hp <= e.max * HATCHET_HALF) dmg += HATCHET_BONUS;
+      // HATCHET / IRON CRESCENT / WRETCHED CLEAVER: pick-off (the Crescent and the Cleaver reach further and hit harder)
+      dmg += pickOffBonus(e);
       hurtEnemy(e, dmg);
       // HAMMER: stun
       hammerStun(e);

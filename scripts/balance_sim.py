@@ -11,7 +11,8 @@ TOMB  = [["mob","slime","mob"],["slime","mob","slime"],["mob","golem","mob"]]
 
 def make(cfg):
     P = dict(php=100, swing=25, dmg={'slime':12,'sporeling':12,'treeling':12,'golem':12},
-             guard=0.25, heal=25, potions=3, brace=1.0, waveheal=0, dmul=1.0)
+             guard=0.25, heal=25, potions=3, brace=1.0, waveheal=0, dmul=1.0,
+             pickoff=None, killheal=0)   # pickoff=(fraction of max HP, bonus damage); killheal=HP you get back on each kill
     P.update(cfg); return P
 
 def edmg(P, t, guard):
@@ -53,9 +54,11 @@ def solve(P, waves):
             nhp=hp; nehp=list(ehp); nbr=br; npots=pots; guard=False
             if o[0]=='c':
                 dm=P['swing']*(P['brace'] if br else 1); nbr=False
+                if P['pickoff'] and nehp[o[1]]<=HP[types[o[1]]]*P['pickoff'][0]: dm+=P['pickoff'][1]
                 nehp[o[1]]=max(0,nehp[o[1]]-int(round(dm)))
+                if nehp[o[1]]<=0: nhp=min(P['php'],nhp+P['killheal'])
                 if all(x<=0 for x in nehp):
-                    v=fight(w,types,tuple(nehp),hp,npots,nbr)
+                    v=fight(w,types,tuple(nehp),nhp,npots,nbr)
                     best=max(best,v); continue
             elif o[0]=='b':
                 guard=True; nbr=(P['brace']>1.0)
@@ -89,7 +92,10 @@ def naive(P, waves, trials=4000, use_block=False, pot_thresh=0.35, seed=1):
                     guard=True; br=P['brace']>1.0
                 else:
                     i=min(alive,key=lambda k:ehp[k])
-                    ehp[i]=max(0,ehp[i]-int(round(P['swing']*(P['brace'] if br else 1)))); br=False
+                    dm=P['swing']*(P['brace'] if br else 1)
+                    if P['pickoff'] and ehp[i]<=HP[types[i]]*P['pickoff'][0]: dm+=P['pickoff'][1]
+                    ehp[i]=max(0,ehp[i]-int(round(dm))); br=False
+                    if ehp[i]<=0: hp=min(P['php'],hp+P['killheal'])
                     if not any(x>0 for x in ehp): break
                 for i in range(3):
                     if ehp[i]>0:
@@ -112,6 +118,19 @@ def show(tag, cfg, tomb_mul=1.25):
         n = naive(pm, wv)[0]
         nbk = naive(pm, wv, use_block=True)[0]
         print(f"  {dn:5s} perfect play {opt:.2f} | without blocking {nb:.2f} | without potions {npot:.2f} | beginner (carve + potion) {n:.2f} | beginner who blocks first {nbk:.2f}")
+
+WEAPONS = {   # the light weapons' numbers, as in js/09-dungeon-battle.js
+    'sword (no special)': {},
+    'hatchet  (50% / +10)': dict(pickoff=(0.5, 10)),
+    'crescent (75% / +15)': dict(pickoff=(0.75, 15)),
+    'cleaver  (75% / +15, heal 5 per kill)': dict(pickoff=(0.75, 15), killheal=5),
+    'cleaver  (75% / +15, heal 3 per kill)': dict(pickoff=(0.75, 15), killheal=3),
+}
+AFTER = dict(dmg={'slime': 4, 'sporeling': 5, 'treeling': 7, 'golem': 12}, brace=2.0, heal=40, waveheal=15)
+
+if __name__ == '__main__' and 'weapons' in sys.argv[1:]:
+    for name, w in WEAPONS.items(): show(name, dict(AFTER, **w))
+    sys.exit()
 
 if __name__ == '__main__':
     show("BEFORE (original constants)", {})
