@@ -976,7 +976,7 @@ function ualAlias(k, sn) {
   }
   return ualAl[key];
 }
-/* ANIM SET: IDEAL (the default) = the UAL Idle and Hit, plus a different random UAL Sword_Regular_A / B / C for every swing; everything else is the knight's own. KNIGHT = all the knight's own.
+/* ANIM SET: IDEAL (the default) = the UAL Idle and Hit, plus a different random UAL Sword_Regular_A / B / C for every swing (the heavy weapons swing Heavy_Weapon_Swing every time); everything else is the knight's own. KNIGHT = all the knight's own.
  UNIVERSAL = every clip in UAL_ALT from the UAL library. While IDEAL is on, the UAL_ clips are hidden from the ANIMATIONS menus (HeavyCombo is not one of them, so it stays). */
 let animSet = "ideal";
 const IDEAL_ALT = { Idle: 1, AxeIdle: 1, Hit: 1 },
@@ -1007,10 +1007,20 @@ function ualApply() {
     const sn =
         k === "Block" && weapon === "axe" ? "UALX_Sword_Block" : UAL_ALT[k],
       alt = actions[sn] && ualAlias(k, sn);
-    if (!ualOrig[k] && actions[k] && !actions[k].getClip().ualSrc)
+    if (
+      !ualOrig[k] &&
+      actions[k] &&
+      actions[k].getClip().name !== "Heavy_Weapon_Swing" &&
+      !actions[k].getClip().ualSrc
+    )
       // (Block with the axe: the game turns the model round again for it, so that one uses the clip in its original hand)
       ualOrig[k] = actions[k];
     const o = ualOrig[k];
+    if (I && k === "AxeSwing" && o && actions.Heavy_Weapon_Swing) {
+      // IDEAL: the heavy weapons' default swing is Heavy_Weapon_Swing itself (not an alias: its grip, swoosh window and sounds are all keyed on that clip's own name)
+      actions[k] = actions.Heavy_Weapon_Swing;
+      return;
+    }
     if (!o || !alt) return;
     alt.setEffectiveTimeScale(1);
     if (U || (I && IDEAL_ALT[k])) {

@@ -2378,6 +2378,14 @@ const BM_MENUS = {
 const SWING_SPEED = 1.25;
 // seconds into the Swing clip when the blade connects: the enemy's Hit starts then
 const CARVE_HIT_AT = 0.5;
+// the same for Heavy_Weapon_Swing (the heavy weapons' swing in the IDEAL anim set): its strike runs 0.24 - 0.43 s and the blade is fastest at ~0.35 s
+const CARVE_HIT_HEAVY = 0.36;
+function carveHitAt() {
+  const sw = actions[swingName()];
+  return sw && sw.getClip().name === "Heavy_Weapon_Swing"
+    ? CARVE_HIT_HEAVY
+    : CARVE_HIT_AT;
+}
 // seconds the last frame of Hit is held before the enemy goes back to Idle
 const HIT_HOLD = 1.0;
 // seconds the last frame of Block is held before he goes back to Idle
@@ -3996,7 +4004,7 @@ function updateBattle(dt) {
   bt.t += dt;
   if (bt.act === "carve") {
     const e = bt.en;
-    if (bt.stage === 0 && bt.t >= CARVE_HIT_AT / SWING_SPEED) {
+    if (bt.stage === 0 && bt.t >= carveHitAt() / SWING_SPEED) {
       bt.stage = 1;
       bt.hitT = bt.t;
       const braced = pl.brace;
