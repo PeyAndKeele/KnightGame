@@ -144,6 +144,7 @@ function settingsSnapshot() {
     am: armorAmt,
     sh: swordHex,
     sm: swordMatch,
+    ms: mainSong,
   };
 }
 let lastSettings = "",
@@ -160,6 +161,7 @@ function restoreSettings() {
     }
     resize();
     if (typeof v.cr === "boolean" && v.cr !== crushOn) toggleCrush();
+    if (typeof v.ms === "string") setMainSong(v.ms);
     if (v.mu === false) {
       userChose = true;
       musicOn = false;

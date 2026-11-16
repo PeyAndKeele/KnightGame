@@ -929,6 +929,11 @@ function initMainMenu() {
           },
         },
         {
+          t: "MAIN SONG",
+          v: () => MAIN_SONGS[mainSong].name,
+          run: toggleMainSong,
+        },
+        {
           t: "BITCRUSH",
           v: () => (crushOn ? "ON" : "OFF"),
           run: toggleCrush,
@@ -1020,6 +1025,9 @@ function initMainMenu() {
         "",
         "DARIEN GAP",
         "BY LT",
+        "",
+        "XTAL",
+        "BY APHEX TWIN",
         "",
         "LIVIN LOOSE",
         "BY GEORGE CLANTON",

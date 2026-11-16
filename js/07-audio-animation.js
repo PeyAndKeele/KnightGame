@@ -112,6 +112,11 @@ async function startMusic() {
     await p;
     // (EDIT plays its own song: the main one must not start up under it, e.g. when it finished loading just after EDIT began)
     if (!musicOn || editOn) return;
+    if (mainSong !== "darien") {
+      // the chosen main song is one of the xtra tracks: syncAudio plays it (or whatever else has priority)
+      await syncAudio();
+      return;
+    }
     if (
       !srcNode &&
       !flauntWant &&
@@ -201,16 +206,15 @@ let shopWant = false,
   ignisWant = false,
   // dance: the song for the Dance animation (top priority)
   danceWant = false;
-/* The shop song's name tag (bottom right of the shop view) is also the switch between the shop's songs: click it to swap (shopSong is 'shop', 'shop2' or 'xtal'; the choice is kept for later visits).
+/* The shop song's name tag (bottom right of the shop view) is also the switch between the shop's songs: click it to swap (shopSong is 'shop' or 'shop2'; the choice is kept for later visits).
  To add another shop song: add it to xtra above (+ manifest.json), to SHOP_SONG_NAMES here and to SHOP_SONGS (the order they cycle in). */
 let shopSong = "shop",
   shopSongBtn = null;
 const SHOP_SONG_NAMES = {
     shop: "SACRIFICE OF SAINT DELL",
     shop2: "ASSHOLE PARTY",
-    xtal: "XTAL",
   },
-  SHOP_SONGS = ["shop", "shop2", "xtal"];
+  SHOP_SONGS = ["shop", "shop2"];
 function shopSongLabel() {
   if (shopSongBtn)
     shopSongBtn.innerHTML =
@@ -225,6 +229,29 @@ function shopSongNext() {
   blip(520, 0.06);
   if (shopWant) syncAudio();
 // syncAudio fades the old shop song out and the new one in
+}
+/* MAIN SONG (OPTIONS > SOUND): which song is the "main" one, the one that plays on the menu and out in the world whenever nothing else has priority.
+ darien = song-data (Darien Gap, loaded by loadSong / startMusic). Every other choice is one of the xtra tracks above, so it gets the same fades, loop seams and BITCRUSH switch for free.
+ To add another: add it to xtra (+ manifest.json) and to MAIN_SONGS and MAIN_SONG_LIST here (key = the xtra key). The choice is saved with the other options (settingsSnapshot "ms"). */
+let mainSong = "darien";
+const MAIN_SONGS = {
+    darien: { key: "main", name: "DARIEN GAP" },
+    xtal: { key: "xtal", name: "XTAL" },
+  },
+  MAIN_SONG_LIST = ["darien", "xtal"];
+function setMainSong(k) {
+  if (!MAIN_SONGS[k] || k === mainSong) return;
+  mainSong = k;
+  // syncAudio fades the old song out and the new one in (when music is on; otherwise it just plays next time)
+  if (ac && musicOn) syncAudio();
+}
+function toggleMainSong() {
+  setMainSong(
+    MAIN_SONG_LIST[
+      (MAIN_SONG_LIST.indexOf(mainSong) + 1) % MAIN_SONG_LIST.length
+    ],
+  );
+  blip(520, 0.06);
 }
 function loadX(k) {
   const x = xtra[k];
@@ -270,7 +297,7 @@ async function syncAudio() {
                 ? "ignis"
                 : frostWant
                   ? "frost"
-                  : "main";
+                  : MAIN_SONGS[mainSong].key;
   const stopX = (keep) => {
     for (const k in xtra) {
       if (k !== keep && xtra[k].src) {
