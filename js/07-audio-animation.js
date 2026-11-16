@@ -189,6 +189,7 @@ function setBattleMusic(on) {
 const xtra = {
   shop: { id: "shop-song-data", buf: null, src: null, loading: null },
   shop2: { id: "shop-song2-data", buf: null, src: null, loading: null },
+  xtal: { id: "xtal-song-data", buf: null, src: null, loading: null },
   frost: { id: "frost-song-data", buf: null, src: null, loading: null },
   ignis: { id: "ignis-song-data", buf: null, src: null, loading: null },
   dance: { id: "dance-song-data", buf: null, src: null, loading: null },
@@ -200,15 +201,16 @@ let shopWant = false,
   ignisWant = false,
   // dance: the song for the Dance animation (top priority)
   danceWant = false;
-/* The shop song's name tag (bottom right of the shop view) is also the switch between the shop's songs: click it to swap (shopSong is 'shop' or 'shop2'; the choice is kept for later visits).
+/* The shop song's name tag (bottom right of the shop view) is also the switch between the shop's songs: click it to swap (shopSong is 'shop', 'shop2' or 'xtal'; the choice is kept for later visits).
  To add another shop song: add it to xtra above (+ manifest.json), to SHOP_SONG_NAMES here and to SHOP_SONGS (the order they cycle in). */
 let shopSong = "shop",
   shopSongBtn = null;
 const SHOP_SONG_NAMES = {
     shop: "SACRIFICE OF SAINT DELL",
     shop2: "ASSHOLE PARTY",
+    xtal: "XTAL",
   },
-  SHOP_SONGS = ["shop", "shop2"];
+  SHOP_SONGS = ["shop", "shop2", "xtal"];
 function shopSongLabel() {
   if (shopSongBtn)
     shopSongBtn.innerHTML =

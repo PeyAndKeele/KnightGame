@@ -30,6 +30,12 @@
     "size": 2641576
   },
   {
+    "id": "xtal-song-data",
+    "type": "text/plain",
+    "url": "xtal-song-data.txt",
+    "size": 4740260
+  },
+  {
     "id": "frost-song-data",
     "type": "text/plain",
     "url": "frost-song-data.txt",
