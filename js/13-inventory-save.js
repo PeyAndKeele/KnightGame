@@ -950,7 +950,7 @@ function fxData() {
             ["GUARD", "-" + pct(RENDER_GUARD) + " DAMAGE TAKEN"],
             ["FOUND IN", "ACTIONS MENU"],
           ],
-          desc: "One heavy swing, brought all the way around, that hits every enemy at once. He stays braced afterwards, so the blows that follow land softer.",
+          desc: "One heavy swing, brought all the way around, that hits every enemy at once. You stay braced afterwards, so the blows that follow land softer.",
           by: ["axe", "shovel"],
         },
         {
@@ -1010,7 +1010,7 @@ function fxData() {
             ["GAUGE", "BOTH FILL KNIGHT LIGHT"],
             ["STOCK", HASTE_COUNT + " PER BATTLE"],
           ],
-          desc: "A fizzing green draught. Drinking it uses your turn, but then the enemies wait while he acts twice in a row.",
+          desc: "A fizzing green draught. Drinking it uses your turn, but then the enemies wait while you act twice in a row.",
           by: ["haste"],
         },
       ],
