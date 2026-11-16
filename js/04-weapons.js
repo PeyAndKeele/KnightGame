@@ -1436,6 +1436,8 @@ function playPotionSfx() {
       loadSfxSet("slime-hit-sfx-data");
       loadSfxSet("slime-die-sfx-data");
       loadSfxSet("slime-win-sfx-data");
+      loadSfxSet("skeleton-hurt-sfx-data");
+      loadSfxSet("skeleton-die-sfx-data");
       if (l)
         l.then(() => {
           const q = SFX_SETS["potion-sfx-data"];

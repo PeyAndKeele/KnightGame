@@ -1499,6 +1499,20 @@ function spawnMob(k, sx, sz, H, th) {
 const SKELETON_HP = 90,
   SKELETON_HEAD_SCALE = 0.6;
 let skelScene = null;
+/* the skeleton's voice: 'hurt' = one of the four hurt sounds at random (used when it is hit AND when it attacks), 'die' = its death sound. SKELETON_SFX_GAIN = how loud (the files already peak at full scale, so much above 1 would clip). */
+const SKELETON_SFX_GAIN = 1;
+function playSkeletonSfx(kind) {
+  if (kind === "die")
+    playSfxSet("skeleton-die-sfx-data", 0, SKELETON_SFX_GAIN, 1, 0);
+  else
+    playSfxSet(
+      "skeleton-hurt-sfx-data",
+      Math.floor(Math.random() * 4),
+      SKELETON_SFX_GAIN,
+      1,
+      0,
+    );
+}
 function loadSkeleton() {
   const el = document.getElementById("skeleton-data");
   if (!el) return;
@@ -2676,6 +2690,7 @@ function enemyHit(e) {
   blip(130, 0.14);
   if (e.isSlime) playSlimeSfx("hit");
   else if (e.isGolem) playGolemSfx("pain");
+  else if (e.skel) playSkeletonSfx("hurt");
   else playGrunt();
 }
 /* ---------- turn-based battle: hit points, turn order, health bars ----------
@@ -3290,6 +3305,7 @@ function enemyDie(e) {
   blip(130, 0.14);
   if (e.isSlime) playSlimeSfx("die");
   else if (e.isGolem) playGolemSfx("pain");
+  else if (e.skel) playSkeletonSfx("die");
   else playGrunt(DEATH_GRUNT);
   tgSync();
 }
@@ -3690,7 +3706,8 @@ function updateEnemyPhase(dt) {
     if (e.isSlime) {
       playSlimeSfx("atk");
       slimeSquishStart(e, px, pz);
-    } else if (!e.isGolem) playSword(SWING_SPEED);
+    } else if (e.skel) playSkeletonSfx("hurt");
+    else if (!e.isGolem) playSword(SWING_SPEED);
     ep.stage = 1;
     ep.t = 0;
   } else if (ep.stage === 1 && ep.t >= hitAt) {

@@ -797,7 +797,9 @@ function blip(f, len) {
       "slime-hit-sfx-data",
       "slime-die-sfx-data",
       "slime-win-sfx-data",
-    // voice 2 and the slimes too, so their very first play is not lost
+      "skeleton-hurt-sfx-data",
+      "skeleton-die-sfx-data",
+    // voice 2, the slimes and the skeletons too, so their very first play is not lost
     ].forEach(loadSfxSet);
     const o = sfx.createOscillator(),
       g = sfx.createGain();

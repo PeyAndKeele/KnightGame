@@ -96,6 +96,18 @@
     "size": 233884
   },
   {
+    "id": "skeleton-hurt-sfx-data",
+    "type": "application/json",
+    "url": "skeleton-hurt-sfx-data.json",
+    "size": 265032
+  },
+  {
+    "id": "skeleton-die-sfx-data",
+    "type": "application/json",
+    "url": "skeleton-die-sfx-data.json",
+    "size": 176508
+  },
+  {
     "id": "sword-data",
     "type": "application/json",
     "url": "sword-data.json",
