@@ -230,18 +230,25 @@ function shopSongNext() {
   if (shopWant) syncAudio();
 // syncAudio fades the old shop song out and the new one in
 }
-/* MAIN SONG (OPTIONS > SOUND): which song is the "main" one, the one that plays on the menu and out in the world whenever nothing else has priority.
+/* MAIN SONG: which song is the "main" one, the one that plays on the menu and out in the world whenever nothing else has priority. Its name tag (top right of the MAIN MENU, built in js/14-edit.js) is the switch: click it to swap, like the shop's.
  darien = song-data (Darien Gap, loaded by loadSong / startMusic). Every other choice is one of the xtra tracks above, so it gets the same fades, loop seams and BITCRUSH switch for free.
  To add another: add it to xtra (+ manifest.json) and to MAIN_SONGS and MAIN_SONG_LIST here (key = the xtra key). The choice is saved with the other options (settingsSnapshot "ms"). */
-let mainSong = "darien";
+let mainSong = "darien",
+  mainSongBtn = null;
 const MAIN_SONGS = {
     darien: { key: "main", name: "DARIEN GAP" },
     xtal: { key: "xtal", name: "XTAL" },
   },
   MAIN_SONG_LIST = ["darien", "xtal"];
+function mainSongLabel() {
+  if (mainSongBtn)
+    mainSongBtn.innerHTML =
+      "\u266A " + MAIN_SONGS[mainSong].name + "<small>CLICK: CHANGE SONG</small>";
+}
 function setMainSong(k) {
   if (!MAIN_SONGS[k] || k === mainSong) return;
   mainSong = k;
+  mainSongLabel();
   // syncAudio fades the old song out and the new one in (when music is on; otherwise it just plays next time)
   if (ac && musicOn) syncAudio();
 }

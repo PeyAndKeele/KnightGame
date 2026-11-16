@@ -600,6 +600,27 @@ function initMainMenu() {
     clearTimeout(tt);
     tt = setTimeout(() => toastEl.classList.remove("show"), 1700);
   }
+  /* MAIN SONG tag: top right of the MAIN MENU, the same kind of tag as the shop's song tag. Click it to switch between the main songs (MAIN_SONGS, js/07-audio-animation.js).
+     It is only "on" while the MAIN MENU screen is showing, and steps aside with the menu when the map / inventory / EDIT (body.map) or exploring (body.explore) take over. */
+  {
+    const st = document.createElement("style");
+    st.textContent =
+      "#mainsong{position:fixed;right:max(14px,env(safe-area-inset-right,0px));top:calc(14px + env(safe-area-inset-top,0px));z-index:16;font:inherit;font-size:22px;letter-spacing:.08em;color:var(--ui-text);background:var(--ui-panel);border:2px solid var(--ui-edge);box-shadow:0 0 0 2px #000;padding:4px 12px;opacity:0;pointer-events:none;transition:opacity .35s,background .15s;text-shadow:2px 2px 0 #000;text-align:right;cursor:pointer;user-select:none;-webkit-user-select:none}" +
+      "#mainsong small{display:block;margin-top:2px;font-size:13px;letter-spacing:.1em;color:var(--ui-dim)}" +
+      "#mainsong:hover{background:var(--ui-hover)}#mainsong.on{opacity:1;pointer-events:auto}" +
+      "body.map #mainsong,body.explore #mainsong,body.custscr #mainsong{opacity:0!important;pointer-events:none!important}" +
+      "@media (max-width:640px){#mainsong{font-size:18px;max-width:52vw;box-sizing:border-box}}";
+    document.head.appendChild(st);
+    mainSongBtn = document.createElement("div");
+    mainSongBtn.id = "mainsong";
+    mainSongLabel();
+    document.body.appendChild(mainSongBtn);
+    mainSongBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleMainSong();
+    });
+    mainSongBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+  }
   const BACK = { t: "BACK", go: "main" },
     // BACK_OPT: from a group of options back to OPTIONS
     BACK_OPT = { t: "BACK", go: "options" };
@@ -929,11 +950,6 @@ function initMainMenu() {
           },
         },
         {
-          t: "MAIN SONG",
-          v: () => MAIN_SONGS[mainSong].name,
-          run: toggleMainSong,
-        },
-        {
           t: "BITCRUSH",
           v: () => (crushOn ? "ON" : "OFF"),
           run: toggleCrush,
@@ -1143,6 +1159,8 @@ function initMainMenu() {
     root.innerHTML = "";
     btns = [];
     startScr = cur === "start";
+    // the main song's name tag (top right) belongs to the MAIN MENU screen only
+    if (mainSongBtn) mainSongBtn.classList.toggle("on", cur === "main");
     // the start screen's camera can't be dragged
     document.body.classList.toggle("startscr", startScr);
     if (sc.text) {
