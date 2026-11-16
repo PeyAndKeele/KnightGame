@@ -424,6 +424,15 @@ if (DEV)
     "%c[DEV MODE] everything is owned; separate save slot. dbg.give / dbg.add / dbg.gold / dbg.reset / dbg.dev(false)",
     "color:#f0c030",
   );
+/* RARITY LOOK (OPTIONS > MISC > RARITY LOOK): BOLD (default) colours each inventory row, icon and the detail panel by the item's rarity (RARITY in js/05) and adds a rarity tag and banner.
+   CLASSIC is the inventory as it was before: no rarity shown. Every item row in INV_TABS carries a rarity key; the markup is always emitted and the CSS under #invui.rar decides whether it shows. */
+let rarityBold = GameSave.get("rarBold", true) !== false;
+function toggleRarityLook() {
+  rarityBold = !rarityBold;
+  GameSave.set("rarBold", rarityBold);
+  if (invUi) invRefresh();
+}
+const invRar = (it) => RARITY[it.rarity] || RARITY.common;
 const INV_TABS = [
   {
     t: "WEAPONS",
@@ -436,6 +445,7 @@ const INV_TABS = [
         t: "SWORD",
         cls: "light",
         icon: "sword",
+        rarity: "common",
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "sword",
@@ -446,6 +456,7 @@ const INV_TABS = [
         t: "HATCHET",
         cls: "light",
         icon: "hatchet",
+        rarity: "uncommon",
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "hatchet",
@@ -459,6 +470,7 @@ const INV_TABS = [
         t: "HAMMER",
         cls: "light",
         icon: "hammer",
+        rarity: "rare",
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "hammer",
@@ -472,6 +484,7 @@ const INV_TABS = [
         t: "KNIGHTLY SWORD",
         cls: "light",
         icon: "knightly",
+        rarity: "knightly",
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "knightly",
@@ -482,6 +495,7 @@ const INV_TABS = [
         t: "MORNINGSTAR",
         cls: "light",
         icon: "morningstar",
+        rarity: "rare",
         kind: "LIGHT WEAPON",
         w: "sword",
         ss: "morningstar",
@@ -499,6 +513,7 @@ const INV_TABS = [
         t: "AXE",
         cls: "heavy",
         icon: "axe",
+        rarity: "uncommon",
         kind: "HEAVY WEAPON",
         w: "axe",
         as: "axe",
@@ -509,6 +524,7 @@ const INV_TABS = [
         t: "SHOVEL",
         cls: "heavy",
         icon: "shovel",
+        rarity: "rare",
         kind: "HEAVY WEAPON",
         w: "axe",
         as: "shovel",
@@ -527,6 +543,7 @@ const INV_TABS = [
       {
         t: "POTION",
         icon: "potion",
+        rarity: "common",
         kind: "CONSUMABLE",
         qty: () => "x" + POTION_COUNT,
         stats: () => [
@@ -538,6 +555,7 @@ const INV_TABS = [
       {
         t: "HASTE POTION",
         icon: "potion",
+        rarity: "uncommon",
         haste: true,
         kind: "CONSUMABLE",
         qty: () => "x" + HASTE_COUNT,
@@ -617,6 +635,7 @@ function invGoto(tab, sub, sound) {
 }
 function invRefresh() {
   if (!invUi) return;
+  invUi.classList.toggle("rar", rarityBold);
   const T = INV_TABS[invTab],
     L = invList();
   if (invCur >= L.length) invCur = Math.max(0, L.length - 1);
@@ -658,10 +677,14 @@ function invRefresh() {
           (i === invCur ? " on" : "") +
           '" data-i="' +
           i +
+          '" style="--rc:' +
+          invRar(it).color +
           '"><span class="ii">' +
           invIcon(it.icon) +
           '</span><span class="in">' +
           it.t +
+          '</span><span class="irt">' +
+          invRar(it).name +
           '</span><span class="iv">' +
           (it.w
             ? invIsEq(it)
@@ -691,8 +714,14 @@ function invDetail() {
     box.innerHTML = "";
     return;
   }
+  const rr = invRar(it);
+  box.parentNode.style.setProperty("--rc", rr.color);
   box.innerHTML =
-    '<div class="ib">' +
+    '<div class="irb">' +
+    rr.name +
+    "<small>" +
+    rr.alt +
+    '</small></div><div class="ib">' +
     invIcon(it.icon) +
     '</div><div class="idn">' +
     it.t +
@@ -774,6 +803,19 @@ function invBuild() {
 #invui .idn{font-size:1.25em;text-align:center;color:#fff}#invui .idt{text-align:center;font-size:.7em;color:var(--ui-dim);padding-bottom:8px;margin-bottom:8px;border-bottom:2px solid var(--ui-edge)}
 #invui .idr{display:flex;justify-content:space-between;gap:12px;font-size:.8em;padding:2px 0}#invui .idr span:last-child{color:#fff;text-align:right}
 #invui .idd{font-size:.75em;line-height:1.25;margin-top:10px;padding-top:8px;border-top:2px solid var(--ui-edge);letter-spacing:.06em;color:var(--ui-text2)}
+/* RARITY LOOK: BOLD (all of it hidden / unchanged in CLASSIC) */
+#invui .irt,#invui .irb{display:none}
+#invui.rar .ir{border-left:6px solid var(--rc);padding-left:4px;background:linear-gradient(90deg,color-mix(in srgb,var(--rc) 24%,transparent),transparent 80%)}
+#invui.rar .ir.on{border-color:var(--rc);background:linear-gradient(90deg,color-mix(in srgb,var(--rc) 50%,var(--ui-hi)),var(--ui-hi) 85%);box-shadow:0 0 0 2px #000,0 0 14px color-mix(in srgb,var(--rc) 65%,transparent)}
+#invui.rar .ir .in{color:var(--rc);min-width:0;overflow:hidden;text-overflow:ellipsis}
+#invui.rar .ir .ii{border-color:var(--rc);color:var(--rc);box-shadow:inset 0 0 8px color-mix(in srgb,var(--rc) 45%,transparent)}
+#invui.rar .ir .ii .wico,#invui.rar .ib .wico{background:var(--rc)}
+#invui.rar .irt{display:inline-block;flex:0 0 auto;font-size:.55em;letter-spacing:.14em;line-height:1.3;padding:0 5px;border:2px solid var(--rc);color:var(--rc);background:rgba(0,0,0,.55)}
+#invui.rar #invright{border-color:var(--rc);box-shadow:0 0 0 3px #000,0 0 22px color-mix(in srgb,var(--rc) 55%,transparent),inset 0 0 0 3px rgba(0,0,0,.35)}
+#invui.rar .irb{display:block;margin:-14px -14px 12px;padding:6px 0 4px;text-align:center;color:var(--rc);background:color-mix(in srgb,var(--rc) 30%,#000);border-bottom:3px solid var(--rc);letter-spacing:.3em}
+#invui.rar .irb small{display:block;font-size:.55em;letter-spacing:.35em;opacity:.8}
+#invui.rar .ib{color:var(--rc);border-color:var(--rc);box-shadow:0 0 0 2px #000,0 0 18px color-mix(in srgb,var(--rc) 70%,transparent),inset 0 0 14px color-mix(in srgb,var(--rc) 35%,transparent)}
+#invui.rar .idn{color:var(--rc)}
 #invhint{grid-column:1/4;display:flex;justify-content:center;gap:2.2em;flex-wrap:wrap;padding:4px 14px;font-size:.62em;color:var(--ui-dim)}
 @media (max-aspect-ratio:9/10){#invui{grid-template-columns:1fr;grid-template-rows:auto minmax(0,40vh) auto;bottom:auto;gap:8px;font-size:min(22px,3.4vh)}#invtop{grid-column:1;flex-wrap:wrap;gap:8px}#invtop .ttl{display:none}#invleft{grid-column:1}#invright,#invhint{display:none}}`;
   document.head.appendChild(st);

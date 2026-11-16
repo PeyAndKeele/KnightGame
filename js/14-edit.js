@@ -847,6 +847,7 @@ function initMainMenu() {
         { t: "WORLD", go: "opt_world" },
         { t: "SOUND", go: "opt_sound" },
         { t: "KNIGHT", go: "opt_knight" },
+        { t: "MISC", go: "opt_misc" },
         BACK,
       ],
     },
@@ -916,6 +917,19 @@ function initMainMenu() {
           t: "VOICE",
           v: () => (voice === "voice2" ? "VOICE 2" : "VOICE 1"),
           run: toggleVoice,
+        },
+        BACK_OPT,
+      ],
+    },
+    opt_misc: {
+      name: "MISC",
+      up: "options",
+      items: [
+        // BOLD = rarity colours, tags and banners in the inventory; CLASSIC = the inventory without them
+        {
+          t: "RARITY LOOK",
+          v: () => (rarityBold ? "BOLD" : "CLASSIC"),
+          run: toggleRarityLook,
         },
         BACK_OPT,
       ],
