@@ -531,8 +531,8 @@ function swooshBuild() {
 }
 /* The two-handed weapons' swoosh is a FLAG nailed to the top of the weapon: the last point is the top, and every point before it just follows the one in front of it at a fixed distance,
  so when the weapon is waved the flag trails behind it. It shows for the first half of the swing animation (FLAG_START..FLAG_END of the clip) and fades in/out over FLAG_IN / FLAG_OUT seconds. */
-/* FLAG_WINDOW: clips whose swing is not in the first half: [from, to] in clip seconds, instead of FLAG_START..FLAG_END of the clip (Heavy_Weapon_Swing: the strike is at 0.4 - 0.75 s, the rest is wind-up and recovery) */
-const FLAG_WINDOW = { Heavy_Weapon_Swing: [0.38, 0.78] };
+/* FLAG_WINDOW: clips whose swing is not in the first half: [from, to] in clip seconds, instead of FLAG_START..FLAG_END of the clip (Heavy_Weapon_Swing: the strike is at 0.22 - 0.43 s, the rest is wind-up and recovery) */
+const FLAG_WINDOW = { Heavy_Weapon_Swing: [0.21, 0.46] };
 const FLAG_N = 10,
   FLAG_START = 0.08,
   FLAG_END = 0.5,

@@ -1066,6 +1066,11 @@ const AXE_FOLLOW_ARMS = true,
   AXE_FOLLOW_EASE = 0.12,
   // AXE_TOP_GRIP: where the right fist holds the handle (axe units); false = the axe just rides the right forearm
   AXE_TOP_GRIP = 1.366;
+// Per-clip override of AXE_TOP_GRIP. Heavy_Weapon_Swing holds the axe lower on the shaft (the top fist at 1.07 instead of 1.366), and its lower hand is spread well away from the top one (see heavyweaponswing-data.json)
+const AXE_CLIP_GRIP = { Heavy_Weapon_Swing: 1.07 };
+function axeGrip(nm) {
+  return AXE_CLIP_GRIP[nm] || AXE_TOP_GRIP;
+}
 /* The head's turn about the shaft is worked out live, so it can't end up facing the camera whatever pose the arms are in:
  in AxeIdle / Walk / anything but the swing, the blades are turned to point front and back, the way he faces (the head is symmetric, so either end is fine).
  In AxeSwing the mount's own roll is used; the turn is eased in and out over AXE_BLADES_EASE seconds. */
@@ -1196,8 +1201,8 @@ function axePose(nm) {
       g.quaternion.copy(q0).slerp(_aQ, axeFollowK);
       g.position
         .copy(G)
-        // keep the top grip where it was
-        .sub(_aV[3].set(0, AXE_TOP_GRIP, 0).applyQuaternion(g.quaternion));
+        // keep the top grip where it was (G is the right fist; axeGrip(nm) is how far along the shaft that fist holds it)
+        .sub(_aV[3].set(0, axeGrip(nm), 0).applyQuaternion(g.quaternion));
     }
   }
   const want =
