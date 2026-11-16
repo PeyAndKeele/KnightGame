@@ -270,7 +270,7 @@ const LOOT = [
   },
   {
     id: "morningstar",
-    name: "MORNINGSTAR",
+    name: "MORNING STAR",
     rarity: "rare",
     icon: "G",
     blurb: "A ball on a stick. The ball has opinions.",

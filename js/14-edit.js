@@ -718,7 +718,7 @@ function initMainMenu() {
           "AND IT NEEDS " + HAMMER_STUN_CD + " TURNS TO RECOVER.",
           "TIP: STUN THE GOLEM, KILL THE REST.",
           "",
-          "MORNINGSTAR (PASSIVE): BLEED",
+          "MORNING STAR (PASSIVE): BLEED",
           Math.round(MORNINGSTAR_BLEED_CHANCE * 100) +
             "% CHANCE ON A CARVE, OR WHEN YOU BLOCK A",
           "HIT, TO MAKE THAT ENEMY BLEED: " + STATUS.bleed.damage + " DAMAGE AT THE",
@@ -953,7 +953,7 @@ function initMainMenu() {
                 : swordStyle === "knightly"
                   ? "KNIGHTLY"
                   : swordStyle === "morningstar"
-                    ? "MORNINGSTAR"
+                    ? "MORNING STAR"
                     : "SWORD",
           run: toggleStyle,
         },

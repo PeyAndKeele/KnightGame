@@ -492,7 +492,7 @@ const INV_TABS = [
         desc: "A knight's sword with gems set in the blade. Its swing leaves a trail of every colour.",
       },
       {
-        t: "MORNINGSTAR",
+        t: "MORNING STAR",
         cls: "light",
         icon: "morningstar",
         rarity: "rare",
@@ -798,7 +798,7 @@ function invBuild() {
 #invui .in{flex:1;white-space:nowrap}#invui .iv{flex:0 0 auto}
 #invui .eb{display:inline-block;margin-left:8px;min-width:1.2em;text-align:center;font-size:.75em;line-height:1.2;border:2px solid #ffe27a;color:#ffe27a;background:rgba(0,0,0,.45);font-weight:normal}
 #inv-count{padding-top:6px;margin-top:6px;border-top:2px solid var(--ui-edge);font-size:.7em;color:var(--ui-dim);text-align:right}
-#invright{grid-column:3;grid-row:2;align-self:start;max-height:100%;overflow:auto;padding:14px;scrollbar-width:thin;scrollbar-color:var(--ui-edge) transparent}
+#invright{grid-column:3;grid-row:2;align-self:start;max-height:100%;overflow:auto;padding:14px;scrollbar-width:none;-ms-overflow-style:none}#invright::-webkit-scrollbar{display:none}
 #invui .ib{width:min(110px,16vh);height:min(110px,16vh);margin:0 auto 10px;padding:12px;box-sizing:border-box;border:2px solid var(--ui-edge);background:rgba(0,0,0,.4)}
 #invui .idn{font-size:1.25em;text-align:center;color:#fff}#invui .idt{text-align:center;font-size:.7em;color:var(--ui-dim);padding-bottom:8px;margin-bottom:8px;border-bottom:2px solid var(--ui-edge)}
 #invui .idr{display:flex;justify-content:space-between;gap:12px;font-size:.8em;padding:2px 0}#invui .idr span:last-child{color:#fff;text-align:right}
