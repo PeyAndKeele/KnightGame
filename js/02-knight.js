@@ -346,6 +346,9 @@ new THREE.GLTFLoader().parse(
       "swingheavyturnhold-data",
       "swingheavyrelease-data",
       "swing2-data",
+      // Heavy_Weapon_Swing / 2hand_Idle: Mixamo clips retargeted onto this rig (scripts/retarget-mixamo.py). Menu-only extras: nothing plays them by default
+      "heavyweaponswing-data",
+      "twohandidle-data",
     ].forEach(function (id) {
       const el = document.getElementById(id);
       if (!el) return;

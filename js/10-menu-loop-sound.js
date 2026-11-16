@@ -468,6 +468,8 @@ const SWISH_COMBO = {
     [1.1, 1.267],
     [1.483, 1.533],
   ],
+  // Heavy_Weapon_Swing: one big overhead-to-side strike (the earlier lift at ~1.5 s is only a wind-up)
+  Heavy_Weapon_Swing: [[2.3, 2.54]],
   HeavyCombo: [
     [0.333, 0.517],
     [0.967, 1.017],
@@ -554,6 +556,7 @@ const ANIM_SFX_LOOPS = { Swing: 1, AxeSwing: 1, Hit: 1, Block: 1 };
   "UAL_Sword_Regular_C",
   "UAL_Sword_Regular_Combo",
   "HeavyCombo",
+  "Heavy_Weapon_Swing",
   "UAL_Melee_Hook",
 ].forEach((n) => {
   ANIM_SFX[n] = () => playSwishClip(n);

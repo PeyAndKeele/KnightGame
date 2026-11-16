@@ -1106,6 +1106,8 @@ function axePose(nm) {
     (nm === "AxeIdle" ||
       nm === "AxeSwing" ||
       nm === "Walk" ||
+      nm === "Heavy_Weapon_Swing" ||
+      nm === "2hand_Idle" ||
       /^SwingHeavy/.test(nm))
       ? 1
       // (the SwingHeavy clips of RENDER too: the lower hand stays on the handle)
@@ -1199,7 +1201,10 @@ function axePose(nm) {
     }
   }
   const want =
-    AXE_BLADES_FRONT_BACK && nm !== "AxeSwing" && nm !== "SwingHeavyRelease"
+    AXE_BLADES_FRONT_BACK &&
+    nm !== "AxeSwing" &&
+    nm !== "SwingHeavyRelease" &&
+    nm !== "Heavy_Weapon_Swing"
       ? 1
       : 0;
   axeRollK += clamp(want - axeRollK, dt / AXE_BLADES_EASE);

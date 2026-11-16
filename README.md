@@ -35,6 +35,7 @@ in `index.html`), and the VT323 font from Google Fonts, so you need to be online
 | `*-data.json`, `*-data.txt` | Models, animations, songs and sound effects as text (about 50 MB in total).        |
 | `scripts/codemap.js`        | Prints a table of contents for the game scripts (`npm run map`).                   |
 | `scripts/bake-gltf.py`      | Bakes a Blockbench glTF into the `*-data.json` model format (see below).           |
+| `scripts/retarget-mixamo.py`| Retargets a Mixamo `.fbx` animation onto the knight's rig as a `*-data.json` clip.  |
 
 ### Loading
 

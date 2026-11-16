@@ -381,7 +381,8 @@ function danceStep() {
  down so his lowest foot is exactly on the ground, and put back to its normal height as soon as the clip is over. */
 let ualY0 = null;
 const _ugB = new THREE.Box3(),
-  UAL_GROUND = /^(UAL_.*Heavy|HeavyCombo)/;
+  // (Heavy_Weapon_Swing / 2hand_Idle are mocap too: their hips height comes straight from the capture)
+  UAL_GROUND = /^(UAL_.*Heavy|HeavyCombo|Heavy_Weapon_Swing|2hand_Idle)/;
 function ualGround() {
   if (!playerRig || !current) return;
   const c = current.getClip(),
@@ -425,6 +426,7 @@ function stepMixer(dt) {
         cn === "AxeSwing" ||
         cn === "SwingHeavyRelease" ||
         cn === "HeavyCombo" ||
+        cn === "Heavy_Weapon_Swing" ||
         /^UAL_(Sword_Regular|Sword_Heavy|Melee_Hook)/.test(cn));
   if (!onSwing) {
     swsh.hasPrev = false;
@@ -529,6 +531,8 @@ function swooshBuild() {
 }
 /* The two-handed weapons' swoosh is a FLAG nailed to the top of the weapon: the last point is the top, and every point before it just follows the one in front of it at a fixed distance,
  so when the weapon is waved the flag trails behind it. It shows for the first half of the swing animation (FLAG_START..FLAG_END of the clip) and fades in/out over FLAG_IN / FLAG_OUT seconds. */
+/* FLAG_WINDOW: clips whose swing is not in the first half: [from, to] in clip seconds, instead of FLAG_START..FLAG_END of the clip (Heavy_Weapon_Swing: the strike is at 2.3 - 2.9 s, the rest is wind-up and recovery) */
+const FLAG_WINDOW = { Heavy_Weapon_Swing: [2.25, 2.95] };
 const FLAG_N = 10,
   FLAG_START = 0.08,
   FLAG_END = 0.5,
@@ -541,13 +545,15 @@ function updateFlag() {
     cn = act && act.getClip().name,
     dur = act ? act.getClip().duration : 0,
     t = act ? act.time : 0,
-    tEnd = dur * FLAG_END;
+    win = FLAG_WINDOW[cn],
+    tStart = win ? win[0] : FLAG_START,
+    tEnd = win ? win[1] : dur * FLAG_END;
   if (!(
     swooshOn &&
     swTip &&
     swPivot &&
-    (cn === "AxeSwing" || cn === "SwingHeavyRelease") &&
-    t >= FLAG_START &&
+    (cn === "AxeSwing" || cn === "SwingHeavyRelease" || win) &&
+    t >= tStart &&
     t < tEnd
   )) {
     if (swFlagOn || m.visible) {
@@ -588,7 +594,7 @@ function updateFlag() {
   }
   const f = Math.max(
     0,
-    Math.min(1, Math.min((t - FLAG_START) / FLAG_IN, (tEnd - t) / FLAG_OUT)),
+    Math.min(1, Math.min((t - tStart) / FLAG_IN, (tEnd - t) / FLAG_OUT)),
   );
   swsh.k = k;
   swsh.active = true;

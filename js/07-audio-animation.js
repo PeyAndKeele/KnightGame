@@ -818,6 +818,8 @@ function play(n) {
     (n === "AxeIdle" ||
       n === "AxeSwing" ||
       n === "AxeFlaunt" ||
+      n === "Heavy_Weapon_Swing" ||
+      n === "2hand_Idle" ||
       n === FLAUNT_IDLE) &&
     weapon !== "axe"
   )
