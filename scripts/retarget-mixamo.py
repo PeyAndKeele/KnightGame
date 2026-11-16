@@ -312,11 +312,34 @@ def build(path, name, mode='shoulder', palm=0.5):
     return res, diag, dict(T=T, hands=hands, Ph=Ph, D=Dn, wpos=wpos, by=by, P=P, tgt=tgt, Sk=Sk)
 
 
+def decimate(res, keys):
+    """resample every animated track at the given times (slerp for rotations, lerp for positions); static 2-key tracks are left alone"""
+    from scipy.spatial.transform import Slerp
+    for t in res['tracks']:
+        T = np.array(t['t'])
+        if len(T) <= 2: continue
+        ks = np.array(sorted(set(min(k, T[-1]) for k in keys)))
+        if t['p'] == 'q':
+            V = np.array(t['v']).reshape(-1, 4)
+            nv = Slerp(T, R.from_quat(V))(ks).as_quat()
+            for i in range(1, len(nv)):
+                if np.dot(nv[i], nv[i-1]) < 0: nv[i] = -nv[i]
+        else:
+            V = np.array(t['v']).reshape(-1, 3)
+            nv = np.stack([np.interp(ks, T, V[:, i]) for i in range(3)], axis=1)
+        t['t'] = [round(float(x), 5) for x in ks]
+        t['v'] = [round(float(x), 5) for x in nv.ravel()]
+    return res
+
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('fbx'); ap.add_argument('out'); ap.add_argument('--name', required=True, help='clip name shown in the ANIMATIONS menu')
     ap.add_argument('--mode', choices=['mid', 'shoulder'], default='mid', help='hand targets relative to the shoulder midpoint (default, keeps the two hands a steady distance apart) or to each shoulder')
+    ap.add_argument('--keys', help='comma-separated clip times (s): keep only these key poses (the last one is clamped to the clip end), for a choppy, pose-to-pose look. SNAP_CLIPS in js/02-knight.js then makes the moves between them pop')
     a = ap.parse_args()
     res, diag, _ = build(a.fbx, a.name, a.mode)
+    if a.keys:
+        res = decimate(res, [float(x) for x in a.keys.split(',')])
     json.dump(res, open(a.out, 'w'), separators=(',', ':'))
     print('wrote', a.out, '- hand separation min/mean/max %.2f/%.2f/%.2f' % diag['sep'], '- reach exceeded on %.0f%% / %.0f%% of frames (L/R)' % (100 * diag['over'][0], 100 * diag['over'][1]))

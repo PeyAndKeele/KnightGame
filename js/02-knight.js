@@ -97,6 +97,7 @@ const SNAP_ON = true,
     "Drinking_Potion",
     "SwingHeavyWindUp",
     "SwingHeavyRelease",
+    "Heavy_Weapon_Swing",
   ];
 const SNAP_ANGLE = 0.45,
   SNAP_MOVE = 0.08,
