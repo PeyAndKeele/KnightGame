@@ -340,6 +340,9 @@ function initHatchetLike(parent, cfg) {
         if (cfg.plumeGem && p.plume) {
           // the Wretched Cleaver's gem takes the plume colour, exactly as the helmet's plume does (setupPlume registers it with the plume picker)
           setupPlume(hmat);
+          // ... and it glows like the Knightly Sword's gems (uGem in the shader: its coloured texels light up and the night does not dim them)
+          hmat.uniforms.uGem.value = 1;
+          hmat.uniforms.uBladeGlow.value = 0;
         } else {
           swordMats.push(hmat);
           // the same weapon color as the sword
