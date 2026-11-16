@@ -721,8 +721,8 @@ function initMainMenu() {
           "MORNINGSTAR (PASSIVE): BLEED",
           Math.round(MORNINGSTAR_BLEED_CHANCE * 100) +
             "% CHANCE ON A CARVE, OR WHEN YOU BLOCK A",
-          "HIT, TO MAKE THAT ENEMY BLEED: " + BLEED_DAMAGE + " DAMAGE AT THE",
-          "START OF EACH OF THE NEXT " + BLEED_TURNS + " ENEMY TURNS.",
+          "HIT, TO MAKE THAT ENEMY BLEED: " + STATUS.bleed.damage + " DAMAGE AT THE",
+          "START OF EACH OF THE NEXT " + STATUS.bleed.turns + " ENEMY TURNS.",
           "",
           "SHOVEL (PASSIVE): DIG",
           "+" + Math.round(SHOVEL_GOLD * 100) + "% GOLD FROM EVERY KILL.",

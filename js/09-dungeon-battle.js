@@ -1317,18 +1317,7 @@ function cloneElemental() {
     } else {
       o.renderOrder = 0;
     }
-    // 1 = solid; the fade-out when an enemy without a death animation dies brings it to 0
-    m.uniforms.uFade = { value: 1 };
-    m.fragmentShader = m.fragmentShader
-      .replace(
-        "uniform sampler2D map;",
-        "uniform sampler2D map; uniform float uFade;",
-      )
-      .replace(
-        "gl_FragColor=vec4(c,tx.a);",
-        "gl_FragColor=vec4(c,tx.a*uFade);",
-      )
-      .replace("gl_FragColor=vec4(c,1.0);", "gl_FragColor=vec4(c,uFade);");
+    addFade(m);
     o.material = m;
     o.frustumCulled = false;
   });
@@ -1412,14 +1401,7 @@ function spawnMob(k, sx, sz, H, th) {
   root.traverse((o) => {
     if (!o.isMesh) return;
     // own materials, so this one's death fade does not touch the others
-    const m = ps1Mat(o.material.uniforms.map.value, 1);
-    m.uniforms.uFade = { value: 1 };
-    m.fragmentShader = m.fragmentShader
-      .replace(
-        "uniform sampler2D map;",
-        "uniform sampler2D map; uniform float uFade;",
-      )
-      .replace("gl_FragColor=vec4(c,1.0);", "gl_FragColor=vec4(c,uFade);");
+    const m = addFade(ps1Mat(o.material.uniforms.map.value, 1));
     o.material = m;
     o.frustumCulled = false;
   });
@@ -1599,6 +1581,14 @@ function spawnSkeleton(k, sx, sz, H, th) {
   if (hg && hb !== "Head") hg.name = hb;
   const skull = root.getObjectByName("skull");
   if (skull) skull.scale.setScalar(SKELETON_HEAD_SCALE);
+  // own materials (the clone shares the template's), so this skeleton's fade does not touch the others
+  const own = new Map();
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    if (!own.has(o.material))
+      own.set(o.material, ps1Mat(o.material.uniforms.map.value, 1));
+    o.material = own.get(o.material);
+  });
   // a random weapon in the hand, looks only: its own textures, none of its specials
   const ws = [swordGrp, hatchetGrp, hammerGrp, morningstarGrp].filter(Boolean),
     fore = root.getObjectByName("Left_Forearm");
@@ -1684,15 +1674,56 @@ function spawnSkeleton(k, sx, sz, H, th) {
   enemies.push(en);
   return true;
 }
+/* ---------- WAVE CHANGE ----------
+ When the last enemy of a wave falls (nextWave), driven frame by frame by updateWave (called from stepEnemies; `wave` is null when no change is going on):
+   "hold"  WAVE_CORPSE_HOLD s: the last blow lands and its fall plays
+   "out"   every corpse fades out over WAVE_FADE_OUT s
+   "gap"   WAVE_GAP s with nothing in the arena
+   "in"    the next wave is built invisible and fades in over WAVE_FADE_IN s (the knight gets WAVE_HEAL back as it appears)
+ then it is the knight's turn. turn is "wave" the whole time, so nothing can be picked. */
+const WAVE_CORPSE_HOLD = 0.4,
+  WAVE_FADE_OUT = 1.0,
+  WAVE_GAP = 1.0,
+  WAVE_FADE_IN = 1.0;
+let wave = null;
 function nextWave() {
-  // every enemy of this wave is down: a pause, then the next wave steps up (the knight keeps his HP)
+  // every enemy of this wave is down (the knight keeps his HP)
   turn = "wave";
   try {
     setTurnLabel("WAVE " + (dgWave + 2) + " OF " + dg.waves.length);
   } catch (e) {}
-  setTimeout(() => {
-    if (!dungeon || turn !== "wave") return;
+  hidePointer();
+  wave = { stage: "hold", t: 0 };
+}
+function updateWave(dt) {
+  if (!wave) return;
+  if (!dungeon || turn !== "wave") {
+    // he left, or the fight ended some other way
+    wave = null;
+    return;
+  }
+  wave.t += dt;
+  const fading = enemies.some((e) => e.fade);
+  if (wave.stage === "hold") {
+    if (wave.t < WAVE_CORPSE_HOLD) return;
+    // slimes and golems are already fading or gone from their own death; the corpses of knights and skeletons start now
+    enemies.forEach((e) => {
+      if (e.rig.visible && !e.fade) startEnemyFade(e, 0, WAVE_FADE_OUT);
+    });
+    wave = { stage: "out", t: 0 };
+  } else if (wave.stage === "out") {
+    if (wave.t >= WAVE_FADE_OUT && !fading) wave = { stage: "gap", t: 0 };
+  } else if (wave.stage === "gap") {
+    if (wave.t < WAVE_GAP) return;
     dgWave++;
+    try {
+      spawnEnemies({ fadeIn: true });
+    } catch (e) {
+      console.error(e);
+    }
+    pl.guard = false;
+    ep = null;
+    barsBuild();
     // a short breather between waves: the knight gets WAVE_HEAL hit points back (never above his max)
     const wh = Math.min(WAVE_HEAL, pl.max - pl.hp);
     if (wh > 0 && !pl.dead) {
@@ -1700,22 +1731,22 @@ function nextWave() {
       popup("+" + wh, headPos({ isPl: true }, new THREE.Vector3()), "heal");
       blip(660, 0.1);
     }
-    try {
-      spawnEnemies();
-    } catch (e) {
-      console.error(e);
-    }
-    pl.guard = false;
-    ep = null;
+    wave = { stage: "in", t: 0 };
+  } else if (wave.stage === "in") {
+    if (wave.t < WAVE_FADE_IN || fading) return;
+    enemies.forEach((e) => {
+      e.spawning = false;
+    });
+    wave = null;
     turn = "player";
-    barsBuild();
-    setTurnLabel("YOUR TURN" + hasteTag());
+    setTurnLabel("YOUR TURN" + turnTags());
     try {
       showPointer();
     } catch (e) {}
-  }, 2000);
+  }
 }
-function spawnEnemies() {
+/* spawnEnemies({ fadeIn: true }) is the wave change: the new enemies start invisible and fade in over WAVE_FADE_IN (see WAVE CHANGE). Without it (the first wave) they just appear. */
+function spawnEnemies(opts) {
   clearEnemies();
   if (!knightScene || !actions.Idle || !dg.enemy.n || !blobHome) return;
   const H = playerH,
@@ -1815,17 +1846,7 @@ function spawnEnemies() {
       root.traverse((o) => {
         if (!o.isMesh) return;
         // own materials, so this golem's death fade does not touch the others
-        const m = ps1Mat(o.material.uniforms.map.value, 1);
-        m.uniforms.uFade = { value: 1 };
-        m.fragmentShader = m.fragmentShader
-          .replace(
-            "uniform sampler2D map;",
-            "uniform sampler2D map; uniform float uFade;",
-          )
-          .replace(
-            "gl_FragColor=vec4(c,1.0);",
-            "gl_FragColor=vec4(c,uFade);",
-          );
+        const m = addFade(ps1Mat(o.material.uniforms.map.value, 1));
         if (golemEye(o)) m.uniforms.uMagma.value = 1;
         o.material = m;
         o.frustumCulled = false;
@@ -1920,6 +1941,7 @@ function spawnEnemies() {
       cache = new Map(),
       pTex = [],
       rocks = [];
+    let faceMat = null;
     // enemies keep the normal handedness whatever the player's weapon
     root.scale.x = MIRROR_MODEL ? -1 : 1;
     root.traverse((o) => {
@@ -1952,7 +1974,13 @@ function spawnEnemies() {
       if (o.name === "SeatRock") rocks.push(o);
       if (!o.isMesh || o.name === "SeatRock") return;
       if (o.name === "H6Face") {
-        if (helm6.mat) o.material = helm6.mat;
+        if (helm6.mat) {
+          // an own copy, so this knight's fade does not touch the player's face; stepEnemies keeps its picture in step with the original
+          faceMat = ps1Mat(helm6.mat.uniforms.map.value, 1);
+          if (helm6.mat.uniforms.uNight)
+            faceMat.uniforms.uNight = helm6.mat.uniforms.uNight;
+          o.material = faceMat;
+        }
         o.scale.x = root.scale.x < 0 ? -1 : 1;
         return;
       // Helmet 6's face: the same animated material, not tinted like armor
@@ -2044,6 +2072,7 @@ function spawnEnemies() {
       root,
       blob,
       tex: pTex,
+      faceMat,
       armor: ah,
       plume: ph,
       sword: sh,
@@ -2067,6 +2096,13 @@ function spawnEnemies() {
     });
     enemies.push(en);
   }
+  enemies.forEach(prepEnemyFade);
+  if (opts && opts.fadeIn)
+    enemies.forEach((e) => {
+      e.spawning = true;
+      setEnemyAlpha(e, 0);
+      startEnemyFade(e, 1, WAVE_FADE_IN);
+    });
 }
 function clearEnemies() {
   bloodClear();
@@ -2096,7 +2132,10 @@ function stepEnemies(dt) {
         e.slAcc -= n * SLIME_STEP;
       }
     } else e.mixer.update(dt);
+    if (e.faceMat && helm6.mat)
+      e.faceMat.uniforms.map.value = helm6.mat.uniforms.map.value;
   }
+  updateWave(dt);
   if (shopKeeper && shopGroup && shopGroup.visible) {
     shopKeeper.mixer.update(dt);
     shopEvtStep(dt);
@@ -2715,8 +2754,8 @@ const ENEMY_DMG = { slime: 4, sporeling: 5, treeling: 7, skeleton: 8, golem: 12 
  HATCHET  PICK-OFF: a carve on an enemy at HATCHET_HALF of its HP or less does HATCHET_BONUS more.
  HAMMER   STUN: a carve stuns its target (it skips its next swing). Never when the target is the last enemy standing, and then HAMMER_STUN_CD of your turns must pass before the next one.
  SHOVEL   DIG: SHOVEL_GOLD extra gold from every kill (0.25 = +25%).
- MORNINGSTAR   BLEED: every carve, and every enemy hit you take while guarding, has MORNINGSTAR_BLEED_CHANCE to make that enemy bleed: BLEED_DAMAGE at the start of each of the next BLEED_TURNS enemy turns
- (hitting it again while it bleeds just restarts the count). A bleeding enemy drips blood from its middle (see the BLOOD section). */
+ MORNINGSTAR   BLEED: every carve, and every enemy hit you take while guarding, has MORNINGSTAR_BLEED_CHANCE to make that enemy bleed (the bleed status: see STATUS EFFECTS below for its damage and length;
+ hitting it again while it bleeds just restarts the count). A bleeding enemy drips blood from its middle (see the BLOOD section). */
 const HATCHET_BONUS = 10,
   HATCHET_HALF = 0.5,
   HAMMER_STUN_CD = 2,
@@ -2741,15 +2780,146 @@ function hammerStun(e) {
     350,
   );
 }
+/* ---------- STATUS EFFECTS (bleed, haste) ----------
+ Every status effect is ONE entry of the STATUS table below. Everything else (giving it, counting it down, the HUD tag, clearing it) is done by the helpers under the table, so a new effect never needs new bookkeeping.
+
+ HOW TO ADD ONE
+ 1. Add an entry to STATUS (the fields are explained at the table).
+ 2. Call giveStatus(target, "myeffect") wherever it should land (a weapon proc, an enemy attack, an item ...).
+ 3. If it should be shown in the knight's turn label, give it a `tag`. If it should change how the fight plays (like haste does), check hasStatus(target, "myeffect") where that happens.
+
+ WHO CAN HAVE ONE: an enemy (an entry of `enemies`) or the knight (`pl`). The state lives on the target as target.status = { id: { left, fresh } }; always go through the helpers instead of reading it directly.
+
+ WHEN IT COUNTS DOWN (`tickOn`):
+   "enemyTurn"    at the very start of the enemy phase (startEnemyPhase), once per enemy turn. Bleed uses this.
+   "playerAction" at the end of each of the knight's actions (afterPlayerAction). Haste uses this.
+ Each tick takes one off `left`, runs onTick, and removes the status (running onExpire) when `left` reaches 0. */
+const STATUS = {
+  bleed: {
+    label: "BLEED!", // popup over the target when it lands (null = no popup)
+    cls: "bld", // popup colour class: "bld" red, "blk" blue, "heal" green, "" yellow (see the .dmg rules in the CSS string below)
+    turns: 3, // how many ticks it lasts
+    tickOn: "enemyTurn",
+    damage: 5, // bleed's own number: what each tick takes off
+    onApply: (e) => {
+      // (also runs when it is given again, which just restarts the count)
+      e.bloodWait = 0;
+      initBlood();
+      bloodBurst(e, 4);
+    },
+    onTick: (e) => {
+      bloodBurst(e, 3);
+      statusDamage(e, STATUS.bleed.damage, "bld");
+    },
+  },
+  haste: {
+    label: null, // the potion's own popup says HASTE
+    turns: 2, // the knight acts twice in a row, the enemies wait
+    tickOn: "playerAction",
+    skipFirstTick: true, // given by drinking the potion, which is itself an action: that action does not count as one of the two
+    // 'HASTE 1/2', then 'HASTE 2/2'
+    tag: (left) =>
+      "HASTE " + (STATUS.haste.turns + 1 - left) + "/" + STATUS.haste.turns,
+  },
+  /* all the fields:
+   label, cls     popup when it lands (opts.delay in giveStatus holds it back, so it does not sit on top of a damage number)
+   turns          ticks it lasts (giveStatus can override it with opts.turns)
+   tickOn         "enemyTurn" or "playerAction" (see above)
+   skipFirstTick  true = the tick of the very action that gave it does not count (only matters for tickOn "playerAction")
+   onApply(t)     runs when it is given (including a re-give)      onTick(t)   runs on every tick      onExpire(t)   runs when it ends by running out (not when the target dies)
+   tag(left)      text for the knight's turn label while it is active, or leave it out
+   (any extra number, like bleed's `damage`, is just yours to read back as STATUS.<id>.<field>) */
+};
+const STATUS_BEAT = 0.9,
+  STATUS_KILL_BEAT = 1.2;
+// the enemy phase waits this long (s) after a tick that hurt someone, and this long after one that killed, so it can be seen
+
+function hasStatus(t, id) {
+  return !!(t && t.status && t.status[id]);
+}
+// ticks left, 0 if it is not on the target
+function statusLeft(t, id) {
+  return hasStatus(t, id) ? t.status[id].left : 0;
+}
+// opts: { turns: override STATUS[id].turns, delay: ms before the popup }. Giving a status that is already on restarts it.
+function giveStatus(t, id, opts) {
+  const def = STATUS[id];
+  if (!def) return console.error("giveStatus: no such status", id);
+  if (!t || t.dead) return;
+  opts = opts || {};
+  t.status = t.status || {};
+  t.status[id] = { left: opts.turns || def.turns, fresh: !!def.skipFirstTick };
+  if (def.onApply) def.onApply(t);
+  if (def.label)
+    setTimeout(
+      () => popup(def.label, statusHeadPos(t), def.cls),
+      opts.delay || 0,
+    );
+}
+function clearStatus(t, id) {
+  if (t && t.status) delete t.status[id];
+}
+function clearStatuses(t) {
+  if (t) t.status = {};
+}
+function statusHeadPos(t) {
+  return t === pl
+    ? headPos({ isPl: true }, new THREE.Vector3())
+    : headPos({ isPl: false, ent: t }, new THREE.Vector3());
+}
+/* counts down every status of this tickOn group on these targets. Returns 0 (nothing ticked), 1 (something ticked) or 2 (a tick killed someone). */
+function tickStatuses(targets, group) {
+  let r = 0;
+  for (const t of targets) {
+    if (t.dead || !t.status) continue;
+    for (const id of Object.keys(t.status)) {
+      const def = STATUS[id],
+        s = t.status[id];
+      if (!def || def.tickOn !== group) continue;
+      if (s.fresh) {
+        s.fresh = false;
+        continue;
+      }
+      s.left--;
+      if (def.onTick) def.onTick(t);
+      r = t.dead ? 2 : Math.max(r, 1);
+      if (t.dead) {
+        clearStatuses(t);
+        break;
+      }
+      if (s.left <= 0) {
+        delete t.status[id];
+        if (def.onExpire) def.onExpire(t);
+      }
+    }
+  }
+  return r;
+}
+// the text the active statuses add to the knight's turn label, e.g. '  HASTE 1/2'
+function statusTags(t) {
+  let out = "";
+  for (const id of Object.keys((t && t.status) || {})) {
+    const def = STATUS[id];
+    if (def && def.tag) out += "  " + def.tag(t.status[id].left);
+  }
+  return out;
+}
+// damage over time for an ENEMY: no hit animation (it just takes it and keeps its place), but it can kill
+function statusDamage(e, dmg, cls) {
+  e.hp = Math.max(0, e.hp - dmg);
+  popup("-" + dmg, statusHeadPos(e), cls);
+  if (e.hp <= 0) {
+    e.dead = true;
+    clearStatuses(e);
+    awardGold(e);
+    enemyDie(e);
+  } else blip(110, 0.08);
+}
 /* ---------- BLOOD + the Morningstar's BLEED ----------
- MORNINGSTAR_BLEED_CHANCE = the chance (0.15 = 15%) that a carve, or an enemy's hit while you guard, makes the enemy bleed. BLEED_DAMAGE = what it loses at the start of each enemy turn, BLEED_TURNS = how many of those it lasts.
- A bleeding enemy (e.bleed = turns left) drips blood from the middle of its body: blood-drop sprites (the 3 drops of red_droplet, darkened and reddened, packed into the strip below) that fall under gravity and fade into the fog like the leaves.
+ MORNINGSTAR_BLEED_CHANCE = the chance (0.15 = 15%) that a carve, or an enemy's hit while you guard, makes the enemy bleed. (What a bleed does and how long it lasts is STATUS.bleed, above.)
+ A bleeding enemy (hasStatus(e, "bleed")) drips blood from the middle of its body: blood-drop sprites (the 3 drops of red_droplet, darkened and reddened, packed into the strip below) that fall under gravity and fade into the fog like the leaves.
  BLOOD: max = drops at once, w = drop width (knight-heights), grav = fall acceleration (knight-heights per s^2), every = seconds between drops from one enemy, front = how far in front of its middle (toward the camera) a drop starts, so it is not hidden inside the body. */
-const MORNINGSTAR_BLEED_CHANCE = 0.15,
-  BLEED_DAMAGE = 5,
-  BLEED_TURNS = 3,
-  BLEED_BEAT = 0.9,
-  BLEED_KILL_BEAT = 1.2;
+const MORNINGSTAR_BLEED_CHANCE = 0.15;
 const BLOOD_ATLAS =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAMCAYAAACNzvbFAAAAvklEQVR42rWSQQrCMBBFf4aQRXEhxYV4Bg/kgVx7jh4oZxAXUrIoQUIZXaVM0qRapH8VmD/zXyYBhK5N+0ZFa2qEDUQy7Wh0kWhtbTtSmZKnxvOhMajRFof2zIiNuWLt2wPJQLqY3SxZGu48omeGdR6PMCYhNZhkp9b5maELg4qDe2bcXk4BwBKMjjSARksE6/zs2l0Y1NIOrfM47xs8fQAAJKkn0pMxEtUke1qiZCUqN/1CVhosYdS/f7IE8wGasW033rKwdQAAAABJRU5ErkJggg==",
   BLOOD_FRAMES = 3,
@@ -2850,7 +3020,7 @@ function bloodClear() {
 function updateBlood(dt) {
   if (dungeon && enemies.length)
     for (const e of enemies) {
-      if (e.dead || !(e.bleed > 0)) continue;
+      if (e.dead || !hasStatus(e, "bleed")) continue;
       e.bloodWait = (e.bloodWait === undefined ? 0 : e.bloodWait) - dt;
       if (e.bloodWait <= 0) {
         spawnBlood(e);
@@ -2894,42 +3064,7 @@ function updateBlood(dt) {
 function morningstarBleed(e, delay) {
   if (!isMorningstar() || !e || e.dead) return;
   if (Math.random() >= MORNINGSTAR_BLEED_CHANCE) return;
-  e.bleed = BLEED_TURNS;
-  e.bloodWait = 0;
-  initBlood();
-  bloodBurst(e, 4);
-  setTimeout(
-    () =>
-      popup(
-        "BLEED!",
-        headPos({ isPl: false, ent: e }, new THREE.Vector3()),
-        "bld",
-      ),
-    delay,
-  );
-}
-// BLEED damage: no hit animation (the enemy just takes it and keeps its place), but it can kill
-function bleedHurt(e, dmg) {
-  e.hp = Math.max(0, e.hp - dmg);
-  popup("-" + dmg, headPos({ isPl: false, ent: e }, new THREE.Vector3()), "bld");
-  if (e.hp <= 0) {
-    e.dead = true;
-    e.bleed = 0;
-    awardGold(e);
-    enemyDie(e);
-  } else blip(110, 0.08);
-}
-// the start of the enemy turn: every bleeding enemy loses BLEED_DAMAGE and one turn of bleeding. Returns 0 (nobody bled), 1 (someone bled) or 2 (someone bled out)
-function bleedTick() {
-  let r = 0;
-  for (const e of enemies) {
-    if (e.dead || !(e.bleed > 0)) continue;
-    e.bleed--;
-    bloodBurst(e, 3);
-    bleedHurt(e, BLEED_DAMAGE);
-    r = e.dead ? 2 : Math.max(r, 1);
-  }
-  return r;
+  giveStatus(e, "bleed", { delay });
 }
 // what one swing of this enemy does, before any guarding
 function enemyDamage(e) {
@@ -3190,9 +3325,9 @@ function barsUpdate(dt) {
       b.txt.textContent = b.name + " " + e.hp;
     }
     b.el.classList.toggle("dead", !!e.dead && !b.isPl);
-    b.el.classList.toggle("bld", !b.isPl && !e.dead && e.bleed > 0);
+    b.el.classList.toggle("bld", !b.isPl && !e.dead && hasStatus(e, "bleed"));
     headPos(b, _hv).project(camera);
-    const on = vis && _hv.z < 1 && _hv.z > -1;
+    const on = vis && _hv.z < 1 && _hv.z > -1 && !(e.spawning && !b.isPl);
     b.el.style.display = on ? "block" : "none";
     if (on)
       b.el.style.transform =
@@ -3243,8 +3378,7 @@ function battleReset() {
   pl.render = false;
   pl.buf = false;
   pl.dead = false;
-  pl.haste = 0;
-  pl.hasteArm = false;
+  clearStatuses(pl);
   potions = POTION_COUNT;
   hastes = HASTE_COUNT;
   hammerCd = 0;
@@ -3296,11 +3430,7 @@ function enemyDie(e) {
     e.hit.timeScale = 1;
     e.idle.fadeOut(0.05);
     e.hit.fadeIn(0.05).play();
-    (e.fadeMats || []).forEach((m) => {
-      m.transparent = true;
-      m.depthWrite = false;
-    });
-    e.fade = { t: 0, dur: Math.max(ENEMY_FADE_OUT, clip.duration) };
+    startEnemyFade(e, 0, Math.max(ENEMY_FADE_OUT, clip.duration));
   }
   blip(130, 0.14);
   if (e.isSlime) playSlimeSfx("die");
@@ -3309,21 +3439,75 @@ function enemyDie(e) {
   else playGrunt(DEATH_GRUNT);
   tgSync();
 }
+/* ---------- ENEMY FADES ----------
+ Every enemy can fade in or out (a death without a death animation, and the wave change). Its materials carry a uFade uniform (1 = solid, 0 = invisible, drawn as alpha) and its shadow blob follows.
+ prepEnemyFade gives every enemy the uniform, so a NEW enemy type only has to use materials of its own (ps1Mat copies, never shared with the player or another enemy) and it fades too.
+ startEnemyFade(e, to, dur) fades it from where it is now to `to` (0 or 1) over dur seconds; fadeEnemies runs it every frame. A fade to 0 hides the enemy when it is done. */
+// adds the uFade uniform to a ps1Mat and wires it into the shader's alpha (safe to call twice)
+function addFade(m) {
+  if (m.uniforms.uFade) return m;
+  m.uniforms.uFade = { value: 1 };
+  m.fragmentShader = m.fragmentShader
+    .replace(
+      "uniform sampler2D map;",
+      "uniform sampler2D map; uniform float uFade;",
+    )
+    .replace("gl_FragColor=vec4(c,tx.a);", "gl_FragColor=vec4(c,tx.a*uFade);")
+    .replace("gl_FragColor=vec4(c,1.0);", "gl_FragColor=vec4(c,uFade);");
+  return m;
+}
+// called once for every enemy as it spawns: all of its materials get uFade, and e.fadeMats lists them
+function prepEnemyFade(e) {
+  const mats = new Set();
+  e.root.traverse((o) => {
+    if (o.isMesh && o.material.uniforms && o.material.uniforms.map)
+      mats.add(addFade(o.material));
+  });
+  e.fadeMats = [...mats];
+  e.alpha = 1;
+}
+// while fading, the materials blend and stop writing depth; afterwards they go back to what they were
+function setFadeBlend(e, on) {
+  (e.fadeMats || []).forEach((m) => {
+    if (on) {
+      if (!m.userData.fadeBase)
+        m.userData.fadeBase = {
+          transparent: m.transparent,
+          depthWrite: m.depthWrite,
+        };
+      m.transparent = true;
+      m.depthWrite = false;
+    } else if (m.userData.fadeBase) {
+      m.transparent = m.userData.fadeBase.transparent;
+      m.depthWrite = m.userData.fadeBase.depthWrite;
+    }
+  });
+}
+function setEnemyAlpha(e, a) {
+  e.alpha = a;
+  (e.fadeMats || []).forEach((m) => {
+    m.uniforms.uFade.value = a;
+  });
+  if (e.blob && e.blob.material) e.blob.material.opacity = 0.42 * a;
+}
+function startEnemyFade(e, to, dur) {
+  setFadeBlend(e, true);
+  e.fade = { t: 0, dur, from: e.alpha === undefined ? 1 : e.alpha, to };
+}
 function fadeEnemies(dt) {
   for (const e of enemies) {
-    if (!e.fade) continue;
-    e.fade.t += dt;
-    const k = Math.min(1, e.fade.t / e.fade.dur);
-    (e.fadeMats || []).forEach((m) => {
-      m.uniforms.uFade.value = 1 - k;
-    });
-    if (e.blob && e.blob.material) e.blob.material.opacity = 0.42 * (1 - k);
-    if (k >= 1) {
+    const f = e.fade;
+    if (!f) continue;
+    f.t += dt;
+    const k = Math.min(1, f.t / f.dur);
+    setEnemyAlpha(e, f.from + (f.to - f.from) * k);
+    if (k < 1) continue;
+    e.fade = null;
+    if (f.to <= 0) {
       e.rig.visible = false;
       if (e.blob) e.blob.visible = false;
-      e.fade = null;
       e.deathDone = true;
-    }
+    } else setFadeBlend(e, false);
   }
 }
 function startPotion() {
@@ -3354,7 +3538,7 @@ function startHaste() {
     bmToast("NO HASTE POTIONS");
     return;
   }
-  if (pl.haste > 0 || pl.hasteArm) {
+  if (hasStatus(pl, "haste")) {
     bmToast("ALREADY HASTED");
     return;
   }
@@ -3368,16 +3552,16 @@ function startHaste() {
   bt.healed = false;
   bt.haste = true;
   potionKind = "haste";
-  pl.hasteArm = true;
+  giveStatus(pl, "haste");
   play("Drinking_Potion");
 }
-function hasteTag() {
+// what follows 'YOUR TURN' in the turn label: the knight's active statuses ('HASTE 1/2'), then BRACED and the hammer's cooldown
+function turnTags() {
   return (
-    (pl.haste > 0 ? "  HASTE " + (3 - pl.haste) + "/2" : "") +
+    statusTags(pl) +
     (pl.brace ? "  BRACED" : "") +
     (isHammer() && hammerCd > 0 ? "  STUN IN " + hammerCd : "")
   );
-// 'HASTE 1/2', 'HASTE 2/2' while the double turn is on
 }
 function afterPlayerAction() {
   // the player's command has finished: victory, or the enemies' turn
@@ -3390,23 +3574,14 @@ function afterPlayerAction() {
     battleEnd("win");
     return;
   }
-  if (pl.hasteArm) {
-    pl.hasteArm = false;
-    pl.haste = 2;
-  // he just drank a haste potion: the enemies go now, and his NEXT turn is two actions
-  }
-  else if (pl.haste > 0) {
-    // a hasted turn: after the first action he simply acts again, without the enemies going
-    if (pl.render)
-      // (RENDER hands the turn over while he holds the swing, so no second action there)
-      pl.haste = 0;
-    else {
-      pl.haste--;
-      if (pl.haste > 0) {
-        setTurnLabel("YOUR TURN" + hasteTag());
-        return;
-      }
-    }
+  // RENDER hands the turn over while he holds the swing, so no second action there
+  if (pl.render) clearStatus(pl, "haste");
+  // statuses that count his actions (haste): after the first action of a hasted turn he simply acts again, without the enemies going.
+  // (the action that drank the potion does not count, see skipFirstTick: the enemies go now, and his NEXT turn is two actions)
+  const ticked = tickStatuses([pl], "playerAction");
+  if (ticked && hasStatus(pl, "haste")) {
+    setTurnLabel("YOUR TURN" + turnTags());
+    return;
   }
   startEnemyPhase();
 }
@@ -3415,11 +3590,11 @@ function startEnemyPhase() {
   btBegin("enemy");
   ep = { i: -1, stage: 9, t: 0, e: null };
   setTurnLabel("ENEMY TURN", "foe");
-  // MORNINGSTAR: bleeding enemies take their damage first (stage 8 waits a beat so it can be seen; a bleed-out can end the fight)
-  const bl = bleedTick();
-  if (bl) {
+  // statuses that count enemy turns (bleed) hit first: stage 8 waits a beat so it can be seen (a bleed-out can end the fight)
+  const ticked = tickStatuses(enemies, "enemyTurn");
+  if (ticked) {
     ep.stage = 8;
-    ep.wait = bl === 2 ? BLEED_KILL_BEAT : BLEED_BEAT;
+    ep.wait = ticked === 2 ? STATUS_KILL_BEAT : STATUS_BEAT;
   }
 }
 function epNext() {
@@ -3479,10 +3654,10 @@ function endEnemyPhase() {
   turn = "player";
   if (!pl.dead) play(idleName());
   btEnd(true);
-  setTurnLabel("YOUR TURN" + hasteTag());
+  setTurnLabel("YOUR TURN" + turnTags());
 }
-function bleedFinish() {
-  // every enemy of the wave bled out during the enemy turn: the knight stands down, then the next wave or the victory
+function statusKillFinish() {
+  // every enemy of the wave died of a status (bleed) during the enemy turn: the knight stands down, then the next wave or the victory
   ep = null;
   pl.guard = false;
   pl.buf = false;
@@ -3656,7 +3831,7 @@ function updateEnemyPhase(dt) {
     if (enemies.length && enemies.every((e) => e.dead)) {
       // the last enemy bled out: wait for its fall to finish, then the same ending as a killing blow
       if (!enemies.every((e) => e.deathDone) && ep.t < ep.wait + 4) return;
-      bleedFinish();
+      statusKillFinish();
       return;
     }
     ep.stage = 9;
