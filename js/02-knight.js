@@ -10,7 +10,13 @@ let invCust = false,
   invPrev = null,
   invCur = 0,
   // inventory (main menu > INVENTORY)
-  invUi = null;
+  invUi = null,
+  // the EFFECTS page (inventory > EFFECTS): invFx = it is showing (or sliding in), invFxT = slide progress 0..1 in time, invFxK = the same, eased; viewSlide = how far (in screen widths) the picture has been pushed off to the left
+  invFx = false,
+  invFxT = 0,
+  invFxK = 0,
+  fxUi = null,
+  viewSlide = 0;
 let editOn = false,
   // (EDIT mode, see editStart: declared up here because showWeapons and the frame loop look at them)
   editRoll = 0;

@@ -91,7 +91,11 @@ const invDrink = {
 const _invHand = new THREE.Vector3();
 function invDrinkWant() {
   const it =
-    invOn && !invCust && INV_TABS[invTab].t === "ITEMS" && invList()[invCur];
+    invOn &&
+    !invCust &&
+    !invFx &&
+    INV_TABS[invTab].t === "ITEMS" &&
+    invList()[invCur];
   return !!it && it.icon === "potion";
 }
 function invDrinkSync() {
@@ -199,6 +203,17 @@ function invStep(dt) {
       invDrink.k * invK,
     );
   // the camera looks at the hand holding the bottle
+  }
+  // the EFFECTS page: one timer drives the inventory panels, the effects panels AND the camera, so the knight leaves with the page
+  {
+    const g = invFx && invOn ? 1 : 0;
+    if (invFxT !== g)
+      invFxT =
+        g > invFxT
+          ? Math.min(1, invFxT + dt / INV_FX_TIME)
+          : Math.max(0, invFxT - dt / INV_FX_TIME);
+    invFxK = invFxT * invFxT * (3 - 2 * invFxT);
+    invFxApply();
   }
   invCustK += ((invCust ? 1 : 0) - invCustK) * (1 - Math.exp(-dt * 6));
   if (Math.abs((invCust ? 1 : 0) - invCustK) < 0.002)
@@ -820,14 +835,14 @@ function invBuild() {
   const st = document.createElement("style");
   st.textContent = `
 #invui{position:fixed;left:3vw;right:3vw;top:4vh;bottom:4vh;display:grid;grid-template-columns:minmax(0,min(31vw,430px)) minmax(0,1fr) minmax(0,min(30vw,420px));grid-template-rows:auto minmax(0,1fr) auto;gap:12px;font-size:min(26px,3.8vh);letter-spacing:.12em;color:var(--ui-text);text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15}
-#invui.on{opacity:1}#invui.on>*{pointer-events:auto}
+#invui.on{opacity:1}#invui.on>*{pointer-events:auto}#invui.fx>*{pointer-events:none!important}
 #invui .ip{box-sizing:border-box;border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35)}
 #invui button{font:inherit;letter-spacing:inherit;color:inherit;text-shadow:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:left}
 #invtop{grid-column:1/4;display:flex;align-items:center;gap:16px;padding:6px 16px}
 #invtop .ttl{flex:0 0 auto}#invtop #inv-spin{margin-left:auto}#inv-tabs{flex:1;display:flex;justify-content:center;align-items:center;gap:8px}
 #invui .ik{display:inline-block;min-width:1.3em;text-align:center;font-size:.7em;padding:0 4px;border:2px solid var(--ui-edge);background:rgba(0,0,0,.4);color:var(--ui-dim)}
 #invui .it{padding:2px 22px;border:2px solid transparent;color:var(--ui-dim)}#invui .it.on{color:#fff;border-color:var(--ui-edge);background:var(--ui-hi)}
-#inv-cust,#inv-spin{font-size:.62em!important;padding:2px 10px!important;border:2px solid var(--ui-edge)!important;background:rgba(0,0,0,.35)!important;letter-spacing:.1em!important;flex:0 0 auto}#inv-tabs{margin-left:0}
+#inv-cust,#inv-spin,#inv-fx{font-size:.62em!important;padding:2px 10px!important;border:2px solid var(--ui-edge)!important;background:rgba(0,0,0,.35)!important;letter-spacing:.1em!important;flex:0 0 auto}#inv-tabs{margin-left:0}
 #invleft{grid-column:1;grid-row:2;display:flex;flex-direction:column;position:relative;padding:9px;min-height:0}
 #inv-subs{display:flex;align-items:center;gap:6px;padding-bottom:6px;margin-bottom:6px;border-bottom:2px solid var(--ui-edge)}
 #invui .is{padding:0 14px;border:2px solid transparent;color:var(--ui-dim)}#invui .is.on{color:#fff;border-color:var(--ui-edge);background:var(--ui-hi)}#invui .ih{padding:0 6px}
@@ -862,16 +877,19 @@ function invBuild() {
   invUi = document.createElement("div");
   invUi.id = "invui";
   invUi.innerHTML =
-    '<div id="invtop" class="ip"><span class="ttl">INVENTORY</span><div id="inv-tabs"></div><span id="inv-gold" style="color:#f0c030;white-space:nowrap;margin:0 .8em"></span><button type="button" id="inv-spin">TURNTABLE: OFF</button><button type="button" id="inv-cust">CUSTOMIZE</button></div>' +
+    '<div id="invtop" class="ip"><span class="ttl">INVENTORY</span><div id="inv-tabs"></div><span id="inv-gold" style="color:#f0c030;white-space:nowrap;margin:0 .8em"></span><button type="button" id="inv-spin">TURNTABLE: OFF</button><button type="button" id="inv-fx">EFFECTS</button><button type="button" id="inv-cust">CUSTOMIZE</button></div>' +
     '<div id="invleft" class="ip"><div id="inv-subs"></div><div id="inv-list"></div><div id="inv-count"></div></div>' +
     '<div id="invright" class="ip"><div id="inv-det"></div></div>' +
-    '<div id="invhint" class="ip"><span>Q / E: TABS</span><span>A / D: TYPE</span><span>W / S: SELECT</span><span>ENTER / CLICK: EQUIP</span><span>T: TURNTABLE</span><span>C: CUSTOMIZE</span><span>ESC: BACK</span></div>';
+    '<div id="invhint" class="ip"><span>Q / E: TABS</span><span>A / D: TYPE</span><span>W / S: SELECT</span><span>ENTER / CLICK: EQUIP</span><span>T: TURNTABLE</span><span>F: EFFECTS</span><span>C: CUSTOMIZE</span><span>ESC: BACK</span></div>';
   invUi.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b || !invUi.contains(b)) return;
     if (b.id === "inv-cust") {
       blip(880, 0.09);
       invShowCust();
+    } else if (b.id === "inv-fx") {
+      blip(880, 0.09);
+      invShowFx();
     } else if (b.id === "inv-spin") {
       blip(620, 0.06);
       toggleSpin();
@@ -909,6 +927,246 @@ function invShowInv() {
   invUi.classList.add("on");
   invPreview();
   invRefresh();
+}
+/* ---------- EFFECTS page (inventory > EFFECTS, or F) ----------
+ The button between TURNTABLE and CUSTOMIZE slides the WHOLE inventory page off to the left - the knight too, the camera is pushed by the same amount (viewSlide) - and the effects page slides in from the right, like turning to the next slide of a presentation.
+ INV_FX_TIME = how long the slide takes (s). The page has three panels, one per FX_SECTIONS entry: ULTIMATE MOVES, STATUS EFFECTS, POTION EFFECTS.
+ TO ADD ONE: add an entry to that section's items in fxData(): t (name), kind (small line under it), ac (its accent colour), stats (rows of [label, value]), desc, and by: the item ids it comes from (the same ids as the inventory: "sword" "hatchet" ... "axe" "shovel" | "potion" "haste").
+ A weapon or potion you do not own yet is still listed under APPLIED BY, but dimmed. */
+const INV_FX_TIME = 0.55;
+function fxData() {
+  const pct = (x) => Math.round(x * 100) + "%";
+  return [
+    {
+      t: "ULTIMATE MOVES",
+      note: "PICKED IN BATTLE",
+      items: [
+        {
+          t: "RENDER",
+          kind: "ULTIMATE / HEAVY WEAPON",
+          ac: "#ffe27a",
+          stats: [
+            ["DAMAGE", RENDER_DAMAGE + " TO ALL"],
+            ["GUARD", "-" + pct(RENDER_GUARD) + " DAMAGE TAKEN"],
+            ["FOUND IN", "ACTIONS MENU"],
+          ],
+          desc: "One heavy swing, brought all the way around, that hits every enemy at once. He stays braced afterwards, so the blows that follow land softer.",
+          by: ["axe", "shovel"],
+        },
+        {
+          t: "KNIGHT LIGHT",
+          kind: "ULTIMATE / LIGHT WEAPON",
+          ac: "#ffe27a",
+          stats: [
+            ["DAMAGE", "" + KL_DAMAGE],
+            ["GAUGE", KL_MAX + " NOTCHES"],
+            ["FOUND IN", "ATTACK MENU"],
+          ],
+          desc: "The Knightly Sword's Heavy Combo, with its swing of every colour. Each command you use fills one notch of the gauge; when it is full, KNIGHT LIGHT can be used, and it empties again.",
+          by: ["knightly"],
+        },
+      ],
+    },
+    {
+      t: "STATUS EFFECTS",
+      note: "PUT ON ENEMIES",
+      items: [
+        {
+          t: "BLEED",
+          kind: "DAMAGE OVER TIME",
+          ac: "#e04848",
+          stats: [
+            ["CHANCE", pct(MORNINGSTAR_BLEED_CHANCE) + " PER CARVE / BLOCK"],
+            ["DAMAGE", STATUS.bleed.damage + " PER TURN"],
+            ["LASTS", STATUS.bleed.turns + " ENEMY TURNS"],
+          ],
+          desc: "A wound that will not close. The enemy loses health at the start of each of its next turns. Landing it again restarts the count.",
+          by: ["morningstar"],
+        },
+        {
+          t: "STUN",
+          kind: "SKIP A TURN",
+          ac: "#6aa8ff",
+          stats: [
+            ["EFFECT", "SKIPS NEXT SWING"],
+            ["COOLDOWN", "EVERY " + (HAMMER_STUN_CD + 1) + "RD TURN AT MOST"],
+            ["NOT ON", "THE LAST ENEMY"],
+          ],
+          desc: "A hit that rattles its target so badly that it misses its next swing.",
+          by: ["hammer"],
+        },
+      ],
+    },
+    {
+      t: "POTION EFFECTS",
+      note: "PUT ON THE KNIGHT",
+      items: [
+        {
+          t: "HASTE",
+          kind: "ACTS TWICE",
+          ac: "#5fd07a",
+          stats: [
+            ["EFFECT", STATUS.haste.turns + " ACTIONS NEXT TURN"],
+            ["GAUGE", "BOTH FILL KNIGHT LIGHT"],
+            ["STOCK", HASTE_COUNT + " PER BATTLE"],
+          ],
+          desc: "A fizzing green draught. Drinking it uses your turn, but then the enemies wait while he acts twice in a row.",
+          by: ["haste"],
+        },
+      ],
+    },
+  ];
+}
+// the inventory row (icon, name, rarity) for an item id
+function fxItem(id) {
+  for (const T of INV_TABS) for (const it of T.items) if (itemId(it) === id) return it;
+  return null;
+}
+function fxChip(id) {
+  const it = fxItem(id);
+  if (!it) return "";
+  return (
+    '<span class="fxchip' +
+    (owns(id) ? "" : " lock") +
+    '" style="--rc:' +
+    invRar(it).color +
+    '" title="' +
+    (owns(id) ? "" : "NOT OWNED YET") +
+    '"><span class="fxi">' +
+    invIcon(it.icon) +
+    "</span>" +
+    it.t +
+    "</span>"
+  );
+}
+function fxRefresh() {
+  if (!fxUi) return;
+  fxUi.classList.toggle("rar", rarityBold);
+  fxUi.querySelector("#fxbody").innerHTML = fxData()
+    .map(
+      (sec) =>
+        '<div class="fxp ip"><div class="fxh">' +
+        sec.t +
+        "<small>" +
+        sec.note +
+        '</small></div><div class="fxl">' +
+        sec.items
+          .map((c) => {
+            const first = fxItem(c.by[0]);
+            return (
+              '<div class="fxc" style="--ac:' +
+              c.ac +
+              '"><div class="fxch"><span class="fxi">' +
+              invIcon(first ? first.icon : "potion") +
+              '</span><div><div class="fxn">' +
+              c.t +
+              '</div><div class="fxk">' +
+              c.kind +
+              "</div></div></div>" +
+              c.stats
+                .map(
+                  (r) =>
+                    '<div class="idr"><span>' +
+                    r[0] +
+                    "</span><span>" +
+                    r[1] +
+                    "</span></div>",
+                )
+                .join("") +
+              '<div class="idd">' +
+              c.desc +
+              '</div><div class="fxa">APPLIED BY</div><div class="fxw">' +
+              c.by.map(fxChip).join("") +
+              "</div></div>"
+            );
+          })
+          .join("") +
+        "</div></div>",
+    )
+    .join("");
+}
+function fxBuild() {
+  if (fxUi) return;
+  const st = document.createElement("style");
+  st.textContent = `
+#fxui{position:fixed;left:3vw;right:3vw;top:4vh;bottom:4vh;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:12px;font-size:min(26px,3.8vh);letter-spacing:.12em;color:var(--ui-text);text-shadow:3px 3px 0 #000;opacity:0;transition:opacity .6s;pointer-events:none;z-index:15;visibility:hidden;will-change:transform}
+#fxui.on{opacity:1}#fxui>*{pointer-events:none}#fxui.show>*{pointer-events:auto}
+#fxui .ip{box-sizing:border-box;border:3px solid var(--ui-edge);background:var(--ui-panel);box-shadow:0 0 0 3px #000,inset 0 0 0 3px rgba(0,0,0,.35)}
+#fxui button{font:inherit;letter-spacing:inherit;color:inherit;text-shadow:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:left}
+#fxtop{display:flex;align-items:center;gap:16px;padding:6px 16px}#fxtop .ttl{flex:0 0 auto}#fxtop .fxsub{flex:1;text-align:center;font-size:.62em;color:var(--ui-dim)}
+#fx-back{flex:0 0 auto;font-size:.62em!important;padding:2px 10px!important;border:2px solid var(--ui-edge)!important;background:rgba(0,0,0,.35)!important;letter-spacing:.1em!important}
+#fxbody{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;min-height:0}
+#fxui .fxp{display:flex;flex-direction:column;min-height:0;padding:9px}
+#fxui .fxh{padding:0 6px 6px;margin-bottom:8px;border-bottom:2px solid var(--ui-edge);color:#fff}#fxui .fxh small{display:block;font-size:.5em;letter-spacing:.3em;color:var(--ui-dim)}
+#fxui .fxl{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--ui-edge) transparent;display:flex;flex-direction:column;gap:12px}
+#fxui .fxc{box-sizing:border-box;padding:8px 10px;border:2px solid var(--ui-edge);border-left:6px solid var(--ac);background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 18%,transparent),transparent 80%),rgba(0,0,0,.25)}
+#fxui .fxch{display:flex;align-items:center;gap:10px;padding-bottom:6px;margin-bottom:6px;border-bottom:2px solid var(--ui-edge)}
+#fxui .fxi{flex:0 0 auto;display:inline-block;width:1.5em;height:1.5em;padding:3px;box-sizing:border-box;border:2px solid var(--ac,var(--ui-edge));background:rgba(0,0,0,.4);color:var(--ac,#fff)}
+#fxui .fxi .wico{background:var(--ac,#fff)}
+#fxui .fxn{font-size:1.1em;color:var(--ac)}#fxui .fxk{font-size:.6em;color:var(--ui-dim)}
+#fxui .idr{display:flex;justify-content:space-between;gap:12px;font-size:.7em;padding:2px 0}#fxui .idr span:last-child{color:#fff;text-align:right}
+#fxui .idd{font-size:.68em;line-height:1.25;margin-top:8px;padding-top:6px;border-top:2px solid var(--ui-edge);letter-spacing:.06em;color:var(--ui-text2)}
+#fxui .fxa{font-size:.55em;letter-spacing:.3em;color:var(--ui-dim);margin-top:10px}
+#fxui .fxw{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+#fxui .fxchip{display:inline-flex;align-items:center;gap:6px;font-size:.62em;padding:2px 8px 2px 3px;border:2px solid var(--ui-edge);background:rgba(0,0,0,.45);color:#fff}
+#fxui .fxchip .fxi{width:1.6em;height:1.6em;border-color:var(--ui-edge);color:#fff}#fxui .fxchip .fxi .wico{background:#fff}
+#fxui.rar .fxchip{border-color:var(--rc);color:var(--rc)}#fxui.rar .fxchip .fxi{border-color:var(--rc)}#fxui.rar .fxchip .fxi .wico{background:var(--rc)}
+#fxui .fxchip.lock{opacity:.4}
+#fxhint{display:flex;justify-content:center;gap:2.2em;flex-wrap:wrap;padding:4px 14px;font-size:.62em;color:var(--ui-dim)}
+@media (max-aspect-ratio:9/10){#fxui{font-size:min(22px,3.4vh)}#fxbody{display:flex;flex-direction:column;overflow-y:auto}#fxui .fxp{flex:0 0 auto}#fxui .fxl{overflow:visible}#fxtop .fxsub,#fxhint{display:none}}`;
+  document.head.appendChild(st);
+  fxUi = document.createElement("div");
+  fxUi.id = "fxui";
+  fxUi.innerHTML =
+    '<div id="fxtop" class="ip"><span class="ttl">EFFECTS</span><span class="fxsub">ULTIMATE MOVES / STATUS EFFECTS / POTION EFFECTS</span><button type="button" id="fx-back">&#9664; INVENTORY</button></div>' +
+    '<div id="fxbody"></div>' +
+    '<div id="fxhint" class="ip"><span>W / S: SCROLL</span><span>F / A / ESC: BACK TO INVENTORY</span></div>';
+  fxUi.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (b && b.id === "fx-back") {
+      blip(300, 0.08);
+      invHideFx();
+    }
+  });
+  document.body.appendChild(fxUi);
+}
+function fxScroll(d) {
+  if (!fxUi) return;
+  const body = fxUi.querySelector("#fxbody");
+  [body, ...fxUi.querySelectorAll(".fxl")].forEach((el) => {
+    el.scrollTop += d * 60;
+  });
+}
+// puts the inventory and the effects page (and the picture behind them) where the slide has got to
+function invFxApply() {
+  viewSlide = invFxK;
+  if (invUi)
+    invUi.style.transform =
+      invFxK > 0 ? "translateX(" + -invFxK * 100 + "vw)" : "";
+  if (fxUi) {
+    fxUi.style.transform =
+      invFxK < 1 ? "translateX(" + (1 - invFxK) * 100 + "vw)" : "";
+    fxUi.style.visibility = invFxK > 0 ? "visible" : "hidden";
+  }
+}
+function invShowFx() {
+  if (!invOn || invCust || invFx) return;
+  invFx = true;
+  invDrinkSync();
+  // (the potion inspection lets go)
+  invUi.classList.add("fx");
+  fxBuild();
+  fxRefresh();
+  fxUi.scrollTop = 0;
+  fxUi.classList.add("on", "show");
+}
+function invHideFx() {
+  if (!invFx) return;
+  invFx = false;
+  invUi.classList.remove("fx");
+  if (fxUi) fxUi.classList.remove("show");
+  invRefresh();
+  // (the potion inspection comes back if he is on it)
 }
 function openInventory() {
   if (invOn || exploring || mapMode) return;
@@ -961,6 +1219,13 @@ function closeInventory() {
   invOn = false;
   invCust = false;
   invUi.classList.remove("on");
+  // closing while the EFFECTS page is showing: put the slide back at once
+  invFx = false;
+  invFxT = 0;
+  invFxK = 0;
+  invUi.classList.remove("fx");
+  if (fxUi) fxUi.classList.remove("show", "on");
+  invFxApply();
   if (todHold) {
     todHold = null;
     lookSnap = true;
@@ -981,6 +1246,35 @@ addEventListener("keydown", (e) => {
   const k = e.key;
   // this key is the inventory's alone: otherwise, once it closes the inventory, the main menu's own handler sees the same key press (Escape = back to the START SCREEN, Enter = a menu item)
   e.stopImmediatePropagation();
+  if (invFx) {
+    // the EFFECTS page: ESC / F / A / left arrow slide back to the inventory, W / S scroll
+    if (
+      k === "Escape" ||
+      k === "Backspace" ||
+      k === "f" ||
+      k === "F" ||
+      k === "a" ||
+      k === "A" ||
+      k === "ArrowLeft"
+    ) {
+      e.preventDefault();
+      blip(300, 0.08);
+      invHideFx();
+    } else if (k === "ArrowDown" || k === "s" || k === "S") {
+      e.preventDefault();
+      fxScroll(1);
+    } else if (k === "ArrowUp" || k === "w" || k === "W") {
+      e.preventDefault();
+      fxScroll(-1);
+    }
+    return;
+  }
+  if (k === "f" || k === "F") {
+    e.preventDefault();
+    blip(880, 0.09);
+    invShowFx();
+    return;
+  }
   if (k === "c" || k === "C") {
     e.preventDefault();
     invShowCust();

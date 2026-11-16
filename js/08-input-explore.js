@@ -141,8 +141,10 @@ function applyView() {
     asp = W / Hh,
     k = mapViewK;
   if (exploring) camera.setViewOffset(W, Hh, 0, 0, W, Hh);
-  else if (asp >= 0.9) camera.setViewOffset(W, Hh, -W * 0.2 * k, 0, W, Hh);
-  else camera.setViewOffset(W, Hh, 0, Hh * 0.17 * k, W, Hh);
+  // viewSlide (the inventory's EFFECTS page): pushes the whole picture, knight included, off to the left
+  else if (asp >= 0.9)
+    camera.setViewOffset(W, Hh, -W * 0.2 * k + W * viewSlide, 0, W, Hh);
+  else camera.setViewOffset(W, Hh, W * viewSlide, Hh * 0.17 * k, W, Hh);
   camera.updateProjectionMatrix();
 }
 function resize() {
