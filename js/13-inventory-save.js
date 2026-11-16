@@ -863,8 +863,16 @@ function openInventory() {
 function closeInventory() {
   if (!invOn) return;
   invOn = false;
+  // closing while he is still inspecting the potion: drop the inspection on the spot (no playing out the drink), so the play() below sits him down in Pose2 at once
+  const wasInspecting = invDrink.on;
+  if (wasInspecting) {
+    const a = actions.UALX_ConsumeM;
+    invDrink.on = false;
+    invDrink.release = false;
+    invDrink.next = null;
+    if (a) a.paused = false;
+  }
   invDrinkSync();
-  // a potion inspection plays out first (play() below is queued until it ends)
   invOn = true;
   // a weapon that was only previewed goes back to the one he really has equipped
   invApply(invCommit);
@@ -883,6 +891,7 @@ function closeInventory() {
   invHid = [];
   // the world comes back and he returns to the pose he was in
   if (invPrev && invPrev.clip && actions[invPrev.clip]) play(invPrev.clip);
+  else if (wasInspecting && actions[SEAT_CLIP]) play(SEAT_CLIP);
   document.body.classList.remove("map");
 }
 addEventListener("keydown", (e) => {
