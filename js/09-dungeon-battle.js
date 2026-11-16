@@ -1337,7 +1337,7 @@ function playSlimeSfx(kind) {
   else if (kind === "win") playSfxSet("slime-win-sfx-data", 0, 0.9, 1, 0);
 }
 /* ---------- WAVES + the new enemies: TREELING and SPORELING ----------
- dg.waves (each dungeon's own list, in DUNGEONS) = the fights in a row, left to right as the enemy ring lays out (slots 0, 1, 2): 'slime', 'golem', or 'mob' (a skeleton now (it took the treeling's and the sporeling's place; see SKELETON below)).
+ dg.waves (each dungeon's own list, in DUNGEONS) = the fights in a row, left to right as the enemy ring lays out (slots 0, 1, 2): 'slime', 'golem', or 'mob' (in the ruins a random sporeling or treeling, in the tomb a skeleton; see SKELETON below)).
  When a wave is cleared the next one appears after a short pause; the knight keeps his HP. The last wave being cleared is the win (the chest). MOBS = name, hit points, and height as a fraction
  of the knight's. Their model files bring their own Idle, Hit and atk clips; they fight like the golem (same hit timing rule: halfway through atk, same sounds for now). */
 const MOBS = {
@@ -1838,7 +1838,10 @@ function spawnEnemies(opts) {
       enemies.push(en);
       continue;
     }
-    if (lay[k] === "mob" && spawnSkeleton(k, sx, sz, H, th)) continue;
+    // the ruins' mobs are sporelings and treelings (picked at random in spawnMob); the tomb keeps its skeletons
+    if (lay[k] === "mob") {
+      if (dg === DUNGEONS.ruins ? spawnMob(k, sx, sz, H, th) : spawnSkeleton(k, sx, sz, H, th)) continue;
+    }
     if (lay[k] === "golem" && golemReady()) {
       // the ruins' knight is a golem now: same HP, same damage
       const root = golemScene.clone(true),
